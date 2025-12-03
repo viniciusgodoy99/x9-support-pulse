@@ -14,7 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      monitored_groups: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sla_limit_minutes: number
+          updated_at: string
+          whatsapp_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sla_limit_minutes?: number
+          updated_at?: string
+          whatsapp_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sla_limit_minutes?: number
+          updated_at?: string
+          whatsapp_id?: string
+        }
+        Relationships: []
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          phone_number: string
+          role: Database["public"]["Enums"]["team_role"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          phone_number: string
+          role?: Database["public"]["Enums"]["team_role"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone_number?: string
+          role?: Database["public"]["Enums"]["team_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tickets: {
+        Row: {
+          created_at: string
+          customer_name: string | null
+          customer_phone: string | null
+          first_response_at: string | null
+          group_id: string
+          id: string
+          notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          sentiment: string | null
+          status: Database["public"]["Enums"]["ticket_status"]
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          first_response_at?: string | null
+          group_id: string
+          id?: string
+          notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sentiment?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"]
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          first_response_at?: string | null
+          group_id?: string
+          id?: string
+          notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sentiment?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "monitored_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +139,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      team_role: "CS" | "Manager" | "Support" | "Admin"
+      ticket_status: "open" | "resolved"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +267,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      team_role: ["CS", "Manager", "Support", "Admin"],
+      ticket_status: ["open", "resolved"],
+    },
   },
 } as const

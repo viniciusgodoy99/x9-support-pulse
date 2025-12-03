@@ -149,6 +149,43 @@ All colors MUST be HSL.
   }
 }
 
+/* SLA Status Colors */
+@layer base {
+  :root {
+    --sla-ok: 142 76% 36%;
+    --sla-ok-foreground: 143 76% 97%;
+    --sla-warning: 38 92% 50%;
+    --sla-warning-foreground: 38 92% 10%;
+    --sla-critical: 0 84% 60%;
+    --sla-critical-foreground: 0 85% 97%;
+  }
+  
+  .dark {
+    --sla-ok: 142 70% 45%;
+    --sla-ok-foreground: 143 76% 97%;
+    --sla-warning: 38 92% 50%;
+    --sla-warning-foreground: 38 92% 10%;
+    --sla-critical: 0 84% 60%;
+    --sla-critical-foreground: 0 85% 97%;
+  }
+}
+
+/* Pulse animation for critical SLA */
+@keyframes sla-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 hsl(var(--sla-critical) / 0.4);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 20px 5px hsl(var(--sla-critical) / 0.3);
+  }
+}
+
+.animate-sla-pulse {
+  animation: sla-pulse 1.5s ease-in-out infinite;
+}
+
 @layer base {
   * {
     @apply border-border;
