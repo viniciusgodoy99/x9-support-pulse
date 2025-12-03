@@ -65,6 +65,18 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Evolution API error:", response.status, errorText);
+      
+      // Handle specific error cases
+      if (response.status === 404) {
+        // Check if it's a rate limit or no participants issue
+        if (errorText.includes("rate-overlimit")) {
+          throw new Error("Rate limit atingido na Evolution API. Aguarde alguns minutos e tente novamente.");
+        }
+        if (errorText.includes("No participants")) {
+          throw new Error("Não foi possível obter participantes deste grupo. O grupo pode estar inacessível.");
+        }
+        throw new Error("Grupo não encontrado na Evolution API.");
+      }
       throw new Error(`Evolution API error: ${response.status}`);
     }
 
