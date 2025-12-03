@@ -28,6 +28,103 @@ interface WebhookPayload {
   };
 }
 
+interface GroupParticipant {
+  id: string;
+  admin?: string;
+}
+
+// Fetch group participants from Evolution API
+async function fetchGroupParticipants(groupJid: string): Promise<GroupParticipant[]> {
+  const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
+  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
+  const evolutionInstance = Deno.env.get("EVOLUTION_INSTANCE_NAME");
+
+  if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
+    console.error("Evolution API credentials not configured");
+    return [];
+  }
+
+  try {
+    const url = `${evolutionApiUrl}/group/participants/${evolutionInstance}?groupJid=${groupJid}`;
+    console.log("Fetching participants from:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "apikey": evolutionApiKey,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Evolution API error:", response.status, errorText);
+      return [];
+    }
+
+    const data = await response.json();
+    console.log("Participants response:", JSON.stringify(data, null, 2));
+    
+    // Evolution API returns participants in different formats depending on version
+    return data.participants || data || [];
+  } catch (error) {
+    console.error("Error fetching participants:", error);
+    return [];
+  }
+}
+
+// Sync group members to database
+async function syncGroupMembers(
+  supabase: any,
+  groupId: string,
+  participants: GroupParticipant[]
+) {
+  console.log(`Syncing ${participants.length} participants for group ${groupId}`);
+
+  for (const participant of participants) {
+    const whatsappId = participant.id;
+    const phoneNumber = whatsappId.split("@")[0];
+    const isAdmin = participant.admin === "admin" || participant.admin === "superadmin";
+
+    // Check if member already exists
+    const { data: existingMember } = await supabase
+      .from("group_members")
+      .select("id")
+      .eq("group_id", groupId)
+      .eq("whatsapp_id", whatsappId)
+      .maybeSingle();
+
+    if (!existingMember) {
+      // Insert new member
+      const { error: insertError } = await supabase
+        .from("group_members")
+        .insert({
+          group_id: groupId,
+          whatsapp_id: whatsappId,
+          phone_number: phoneNumber,
+          is_admin: isAdmin,
+          role: "unknown",
+        });
+
+      if (insertError) {
+        console.error("Error inserting group member:", insertError);
+      } else {
+        console.log("Added new group member:", phoneNumber);
+      }
+    } else {
+      // Update admin status if changed
+      const { error: updateError } = await supabase
+        .from("group_members")
+        .update({ is_admin: isAdmin })
+        .eq("id", existingMember.id);
+
+      if (updateError) {
+        console.error("Error updating group member:", updateError);
+      }
+    }
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -89,7 +186,47 @@ serve(async (req) => {
 
     console.log("Found monitored group:", group.name);
 
-    // Check if sender is a team member
+    // Check if we need to sync group members (first time or no members)
+    const { data: existingMembers, error: membersError } = await supabase
+      .from("group_members")
+      .select("id")
+      .eq("group_id", group.id)
+      .limit(1);
+
+    if (!membersError && (!existingMembers || existingMembers.length === 0)) {
+      console.log("First message from this group, fetching participants...");
+      const participants = await fetchGroupParticipants(remoteJid);
+      if (participants.length > 0) {
+        await syncGroupMembers(supabase, group.id, participants);
+      }
+    }
+
+    // Update sender info in group_members if exists
+    const { data: senderMember } = await supabase
+      .from("group_members")
+      .select("id, name")
+      .eq("group_id", group.id)
+      .eq("whatsapp_id", senderJid)
+      .maybeSingle();
+
+    if (senderMember && !senderMember.name && senderName) {
+      await supabase
+        .from("group_members")
+        .update({ name: senderName })
+        .eq("id", senderMember.id);
+    }
+
+    // Check if sender is a CS (team member) based on group_members role
+    const { data: groupMember } = await supabase
+      .from("group_members")
+      .select("role")
+      .eq("group_id", group.id)
+      .eq("whatsapp_id", senderJid)
+      .maybeSingle();
+
+    const isCS = groupMember?.role === "cs";
+
+    // Also check team_members table for backward compatibility
     const { data: teamMember, error: teamError } = await supabase
       .from("team_members")
       .select("*")
@@ -102,8 +239,8 @@ serve(async (req) => {
       throw teamError;
     }
 
-    const isTeamMember = !!teamMember;
-    console.log("Is team member:", isTeamMember, teamMember?.name);
+    const isTeamMember = !!teamMember || isCS;
+    console.log("Is team member:", isTeamMember, teamMember?.name || (isCS ? "CS from group" : ""));
 
     if (!isTeamMember) {
       // Customer message - check for existing open ticket or create new one
@@ -195,7 +332,7 @@ serve(async (req) => {
           .update({
             status: "resolved",
             resolved_at: new Date().toISOString(),
-            resolved_by: teamMember.id,
+            resolved_by: teamMember?.id || null,
           })
           .eq("id", openTicket.id);
 

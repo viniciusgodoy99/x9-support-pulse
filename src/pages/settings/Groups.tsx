@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { MessageSquare, Plus, Trash2, Edit2, Power } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MessageSquare, Plus, Trash2, Edit2, Power, Users } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { useGroups, type MonitoredGroup } from "@/hooks/useGroups";
 import { toast } from "@/hooks/use-toast";
 
 export default function GroupsSettings() {
+  const navigate = useNavigate();
   const { groups, loading, addGroup, updateGroup, deleteGroup } = useGroups();
   const [isOpen, setIsOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<MonitoredGroup | null>(null);
@@ -232,6 +234,14 @@ export default function GroupsSettings() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                      title="Gerenciar membros"
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
