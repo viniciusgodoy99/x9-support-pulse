@@ -178,6 +178,18 @@ async function autoRegisterGroup(
 ): Promise<{ id: string; is_client_group: boolean } | null> {
   console.log("Auto-registering new group:", remoteJid);
 
+  // First, check if group already exists (race condition protection)
+  const { data: existingGroup } = await supabase
+    .from("monitored_groups")
+    .select("id, is_client_group")
+    .eq("whatsapp_id", remoteJid)
+    .maybeSingle();
+
+  if (existingGroup) {
+    console.log("Group already exists:", existingGroup.id);
+    return { id: existingGroup.id, is_client_group: existingGroup.is_client_group };
+  }
+
   // Try to fetch group info from Evolution API
   const groupInfo = await fetchGroupInfo(remoteJid);
   const groupName = groupInfo?.subject || `Grupo ${remoteJid.split("@")[0].slice(-6)}`;
@@ -199,6 +211,20 @@ async function autoRegisterGroup(
 
   if (createError) {
     console.error("Error creating group:", createError);
+    
+    // If it's a unique constraint error, try to fetch the existing group
+    if (createError.code === '23505') {
+      const { data: existingAfterError } = await supabase
+        .from("monitored_groups")
+        .select("id, is_client_group")
+        .eq("whatsapp_id", remoteJid)
+        .maybeSingle();
+      
+      if (existingAfterError) {
+        console.log("Group was created by another request:", existingAfterError.id);
+        return { id: existingAfterError.id, is_client_group: existingAfterError.is_client_group };
+      }
+    }
     return null;
   }
 
