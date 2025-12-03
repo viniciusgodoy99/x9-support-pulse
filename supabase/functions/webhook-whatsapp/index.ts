@@ -45,7 +45,10 @@ async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string } | 
   }
 
   try {
-    const url = `${evolutionApiUrl}/group/fetchAllGroups/${evolutionInstance}?getParticipants=false`;
+    // Ensure URL has protocol and encode instance name
+    const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
+    const encodedInstance = encodeURIComponent(evolutionInstance);
+    const url = `${baseUrl}/group/fetchAllGroups/${encodedInstance}?getParticipants=false`;
     console.log("Fetching group info from:", url);
 
     const response = await fetch(url, {
@@ -84,7 +87,10 @@ async function fetchGroupParticipants(groupJid: string): Promise<GroupParticipan
   }
 
   try {
-    const url = `${evolutionApiUrl}/group/participants/${evolutionInstance}?groupJid=${groupJid}`;
+    // Ensure URL has protocol and encode instance name
+    const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
+    const encodedInstance = encodeURIComponent(evolutionInstance);
+    const url = `${baseUrl}/group/participants/${encodedInstance}?groupJid=${groupJid}`;
     console.log("Fetching participants from:", url);
 
     const response = await fetch(url, {
