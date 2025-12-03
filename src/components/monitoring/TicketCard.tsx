@@ -69,10 +69,10 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
   return (
     <Card
       className={cn(
-        "transition-all duration-300",
-        slaStatus === "ok" && "border-sla-ok bg-sla-ok/10",
-        slaStatus === "warning" && "border-sla-warning bg-sla-warning/10",
-        slaStatus === "critical" && "border-sla-critical bg-sla-critical/10 animate-sla-pulse"
+        "transition-all duration-300 frosted-glass border-border/50",
+        slaStatus === "ok" && "border-sla-ok/70 bg-sla-ok/15",
+        slaStatus === "warning" && "border-sla-warning/70 bg-sla-warning/15",
+        slaStatus === "critical" && "border-sla-critical/70 bg-sla-critical/15 animate-sla-pulse"
       )}
     >
       <CardHeader className="pb-2">

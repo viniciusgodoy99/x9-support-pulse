@@ -13,7 +13,8 @@ interface StatsCardProps {
 export function StatsCard({ title, value, subtitle, icon: Icon, variant = "default" }: StatsCardProps) {
   return (
     <Card className={cn(
-      "transition-all hover:shadow-md",
+      "transition-all hover:shadow-lg frosted-glass border-border/50",
+      "hover:ice-glow",
       variant === "success" && "border-sla-ok/50",
       variant === "warning" && "border-sla-warning/50",
       variant === "danger" && "border-sla-critical/50"

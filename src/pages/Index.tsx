@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Ticket, Clock, CheckCircle, AlertTriangle, TrendingUp } from "lucide-react";
+import { Ticket, Clock, CheckCircle, AlertTriangle, TrendingUp, Snowflake } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,11 +74,14 @@ export default function Dashboard() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Visão geral do monitoramento de SLA
-          </p>
+        <div className="flex items-center gap-3">
+          <Snowflake className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Visão geral do monitoramento de SLA
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -112,7 +115,7 @@ export default function Dashboard() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <Card>
+          <Card className="frosted-glass border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
@@ -143,7 +146,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="frosted-glass border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-sla-ok" />
