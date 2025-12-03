@@ -48,7 +48,7 @@ async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string } | 
     // Ensure URL has protocol and encode instance name
     const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
     const encodedInstance = encodeURIComponent(evolutionInstance);
-    const url = `${baseUrl}/group/fetchAllGroups/${encodedInstance}?getParticipants=false`;
+    const url = `${baseUrl}/group/findGroupInfos/${encodedInstance}?groupJid=${groupJid}`;
     console.log("Fetching group info from:", url);
 
     const response = await fetch(url, {
@@ -66,9 +66,9 @@ async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string } | 
     }
 
     const data = await response.json();
-    // Find the group in the list
-    const group = data.find((g: any) => g.id === groupJid);
-    return group || null;
+    console.log("Group info response:", JSON.stringify(data, null, 2));
+    // Response is the group object directly with 'subject' field
+    return data || null;
   } catch (error) {
     console.error("Error fetching group info:", error);
     return null;
