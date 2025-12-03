@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 export type GroupMemberRole = "cs" | "client" | "traffic_manager" | "unknown";
 
@@ -47,11 +48,66 @@ export function useGroupMembers(groupId?: string) {
 
   const updateMemberRole = async (memberId: string, role: GroupMemberRole) => {
     try {
-      const { error } = await supabase
+      // Fetch current member to get phone_number and name
+      const { data: member, error: fetchError } = await supabase
+        .from("group_members")
+        .select("phone_number, name")
+        .eq("id", memberId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Update role in current group
+      const { error: updateError } = await supabase
         .from("group_members")
         .update({ role })
         .eq("id", memberId);
-      if (error) throw error;
+
+      if (updateError) throw updateError;
+
+      // If role is "cs", integrate with team_members and sync across all groups
+      if (role === "cs" && member) {
+        // Check if already exists in team_members
+        const { data: existingTeamMember } = await supabase
+          .from("team_members")
+          .select("id")
+          .eq("phone_number", member.phone_number)
+          .maybeSingle();
+
+        if (!existingTeamMember) {
+          // Add to team_members
+          const { error: insertError } = await supabase
+            .from("team_members")
+            .insert({
+              phone_number: member.phone_number,
+              name: member.name || "CS",
+              role: "CS",
+              is_active: true,
+            });
+
+          if (insertError) {
+            console.error("Error adding to team_members:", insertError);
+          } else {
+            toast({
+              title: "Membro adicionado à equipe",
+              description: `${member.name || member.phone_number} foi adicionado à equipe como CS`,
+            });
+          }
+        }
+
+        // Update role to "cs" in ALL groups where this person exists (by phone_number)
+        const { error: syncError } = await supabase
+          .from("group_members")
+          .update({ role: "cs" })
+          .eq("phone_number", member.phone_number);
+
+        if (syncError) {
+          console.error("Error syncing role across groups:", syncError);
+        } else {
+          console.log("Synced CS role across all groups for:", member.phone_number);
+        }
+      }
+
       await fetchMembers();
     } catch (err) {
       console.error("Error updating member role:", err);

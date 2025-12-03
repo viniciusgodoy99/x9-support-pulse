@@ -16,6 +16,7 @@ interface WebhookPayload {
       fromMe: boolean;
       id: string;
       participant?: string;
+      participantAlt?: string; // Real phone number with @s.whatsapp.net
     };
     pushName?: string;
     message?: {
@@ -30,11 +31,12 @@ interface WebhookPayload {
 
 interface GroupParticipant {
   id: string;
+  phoneNumber?: string; // Real phone number: "558494947662@s.whatsapp.net"
   admin?: string;
 }
 
 // Fetch group info from Evolution API
-async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string } | null> {
+async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string; participants?: GroupParticipant[] } | null> {
   const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
   const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
   const evolutionInstance = Deno.env.get("EVOLUTION_INSTANCE_NAME");
@@ -67,7 +69,7 @@ async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string } | 
 
     const data = await response.json();
     console.log("Group info response:", JSON.stringify(data, null, 2));
-    // Response is the group object directly with 'subject' field
+    // Response is the group object directly with 'subject' and 'participants' fields
     return data || null;
   } catch (error) {
     console.error("Error fetching group info:", error);
@@ -75,50 +77,7 @@ async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string } | 
   }
 }
 
-// Fetch group participants from Evolution API
-async function fetchGroupParticipants(groupJid: string): Promise<GroupParticipant[]> {
-  const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const evolutionInstance = Deno.env.get("EVOLUTION_INSTANCE_NAME");
-
-  if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
-    console.error("Evolution API credentials not configured");
-    return [];
-  }
-
-  try {
-    // Ensure URL has protocol and encode instance name
-    const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
-    const encodedInstance = encodeURIComponent(evolutionInstance);
-    const url = `${baseUrl}/group/participants/${encodedInstance}?groupJid=${groupJid}`;
-    console.log("Fetching participants from:", url);
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "apikey": evolutionApiKey,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Evolution API error:", response.status, errorText);
-      return [];
-    }
-
-    const data = await response.json();
-    console.log("Participants response:", JSON.stringify(data, null, 2));
-    
-    // Evolution API returns participants in different formats depending on version
-    return data.participants || data || [];
-  } catch (error) {
-    console.error("Error fetching participants:", error);
-    return [];
-  }
-}
-
-// Sync group members to database
+// Sync group members to database using participants from findGroupInfos
 async function syncGroupMembers(
   supabase: any,
   groupId: string,
@@ -128,18 +87,31 @@ async function syncGroupMembers(
 
   for (const participant of participants) {
     const whatsappId = participant.id;
-    const phoneNumber = whatsappId.split("@")[0];
+    // Use phoneNumber field (real number) if available, otherwise fallback to id
+    const phoneNumber = participant.phoneNumber 
+      ? participant.phoneNumber.replace("@s.whatsapp.net", "")
+      : whatsappId.split("@")[0];
     const isAdmin = participant.admin === "admin" || participant.admin === "superadmin";
 
-    // Check if member already exists
+    // Check if member already exists by whatsapp_id
     const { data: existingMember } = await supabase
       .from("group_members")
-      .select("id")
+      .select("id, phone_number")
       .eq("group_id", groupId)
       .eq("whatsapp_id", whatsappId)
       .maybeSingle();
 
     if (!existingMember) {
+      // Check if the person is already a CS in team_members
+      const { data: teamMember } = await supabase
+        .from("team_members")
+        .select("id, role")
+        .eq("phone_number", phoneNumber)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      const role = teamMember?.role === "CS" ? "cs" : "unknown";
+
       // Insert new member
       const { error: insertError } = await supabase
         .from("group_members")
@@ -148,19 +120,24 @@ async function syncGroupMembers(
           whatsapp_id: whatsappId,
           phone_number: phoneNumber,
           is_admin: isAdmin,
-          role: "unknown",
+          role: role,
         });
 
       if (insertError) {
         console.error("Error inserting group member:", insertError);
       } else {
-        console.log("Added new group member:", phoneNumber);
+        console.log("Added new group member:", phoneNumber, "role:", role);
       }
     } else {
-      // Update admin status if changed
+      // Update admin status and phone_number if changed
+      const updates: any = { is_admin: isAdmin };
+      if (existingMember.phone_number !== phoneNumber) {
+        updates.phone_number = phoneNumber;
+      }
+      
       const { error: updateError } = await supabase
         .from("group_members")
-        .update({ is_admin: isAdmin })
+        .update(updates)
         .eq("id", existingMember.id);
 
       if (updateError) {
@@ -190,7 +167,7 @@ async function autoRegisterGroup(
     return { id: existingGroup.id, is_client_group: existingGroup.is_client_group };
   }
 
-  // Try to fetch group info from Evolution API
+  // Try to fetch group info from Evolution API (includes participants)
   const groupInfo = await fetchGroupInfo(remoteJid);
   const groupName = groupInfo?.subject || `Grupo ${remoteJid.split("@")[0].slice(-6)}`;
 
@@ -230,11 +207,10 @@ async function autoRegisterGroup(
 
   console.log("Group auto-registered:", newGroup.id, "Name:", groupName);
 
-  // Fetch and sync participants
-  const participants = await fetchGroupParticipants(remoteJid);
-  if (participants.length > 0) {
-    await syncGroupMembers(supabase, newGroup.id, participants);
-    console.log(`Synced ${participants.length} members for new group`);
+  // Sync participants from the groupInfo response (has phoneNumber field)
+  if (groupInfo?.participants && groupInfo.participants.length > 0) {
+    await syncGroupMembers(supabase, newGroup.id, groupInfo.participants);
+    console.log(`Synced ${groupInfo.participants.length} members for new group`);
   }
 
   return { id: newGroup.id, is_client_group: false };
@@ -278,8 +254,12 @@ serve(async (req) => {
       );
     }
 
-    const senderJid = payload.data.key.participant || remoteJid;
-    const senderPhone = senderJid.split("@")[0];
+    // Extract real phone number from participantAlt (preferred) or fallback to participant
+    const participantAlt = payload.data.key.participantAlt;
+    const participantId = payload.data.key.participant || remoteJid;
+    const senderPhone = participantAlt 
+      ? participantAlt.replace("@s.whatsapp.net", "")
+      : participantId.split("@")[0];
     const senderName = payload.data.pushName || "Cliente";
     const messageText =
       payload.data.message?.conversation ||
@@ -359,37 +339,32 @@ serve(async (req) => {
       .limit(1);
 
     if (!membersError && (!existingMembers || existingMembers.length === 0)) {
-      console.log("No members found, fetching participants...");
-      const participants = await fetchGroupParticipants(remoteJid);
-      if (participants.length > 0) {
-        await syncGroupMembers(supabase, group.id, participants);
+      console.log("No members found, fetching group info with participants...");
+      const groupInfo = await fetchGroupInfo(remoteJid);
+      if (groupInfo?.participants && groupInfo.participants.length > 0) {
+        await syncGroupMembers(supabase, group.id, groupInfo.participants);
       }
     }
 
-    // Update sender info in group_members if exists
+    // Update sender info in group_members - search by phone_number (not whatsapp_id)
     const { data: senderMember } = await supabase
       .from("group_members")
-      .select("id, name")
+      .select("id, name, role")
       .eq("group_id", group.id)
-      .eq("whatsapp_id", senderJid)
+      .eq("phone_number", senderPhone)
       .maybeSingle();
 
-    if (senderMember && !senderMember.name && senderName) {
+    // Update name if we have pushName
+    if (senderMember && senderName && senderName !== "Cliente") {
       await supabase
         .from("group_members")
         .update({ name: senderName })
         .eq("id", senderMember.id);
+      console.log("Updated member name:", senderPhone, "->", senderName);
     }
 
     // Check if sender is a CS (team member) based on group_members role
-    const { data: groupMember } = await supabase
-      .from("group_members")
-      .select("role")
-      .eq("group_id", group.id)
-      .eq("whatsapp_id", senderJid)
-      .maybeSingle();
-
-    const isCS = groupMember?.role === "cs";
+    const isCS = senderMember?.role === "cs";
 
     // Also check team_members table for backward compatibility
     const { data: teamMember, error: teamError } = await supabase
