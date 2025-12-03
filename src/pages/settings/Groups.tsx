@@ -266,10 +266,6 @@ export default function GroupsSettings() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">WhatsApp ID</p>
-                          <p className="text-sm font-mono truncate">{group.whatsapp_id}</p>
-                        </div>
                         <div className="pt-2">
                           <p className="text-sm text-muted-foreground mb-3">
                             Este grupo é de cliente?
@@ -371,10 +367,6 @@ export default function GroupsSettings() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">WhatsApp ID</p>
-                          <p className="text-sm font-mono truncate">{group.whatsapp_id}</p>
-                        </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Limite de SLA</p>
                           <p className="text-sm font-semibold">
