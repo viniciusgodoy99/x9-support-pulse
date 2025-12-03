@@ -49,7 +49,11 @@ serve(async (req) => {
     console.log("Fetching participants for group:", group.name, group.whatsapp_id);
 
     // Fetch participants from Evolution API
-    const url = `${evolutionApiUrl}/group/participants/${evolutionInstance}?groupJid=${group.whatsapp_id}`;
+    // Ensure URL has protocol and encode instance name
+    const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
+    const encodedInstance = encodeURIComponent(evolutionInstance);
+    const url = `${baseUrl}/group/participants/${encodedInstance}?groupJid=${group.whatsapp_id}`;
+    console.log("Evolution API URL:", url);
     const response = await fetch(url, {
       method: "GET",
       headers: {
