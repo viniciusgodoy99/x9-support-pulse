@@ -67,14 +67,26 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
   };
 
   return (
-    <Card
-      className={cn(
-        "transition-all duration-300 frosted-glass border-border/50",
-        slaStatus === "ok" && "border-sla-ok/70 bg-sla-ok/15",
-        slaStatus === "warning" && "border-sla-warning/70 bg-sla-warning/15",
-        slaStatus === "critical" && "border-sla-critical/70 bg-sla-critical/15 animate-sla-pulse"
+    <div className={cn(
+      "relative",
+      slaStatus === "critical" && "ice-crystal-border ice-frost-corners"
+    )}>
+      {slaStatus === "critical" && (
+        <>
+          <div className="frost-corner frost-corner-tl" />
+          <div className="frost-corner frost-corner-tr" />
+          <div className="frost-corner frost-corner-bl" />
+          <div className="frost-corner frost-corner-br" />
+        </>
       )}
-    >
+      <Card
+        className={cn(
+          "transition-all duration-300 frosted-glass border-border/50 relative z-10",
+          slaStatus === "ok" && "border-sla-ok/70 bg-sla-ok/15",
+          slaStatus === "warning" && "border-sla-warning/70 bg-sla-warning/15",
+          slaStatus === "critical" && "border-sla-critical/70 bg-sla-critical/15 animate-sla-pulse"
+        )}
+      >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
@@ -148,5 +160,6 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
         </Button>
       </CardContent>
     </Card>
+    </div>
   );
 }
