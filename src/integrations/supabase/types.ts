@@ -14,9 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      group_members: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          is_admin: boolean
+          name: string | null
+          phone_number: string
+          role: Database["public"]["Enums"]["group_member_role"]
+          updated_at: string
+          whatsapp_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          is_admin?: boolean
+          name?: string | null
+          phone_number: string
+          role?: Database["public"]["Enums"]["group_member_role"]
+          updated_at?: string
+          whatsapp_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          is_admin?: boolean
+          name?: string | null
+          phone_number?: string
+          role?: Database["public"]["Enums"]["group_member_role"]
+          updated_at?: string
+          whatsapp_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "monitored_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monitored_groups: {
         Row: {
           created_at: string
+          evolution_instance: string | null
           id: string
           is_active: boolean
           name: string
@@ -26,6 +71,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          evolution_instance?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -35,6 +81,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          evolution_instance?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -139,6 +186,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      group_member_role: "cs" | "client" | "traffic_manager" | "unknown"
       team_role: "CS" | "Manager" | "Support" | "Admin"
       ticket_status: "open" | "resolved"
     }
@@ -268,6 +316,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      group_member_role: ["cs", "client", "traffic_manager", "unknown"],
       team_role: ["CS", "Manager", "Support", "Admin"],
       ticket_status: ["open", "resolved"],
     },
