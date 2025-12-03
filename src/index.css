@@ -5,167 +5,167 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Frozen / Snow Theme - All colors MUST be HSL */
 
 @layer base {
   :root {
-    --background: 209 40% 96%;
-    --foreground: 222 47% 11%;
+    /* Icy light background with subtle blue tint */
+    --background: 200 30% 97%;
+    --foreground: 210 50% 15%;
 
-    --card: 210 40% 98%;
-    --card-foreground: 222 47% 11%;
+    /* Frosted glass card effect */
+    --card: 200 40% 99%;
+    --card-foreground: 210 50% 15%;
 
-    --popover: 214 31% 91%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 200 30% 95%;
+    --popover-foreground: 210 50% 15%;
 
-    --primary: 200 98% 39%;
-    --primary-foreground: 204 100% 97%;
+    /* Vibrant ice blue primary */
+    --primary: 195 100% 45%;
+    --primary-foreground: 200 100% 98%;
 
-    --secondary: 215 24% 26%;
-    --secondary-foreground: 210 40% 98%;
+    /* Deep winter blue secondary */
+    --secondary: 210 40% 25%;
+    --secondary-foreground: 200 100% 98%;
 
-    --muted: 215 20% 65%;
-    --muted-foreground: 222 47% 11%;
+    /* Soft frost muted */
+    --muted: 200 25% 88%;
+    --muted-foreground: 210 30% 40%;
 
-    --accent: 210 40% 98%;
-    --accent-foreground: 215 19% 34%;
+    /* Light ice accent */
+    --accent: 190 60% 92%;
+    --accent-foreground: 210 50% 20%;
 
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 85% 97%;
 
-    --border: 212 26% 83%;
-    --input: 212 26% 83%;
-    --ring: 200 98% 39%;
+    /* Subtle icy borders */
+    --border: 200 30% 85%;
+    --input: 200 30% 85%;
+    --ring: 195 100% 45%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* Frosted sidebar */
+    --sidebar-background: 200 35% 98%;
+    --sidebar-foreground: 210 50% 15%;
+    --sidebar-primary: 195 100% 45%;
+    --sidebar-primary-foreground: 200 100% 98%;
+    --sidebar-accent: 190 60% 92%;
+    --sidebar-accent-foreground: 210 50% 20%;
+    --sidebar-border: 200 30% 88%;
+    --sidebar-ring: 195 100% 45%;
 
-    --sidebar-foreground: 222 47% 11%;
+    /* Frozen chart colors */
+    --chart-1: 195 100% 50%;
+    --chart-2: 180 70% 45%;
+    --chart-3: 200 40% 60%;
+    --chart-4: 210 50% 40%;
+    --chart-5: 220 40% 30%;
 
-    --sidebar-primary: 200 98% 39%;
-
-    --sidebar-primary-foreground: 204 100% 97%;
-
-    --sidebar-accent: 215 24% 26%;
-
-    --sidebar-accent-foreground: 210 40% 98%;
-
-    --sidebar-border: 212 26% 83%;
-
-    --sidebar-ring: 200 98% 39%;
-
-    --chart-1: 198 93% 59%;
-
-    --chart-2: 213 93% 67%;
-
-    --chart-3: 215 20% 65%;
-
-    --chart-4: 215 16% 46%;
-
-    --chart-5: 215 19% 34%;
-
-    --sidebar: 210 40% 98%;
+    --sidebar: 200 35% 98%;
 
     --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-
     --font-serif: 'Lora', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
-
     --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
-    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-
-    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-
-    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-
-    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-
-    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-
-    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-
-    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-
-    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    /* Frosted shadows with blue tint */
+    --shadow-2xs: 0 1px 3px 0px hsl(200 50% 50% / 0.05);
+    --shadow-xs: 0 1px 3px 0px hsl(200 50% 50% / 0.08);
+    --shadow-sm: 0 2px 4px 0px hsl(200 50% 50% / 0.1), 0 1px 2px -1px hsl(200 50% 50% / 0.1);
+    --shadow: 0 4px 6px -1px hsl(200 50% 50% / 0.1), 0 2px 4px -1px hsl(200 50% 50% / 0.06);
+    --shadow-md: 0 6px 10px -2px hsl(200 50% 50% / 0.12), 0 4px 6px -2px hsl(200 50% 50% / 0.08);
+    --shadow-lg: 0 10px 15px -3px hsl(200 50% 50% / 0.12), 0 4px 6px -2px hsl(200 50% 50% / 0.08);
+    --shadow-xl: 0 20px 25px -5px hsl(200 50% 50% / 0.15), 0 10px 10px -5px hsl(200 50% 50% / 0.08);
+    --shadow-2xl: 0 25px 50px -12px hsl(200 50% 50% / 0.25);
 
     --tracking-normal: 0em;
-
     --spacing: 0.25rem;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    /* Deep frozen night background */
+    --background: 215 50% 8%;
+    --foreground: 200 30% 95%;
 
-    --card: 217 32% 17%;
-    --card-foreground: 210 40% 98%;
+    /* Dark frosted glass cards */
+    --card: 210 45% 12%;
+    --card-foreground: 200 30% 95%;
 
-    --popover: 215 24% 26%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 210 45% 15%;
+    --popover-foreground: 200 30% 95%;
 
-    --primary: 198 93% 59%;
-    --primary-foreground: 204 80% 15%;
+    /* Glowing ice primary */
+    --primary: 190 100% 55%;
+    --primary-foreground: 210 60% 10%;
 
-    --secondary: 212 26% 83%;
-    --secondary-foreground: 228 84% 4%;
+    /* Soft ice secondary */
+    --secondary: 200 40% 75%;
+    --secondary-foreground: 215 50% 8%;
 
-    --muted: 215 16% 46%;
-    --muted-foreground: 210 40% 98%;
+    /* Frozen muted tones */
+    --muted: 210 30% 25%;
+    --muted-foreground: 200 25% 70%;
 
-    --accent: 228 84% 4%;
-    --accent-foreground: 215 20% 65%;
+    /* Dark ice accent */
+    --accent: 210 40% 18%;
+    --accent-foreground: 190 80% 70%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 85% 97%;
 
-    --border: 215 19% 34%;
-    --input: 215 19% 34%;
-    --ring: 198 93% 59%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 198 93% 59%;
-    --sidebar-primary-foreground: 204 80% 15%;
-    --sidebar-accent: 215 20% 65%;
-    --sidebar-accent-foreground: 228 84% 4%;
-    --sidebar-border: 215 19% 34%;
-    --sidebar-ring: 198 93% 59%;
-    --chart-1: 199 95% 73%;
-    --chart-2: 211 96% 78%;
-    --chart-3: 215 20% 65%;
-    --chart-4: 215 16% 46%;
-    --chart-5: 215 19% 34%;
-    --sidebar: 217 32% 17%;
-    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    /* Dark icy borders */
+    --border: 210 35% 22%;
+    --input: 210 35% 22%;
+    --ring: 190 100% 55%;
+
+    /* Dark frosted sidebar */
+    --sidebar-background: 215 45% 10%;
+    --sidebar-foreground: 200 30% 95%;
+    --sidebar-primary: 190 100% 55%;
+    --sidebar-primary-foreground: 210 60% 10%;
+    --sidebar-accent: 210 40% 18%;
+    --sidebar-accent-foreground: 190 80% 70%;
+    --sidebar-border: 210 35% 20%;
+    --sidebar-ring: 190 100% 55%;
+
+    /* Dark frozen chart colors */
+    --chart-1: 190 100% 60%;
+    --chart-2: 180 80% 55%;
+    --chart-3: 200 50% 50%;
+    --chart-4: 210 40% 40%;
+    --chart-5: 220 35% 30%;
+
+    --sidebar: 210 45% 12%;
+
+    --shadow-2xs: 0 1px 3px 0px hsl(200 80% 30% / 0.2);
+    --shadow-xs: 0 1px 3px 0px hsl(200 80% 30% / 0.25);
+    --shadow-sm: 0 2px 4px 0px hsl(200 80% 30% / 0.3), 0 1px 2px -1px hsl(200 80% 30% / 0.2);
+    --shadow: 0 4px 6px -1px hsl(200 80% 30% / 0.3), 0 2px 4px -1px hsl(200 80% 30% / 0.2);
+    --shadow-md: 0 6px 10px -2px hsl(200 80% 30% / 0.35), 0 4px 6px -2px hsl(200 80% 30% / 0.25);
+    --shadow-lg: 0 10px 15px -3px hsl(200 80% 30% / 0.35), 0 4px 6px -2px hsl(200 80% 30% / 0.25);
+    --shadow-xl: 0 20px 25px -5px hsl(200 80% 30% / 0.4), 0 10px 10px -5px hsl(200 80% 30% / 0.25);
+    --shadow-2xl: 0 25px 50px -12px hsl(200 80% 30% / 0.5);
   }
 }
 
-/* SLA Status Colors */
+/* SLA Status Colors - Frozen Theme */
 @layer base {
   :root {
-    --sla-ok: 142 76% 36%;
-    --sla-ok-foreground: 143 76% 97%;
-    --sla-warning: 38 92% 50%;
-    --sla-warning-foreground: 38 92% 10%;
-    --sla-critical: 0 84% 60%;
+    --sla-ok: 160 70% 40%;
+    --sla-ok-foreground: 160 70% 97%;
+    --sla-warning: 45 95% 50%;
+    --sla-warning-foreground: 45 95% 10%;
+    --sla-critical: 0 80% 55%;
     --sla-critical-foreground: 0 85% 97%;
   }
   
   .dark {
-    --sla-ok: 142 70% 45%;
-    --sla-ok-foreground: 143 76% 97%;
-    --sla-warning: 38 92% 50%;
-    --sla-warning-foreground: 38 92% 10%;
-    --sla-critical: 0 84% 60%;
+    --sla-ok: 160 65% 50%;
+    --sla-ok-foreground: 160 70% 97%;
+    --sla-warning: 45 90% 55%;
+    --sla-warning-foreground: 45 95% 10%;
+    --sla-critical: 0 75% 60%;
     --sla-critical-foreground: 0 85% 97%;
   }
 }
@@ -178,12 +178,67 @@ All colors MUST be HSL.
   }
   50% {
     opacity: 0.85;
-    box-shadow: 0 0 20px 5px hsl(var(--sla-critical) / 0.3);
+    box-shadow: 0 0 25px 8px hsl(var(--sla-critical) / 0.35);
   }
 }
 
 .animate-sla-pulse {
   animation: sla-pulse 1.5s ease-in-out infinite;
+}
+
+/* Snowfall animation */
+@keyframes snowfall {
+  0% {
+    transform: translateY(-10vh) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) translateX(20px);
+    opacity: 0;
+  }
+}
+
+/* Frosted glass effect */
+.frosted-glass {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: hsl(var(--card) / 0.8);
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+
+/* Ice shimmer effect */
+@keyframes ice-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.ice-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--card)) 0%,
+    hsl(195 100% 85% / 0.3) 50%,
+    hsl(var(--card)) 100%
+  );
+  background-size: 200% 100%;
+  animation: ice-shimmer 3s ease-in-out infinite;
+}
+
+/* Glow effect for primary elements */
+.ice-glow {
+  box-shadow: 
+    0 0 20px hsl(var(--primary) / 0.2),
+    0 0 40px hsl(var(--primary) / 0.1),
+    inset 0 0 20px hsl(var(--primary) / 0.05);
 }
 
 @layer base {

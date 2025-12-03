@@ -1,4 +1,4 @@
-import { LayoutDashboard, Radio, Settings, BarChart3, Users, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -28,13 +28,16 @@ const configItems = [
 
 export function AppSidebar() {
   return (
-    <Sidebar className="border-r border-sidebar-border">
-      <SidebarHeader className="p-4 border-b border-sidebar-border">
+    <Sidebar className="border-r border-sidebar-border/50 frosted-glass">
+      <SidebarHeader className="p-4 border-b border-sidebar-border/50">
         <div className="flex items-center gap-3">
-          <img src={logoArttico} alt="Agência Arttico" className="h-10 w-auto" />
+          <div className="relative">
+            <img src={logoArttico} alt="Agência Arttico" className="h-10 w-auto" />
+            <Snowflake className="absolute -top-1 -right-1 h-4 w-4 text-primary animate-pulse" />
+          </div>
           <div className="flex flex-col">
             <span className="text-sm font-bold text-sidebar-foreground">SLA Watcher</span>
-            <span className="text-xs text-muted-foreground">O X9 do Atendimento</span>
+            <span className="text-xs text-muted-foreground">O X9 do Atendimento ❄️</span>
           </div>
         </div>
       </SidebarHeader>
