@@ -9,6 +9,7 @@ const corsHeaders = {
 
 interface GroupParticipant {
   id: string;
+  phoneNumber?: string; // Real phone number: "558494947662@s.whatsapp.net"
   admin?: string;
 }
 
@@ -48,12 +49,12 @@ serve(async (req) => {
 
     console.log("Fetching participants for group:", group.name, group.whatsapp_id);
 
-    // Fetch participants from Evolution API
-    // Ensure URL has protocol and encode instance name
+    // Fetch group info (includes participants with phoneNumber) from Evolution API
     const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
     const encodedInstance = encodeURIComponent(evolutionInstance);
-    const url = `${baseUrl}/group/participants/${encodedInstance}?groupJid=${group.whatsapp_id}`;
+    const url = `${baseUrl}/group/findGroupInfos/${encodedInstance}?groupJid=${group.whatsapp_id}`;
     console.log("Evolution API URL:", url);
+    
     const response = await fetch(url, {
       method: "GET",
       headers: {
@@ -68,7 +69,6 @@ serve(async (req) => {
       
       // Handle specific error cases
       if (response.status === 404) {
-        // Check if it's a rate limit or no participants issue
         if (errorText.includes("rate-overlimit")) {
           throw new Error("Rate limit atingido na Evolution API. Aguarde alguns minutos e tente novamente.");
         }
@@ -81,7 +81,10 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const participants: GroupParticipant[] = data.participants || data || [];
+    console.log("Group info response received");
+    
+    // findGroupInfos returns participants with phoneNumber field
+    const participants: GroupParticipant[] = data.participants || [];
 
     console.log(`Found ${participants.length} participants`);
 
@@ -91,17 +94,30 @@ serve(async (req) => {
 
     for (const participant of participants) {
       const whatsappId = participant.id;
-      const phoneNumber = whatsappId.split("@")[0];
+      // Use phoneNumber field (real number) if available, otherwise fallback to id
+      const phoneNumber = participant.phoneNumber 
+        ? participant.phoneNumber.replace("@s.whatsapp.net", "")
+        : whatsappId.split("@")[0];
       const isAdmin = participant.admin === "admin" || participant.admin === "superadmin";
 
       const { data: existingMember } = await supabase
         .from("group_members")
-        .select("id, is_admin")
+        .select("id, is_admin, phone_number")
         .eq("group_id", groupId)
         .eq("whatsapp_id", whatsappId)
         .maybeSingle();
 
       if (!existingMember) {
+        // Check if the person is already a CS in team_members
+        const { data: teamMember } = await supabase
+          .from("team_members")
+          .select("id, role")
+          .eq("phone_number", phoneNumber)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        const role = teamMember?.role === "CS" ? "cs" : "unknown";
+
         const { error: insertError } = await supabase
           .from("group_members")
           .insert({
@@ -109,18 +125,30 @@ serve(async (req) => {
             whatsapp_id: whatsappId,
             phone_number: phoneNumber,
             is_admin: isAdmin,
-            role: "unknown",
+            role: role,
           });
 
         if (!insertError) {
           added++;
+          console.log("Added member:", phoneNumber, "role:", role);
         }
-      } else if (existingMember.is_admin !== isAdmin) {
-        await supabase
-          .from("group_members")
-          .update({ is_admin: isAdmin })
-          .eq("id", existingMember.id);
-        updated++;
+      } else {
+        // Update admin status and phone_number if changed
+        const updates: any = {};
+        if (existingMember.is_admin !== isAdmin) {
+          updates.is_admin = isAdmin;
+        }
+        if (existingMember.phone_number !== phoneNumber) {
+          updates.phone_number = phoneNumber;
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from("group_members")
+            .update(updates)
+            .eq("id", existingMember.id);
+          updated++;
+        }
       }
     }
 
