@@ -6,6 +6,8 @@ export interface MonitoredGroup {
   name: string;
   whatsapp_id: string;
   is_active: boolean;
+  is_client_group: boolean;
+  pending_classification: boolean;
   sla_limit_minutes: number;
   created_at: string;
   updated_at: string;
@@ -22,10 +24,11 @@ export function useGroups() {
       const { data, error } = await supabase
         .from("monitored_groups")
         .select("*")
+        .order("pending_classification", { ascending: false })
         .order("name");
 
       if (error) throw error;
-      setGroups(data);
+      setGroups(data as MonitoredGroup[]);
     } catch (err) {
       console.error("Error fetching groups:", err);
       setError(err instanceof Error ? err.message : "Erro ao carregar grupos");
@@ -36,7 +39,11 @@ export function useGroups() {
 
   const addGroup = async (group: { name: string; whatsapp_id: string; sla_limit_minutes?: number }) => {
     try {
-      const { error } = await supabase.from("monitored_groups").insert(group);
+      const { error } = await supabase.from("monitored_groups").insert({
+        ...group,
+        is_client_group: false,
+        pending_classification: false, // Manually added groups are not pending
+      });
       if (error) throw error;
       await fetchGroups();
     } catch (err) {
@@ -59,6 +66,23 @@ export function useGroups() {
     }
   };
 
+  const classifyGroup = async (id: string, isClientGroup: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("monitored_groups")
+        .update({
+          is_client_group: isClientGroup,
+          pending_classification: false,
+        })
+        .eq("id", id);
+      if (error) throw error;
+      await fetchGroups();
+    } catch (err) {
+      console.error("Error classifying group:", err);
+      throw err;
+    }
+  };
+
   const deleteGroup = async (id: string) => {
     try {
       const { error } = await supabase
@@ -77,5 +101,5 @@ export function useGroups() {
     fetchGroups();
   }, []);
 
-  return { groups, loading, error, refetch: fetchGroups, addGroup, updateGroup, deleteGroup };
+  return { groups, loading, error, refetch: fetchGroups, addGroup, updateGroup, classifyGroup, deleteGroup };
 }

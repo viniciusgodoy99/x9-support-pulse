@@ -33,6 +33,45 @@ interface GroupParticipant {
   admin?: string;
 }
 
+// Fetch group info from Evolution API
+async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string } | null> {
+  const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
+  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
+  const evolutionInstance = Deno.env.get("EVOLUTION_INSTANCE_NAME");
+
+  if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
+    console.error("Evolution API credentials not configured");
+    return null;
+  }
+
+  try {
+    const url = `${evolutionApiUrl}/group/fetchAllGroups/${evolutionInstance}?getParticipants=false`;
+    console.log("Fetching group info from:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "apikey": evolutionApiKey,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Evolution API error:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    // Find the group in the list
+    const group = data.find((g: any) => g.id === groupJid);
+    return group || null;
+  } catch (error) {
+    console.error("Error fetching group info:", error);
+    return null;
+  }
+}
+
 // Fetch group participants from Evolution API
 async function fetchGroupParticipants(groupJid: string): Promise<GroupParticipant[]> {
   const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
@@ -125,6 +164,50 @@ async function syncGroupMembers(
   }
 }
 
+// Auto-register a new group
+async function autoRegisterGroup(
+  supabase: any,
+  remoteJid: string,
+  instanceName: string
+): Promise<{ id: string; is_client_group: boolean } | null> {
+  console.log("Auto-registering new group:", remoteJid);
+
+  // Try to fetch group info from Evolution API
+  const groupInfo = await fetchGroupInfo(remoteJid);
+  const groupName = groupInfo?.subject || `Grupo ${remoteJid.split("@")[0].slice(-6)}`;
+
+  // Create the group with pending classification
+  const { data: newGroup, error: createError } = await supabase
+    .from("monitored_groups")
+    .insert({
+      name: groupName,
+      whatsapp_id: remoteJid,
+      evolution_instance: instanceName,
+      is_active: true,
+      is_client_group: false,
+      pending_classification: true,
+      sla_limit_minutes: 30,
+    })
+    .select()
+    .single();
+
+  if (createError) {
+    console.error("Error creating group:", createError);
+    return null;
+  }
+
+  console.log("Group auto-registered:", newGroup.id, "Name:", groupName);
+
+  // Fetch and sync participants
+  const participants = await fetchGroupParticipants(remoteJid);
+  if (participants.length > 0) {
+    await syncGroupMembers(supabase, newGroup.id, participants);
+    console.log(`Synced ${participants.length} members for new group`);
+  }
+
+  return { id: newGroup.id, is_client_group: false };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -151,6 +234,18 @@ serve(async (req) => {
     }
 
     const remoteJid = payload.data.key.remoteJid;
+    
+    // Only process group messages (ends with @g.us)
+    if (!remoteJid.endsWith("@g.us")) {
+      console.log("Ignoring non-group message:", remoteJid);
+      return new Response(
+        JSON.stringify({ success: true, message: "Not a group message" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const senderJid = payload.data.key.participant || remoteJid;
     const senderPhone = senderJid.split("@")[0];
     const senderName = payload.data.pushName || "Cliente";
@@ -161,12 +256,11 @@ serve(async (req) => {
 
     console.log("Processing message from:", senderPhone, "in group:", remoteJid);
 
-    // Check if this group is monitored
-    const { data: group, error: groupError } = await supabase
+    // Check if this group exists (active or not)
+    let { data: group, error: groupError } = await supabase
       .from("monitored_groups")
       .select("*")
       .eq("whatsapp_id", remoteJid)
-      .eq("is_active", true)
       .maybeSingle();
 
     if (groupError) {
@@ -174,17 +268,56 @@ serve(async (req) => {
       throw groupError;
     }
 
+    // If group doesn't exist, auto-register it
     if (!group) {
-      console.log("Group not monitored or inactive:", remoteJid);
+      console.log("New group detected, auto-registering:", remoteJid);
+      const newGroup = await autoRegisterGroup(supabase, remoteJid, payload.instance);
+      
+      if (!newGroup) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Failed to register group" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ success: true, message: "Group not monitored" }),
+        JSON.stringify({ 
+          success: true, 
+          message: "Group auto-registered, pending classification",
+          groupId: newGroup.id
+        }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    console.log("Found monitored group:", group.name);
+    // If group is inactive, ignore
+    if (!group.is_active) {
+      console.log("Group is inactive:", remoteJid);
+      return new Response(
+        JSON.stringify({ success: true, message: "Group is inactive" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // If group is not a client group, don't process tickets
+    if (!group.is_client_group) {
+      console.log("Group is not a client group, skipping ticket processing:", remoteJid);
+      return new Response(
+        JSON.stringify({ success: true, message: "Not a client group" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log("Found monitored client group:", group.name);
 
     // Check if we need to sync group members (first time or no members)
     const { data: existingMembers, error: membersError } = await supabase
@@ -194,7 +327,7 @@ serve(async (req) => {
       .limit(1);
 
     if (!membersError && (!existingMembers || existingMembers.length === 0)) {
-      console.log("First message from this group, fetching participants...");
+      console.log("No members found, fetching participants...");
       const participants = await fetchGroupParticipants(remoteJid);
       if (participants.length > 0) {
         await syncGroupMembers(supabase, group.id, participants);

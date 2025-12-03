@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, Trash2, Edit2, Power, Users } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function GroupsSettings() {
   const navigate = useNavigate();
-  const { groups, loading, addGroup, updateGroup, deleteGroup } = useGroups();
+  const { groups, loading, addGroup, updateGroup, classifyGroup, deleteGroup } = useGroups();
   const [isOpen, setIsOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<MonitoredGroup | null>(null);
   const [formData, setFormData] = useState({
@@ -105,6 +105,39 @@ export default function GroupsSettings() {
       });
     }
   };
+
+  const handleClassify = async (group: MonitoredGroup, isClientGroup: boolean) => {
+    try {
+      await classifyGroup(group.id, isClientGroup);
+      toast({
+        title: isClientGroup ? "Marcado como grupo de cliente" : "Marcado como grupo interno",
+      });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível classificar o grupo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleClientGroup = async (group: MonitoredGroup) => {
+    try {
+      await updateGroup(group.id, { is_client_group: !group.is_client_group });
+      toast({
+        title: group.is_client_group ? "Removido como grupo de cliente" : "Marcado como grupo de cliente",
+      });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível alterar o tipo do grupo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const pendingGroups = groups.filter(g => g.pending_classification);
+  const classifiedGroups = groups.filter(g => !g.pending_classification);
 
   return (
     <MainLayout>
@@ -208,83 +241,211 @@ export default function GroupsSettings() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {groups.map((group) => (
-              <Card
-                key={group.id}
-                className={!group.is_active ? "opacity-60" : ""}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg">{group.name}</CardTitle>
-                    <Badge variant={group.is_active ? "default" : "secondary"}>
-                      {group.is_active ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">WhatsApp ID</p>
-                    <p className="text-sm font-mono">{group.whatsapp_id}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Limite de SLA</p>
-                    <p className="text-sm font-semibold">
-                      {group.sla_limit_minutes} minutos
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/settings/groups/${group.id}/members`)}
-                      title="Gerenciar membros"
+          <>
+            {/* Pending Classification Section */}
+            {pendingGroups.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Aguardando Classificação ({pendingGroups.length})
+                  </h2>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {pendingGroups.map((group) => (
+                    <Card
+                      key={group.id}
+                      className="border-amber-500/50 bg-amber-500/5"
                     >
-                      <Users className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(group)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleToggleActive(group)}
-                    >
-                      <Power className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta ação não pode ser desfeita. Todos os tickets
-                            associados a este grupo serão removidos.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(group.id)}
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-lg">{group.name}</CardTitle>
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                            Novo
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">WhatsApp ID</p>
+                          <p className="text-sm font-mono truncate">{group.whatsapp_id}</p>
+                        </div>
+                        <div className="pt-2">
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Este grupo é de cliente?
+                          </p>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleClassify(group, true)}
+                              className="flex-1"
+                            >
+                              <Building2 className="h-4 w-4 mr-2" />
+                              Sim, é cliente
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleClassify(group, false)}
+                              className="flex-1"
+                            >
+                              <UserCircle className="h-4 w-4 mr-2" />
+                              Não
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 pt-2 border-t border-border">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                            title="Ver membros"
                           >
-                            Remover
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                            <Users className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(group)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(group.id)}
+                                >
+                                  Remover
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Classified Groups Section */}
+            {classifiedGroups.length > 0 && (
+              <div className="space-y-4">
+                {pendingGroups.length > 0 && (
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Grupos Classificados ({classifiedGroups.length})
+                  </h2>
+                )}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {classifiedGroups.map((group) => (
+                    <Card
+                      key={group.id}
+                      className={!group.is_active ? "opacity-60" : ""}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-lg">{group.name}</CardTitle>
+                          <div className="flex gap-1">
+                            {group.is_client_group && (
+                              <Badge variant="default" className="bg-primary/80">
+                                Cliente
+                              </Badge>
+                            )}
+                            <Badge variant={group.is_active ? "secondary" : "outline"}>
+                              {group.is_active ? "Ativo" : "Inativo"}
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">WhatsApp ID</p>
+                          <p className="text-sm font-mono truncate">{group.whatsapp_id}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Limite de SLA</p>
+                          <p className="text-sm font-semibold">
+                            {group.sla_limit_minutes} minutos
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-t border-border">
+                          <Label htmlFor={`client-${group.id}`} className="text-sm">
+                            Grupo de Cliente
+                          </Label>
+                          <Switch
+                            id={`client-${group.id}`}
+                            checked={group.is_client_group}
+                            onCheckedChange={() => handleToggleClientGroup(group)}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                            title="Gerenciar membros"
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(group)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleActive(group)}
+                          >
+                            <Power className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação não pode ser desfeita. Todos os tickets
+                                  associados a este grupo serão removidos.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(group.id)}
+                                >
+                                  Remover
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </MainLayout>

@@ -64,7 +64,9 @@ export type Database = {
           evolution_instance: string | null
           id: string
           is_active: boolean
+          is_client_group: boolean
           name: string
+          pending_classification: boolean
           sla_limit_minutes: number
           updated_at: string
           whatsapp_id: string
@@ -74,7 +76,9 @@ export type Database = {
           evolution_instance?: string | null
           id?: string
           is_active?: boolean
+          is_client_group?: boolean
           name: string
+          pending_classification?: boolean
           sla_limit_minutes?: number
           updated_at?: string
           whatsapp_id: string
@@ -84,7 +88,9 @@ export type Database = {
           evolution_instance?: string | null
           id?: string
           is_active?: boolean
+          is_client_group?: boolean
           name?: string
+          pending_classification?: boolean
           sla_limit_minutes?: number
           updated_at?: string
           whatsapp_id?: string
