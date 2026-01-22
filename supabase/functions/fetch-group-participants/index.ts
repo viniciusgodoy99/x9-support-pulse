@@ -56,7 +56,7 @@ serve(async (req) => {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "apikey": apiKey,
+        "token": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
