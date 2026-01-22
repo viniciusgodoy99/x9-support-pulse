@@ -21,12 +21,12 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
-    const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-    const evolutionInstance = Deno.env.get("EVOLUTION_INSTANCE_NAME");
+    const apiUrl = Deno.env.get("EVOLUTION_API_URL");
+    const apiKey = Deno.env.get("EVOLUTION_API_KEY");
+    const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
 
-    if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
-      throw new Error("Evolution API credentials not configured");
+    if (!apiUrl || !apiKey || !instanceName) {
+      throw new Error("UAZAPI credentials not configured");
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -49,35 +49,35 @@ serve(async (req) => {
 
     console.log("Fetching participants for group:", group.name, group.whatsapp_id);
 
-    // Fetch group info (includes participants with phoneNumber) from Evolution API
-    const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
-    const encodedInstance = encodeURIComponent(evolutionInstance);
+    // Fetch group info (includes participants with phoneNumber) from UAZAPI
+    const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
+    const encodedInstance = encodeURIComponent(instanceName);
     const url = `${baseUrl}/group/findGroupInfos/${encodedInstance}?groupJid=${group.whatsapp_id}`;
-    console.log("Evolution API URL:", url);
+    console.log("UAZAPI URL:", url);
     
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "apikey": evolutionApiKey,
+        "apikey": apiKey,
         "Content-Type": "application/json",
       },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Evolution API error:", response.status, errorText);
+      console.error("UAZAPI error:", response.status, errorText);
       
       // Handle specific error cases
       if (response.status === 404) {
         if (errorText.includes("rate-overlimit")) {
-          throw new Error("Rate limit atingido na Evolution API. Aguarde alguns minutos e tente novamente.");
+          throw new Error("Rate limit atingido na UAZAPI. Aguarde alguns minutos e tente novamente.");
         }
         if (errorText.includes("No participants")) {
           throw new Error("Não foi possível obter participantes deste grupo. O grupo pode estar inacessível.");
         }
-        throw new Error("Grupo não encontrado na Evolution API.");
+        throw new Error("Grupo não encontrado na UAZAPI.");
       }
-      throw new Error(`Evolution API error: ${response.status}`);
+      throw new Error(`UAZAPI error: ${response.status}`);
     }
 
     const data = await response.json();

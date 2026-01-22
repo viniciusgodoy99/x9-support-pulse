@@ -7,25 +7,36 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-interface WebhookPayload {
-  event: string;
-  instance: string;
-  data: {
-    key: {
-      remoteJid: string;
-      fromMe: boolean;
-      id: string;
-      participant?: string;
-      participantAlt?: string; // Real phone number with @s.whatsapp.net
-    };
-    pushName?: string;
-    message?: {
-      conversation?: string;
-      extendedTextMessage?: {
-        text: string;
-      };
-    };
-    messageTimestamp?: number;
+// UAZAPI Webhook Payload Interface
+interface UAZAPIPayload {
+  BaseUrl: string;
+  EventType: string;  // "messages", "connection", etc.
+  instanceName: string;
+  owner: string;
+  token: string;
+  chatSource?: string;
+  chat: {
+    wa_chatid: string;
+    wa_isGroup: boolean;
+    name: string;
+    id?: string;
+  };
+  message: {
+    chatid: string;
+    isGroup: boolean;
+    groupName: string;
+    text: string;
+    content: string | object;
+    sender: string;           // LID interno
+    sender_pn: string;        // Número real: "558498371318@s.whatsapp.net"
+    sender_lid: string;
+    senderName: string;       // Nome do remetente
+    fromMe: boolean;
+    messageTimestamp: number;
+    messageType: string;
+    type: string;             // "text", "media", etc.
+    id: string;
+    messageid: string;
   };
 }
 
@@ -35,35 +46,35 @@ interface GroupParticipant {
   admin?: string;
 }
 
-// Fetch group info from Evolution API
+// Fetch group info from UAZAPI (same endpoint structure as Evolution)
 async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string; participants?: GroupParticipant[] } | null> {
-  const evolutionApiUrl = Deno.env.get("EVOLUTION_API_URL");
-  const evolutionApiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const evolutionInstance = Deno.env.get("EVOLUTION_INSTANCE_NAME");
+  const apiUrl = Deno.env.get("EVOLUTION_API_URL");
+  const apiKey = Deno.env.get("EVOLUTION_API_KEY");
+  const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
 
-  if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
-    console.error("Evolution API credentials not configured");
+  if (!apiUrl || !apiKey || !instanceName) {
+    console.error("UAZAPI credentials not configured");
     return null;
   }
 
   try {
     // Ensure URL has protocol and encode instance name
-    const baseUrl = evolutionApiUrl.startsWith("http") ? evolutionApiUrl : `https://${evolutionApiUrl}`;
-    const encodedInstance = encodeURIComponent(evolutionInstance);
+    const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
+    const encodedInstance = encodeURIComponent(instanceName);
     const url = `${baseUrl}/group/findGroupInfos/${encodedInstance}?groupJid=${groupJid}`;
     console.log("Fetching group info from:", url);
 
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "apikey": evolutionApiKey,
+        "apikey": apiKey,
         "Content-Type": "application/json",
       },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Evolution API error:", response.status, errorText);
+      console.error("UAZAPI error:", response.status, errorText);
       return null;
     }
 
@@ -147,11 +158,12 @@ async function syncGroupMembers(
   }
 }
 
-// Auto-register a new group
+// Auto-register a new group - uses group name from UAZAPI payload
 async function autoRegisterGroup(
   supabase: any,
   remoteJid: string,
-  instanceName: string
+  instanceName: string,
+  groupNameFromPayload?: string
 ): Promise<{ id: string; is_client_group: boolean } | null> {
   console.log("Auto-registering new group:", remoteJid);
 
@@ -167,9 +179,15 @@ async function autoRegisterGroup(
     return { id: existingGroup.id, is_client_group: existingGroup.is_client_group };
   }
 
-  // Try to fetch group info from Evolution API (includes participants)
-  const groupInfo = await fetchGroupInfo(remoteJid);
-  const groupName = groupInfo?.subject || `Grupo ${remoteJid.split("@")[0].slice(-6)}`;
+  // Use group name from payload, or fetch from API, or use fallback
+  let groupName = groupNameFromPayload;
+  let groupInfo = null;
+
+  if (!groupName) {
+    // Try to fetch group info from UAZAPI (includes participants)
+    groupInfo = await fetchGroupInfo(remoteJid);
+    groupName = groupInfo?.subject || `Grupo ${remoteJid.split("@")[0].slice(-6)}`;
+  }
 
   // Create the group with pending classification
   const { data: newGroup, error: createError } = await supabase
@@ -207,7 +225,7 @@ async function autoRegisterGroup(
 
   console.log("Group auto-registered:", newGroup.id, "Name:", groupName);
 
-  // Sync participants from the groupInfo response (has phoneNumber field)
+  // Sync participants from the groupInfo response if we fetched it
   if (groupInfo?.participants && groupInfo.participants.length > 0) {
     await syncGroupMembers(supabase, newGroup.id, groupInfo.participants);
     console.log(`Synced ${groupInfo.participants.length} members for new group`);
@@ -227,12 +245,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const payload: WebhookPayload = await req.json();
+    const payload: UAZAPIPayload = await req.json();
     console.log("Webhook received:", JSON.stringify(payload, null, 2));
 
-    // Only process message events
-    if (payload.event !== "messages.upsert") {
-      console.log("Ignoring non-message event:", payload.event);
+    // Only process message events from UAZAPI
+    if (payload.EventType !== "messages") {
+      console.log("Ignoring non-message event:", payload.EventType);
       return new Response(
         JSON.stringify({ success: true, message: "Event ignored" }),
         {
@@ -241,10 +259,12 @@ serve(async (req) => {
       );
     }
 
-    const remoteJid = payload.data.key.remoteJid;
+    // Extract data from UAZAPI format
+    const remoteJid = payload.message?.chatid || payload.chat?.wa_chatid;
+    const isGroup = payload.message?.isGroup || payload.chat?.wa_isGroup;
     
-    // Only process group messages (ends with @g.us)
-    if (!remoteJid.endsWith("@g.us")) {
+    // Only process group messages
+    if (!isGroup || !remoteJid?.endsWith("@g.us")) {
       console.log("Ignoring non-group message:", remoteJid);
       return new Response(
         JSON.stringify({ success: true, message: "Not a group message" }),
@@ -254,19 +274,34 @@ serve(async (req) => {
       );
     }
 
-    // Extract real phone number from participantAlt (preferred) or fallback to participant
-    const participantAlt = payload.data.key.participantAlt;
-    const participantId = payload.data.key.participant || remoteJid;
-    const senderPhone = participantAlt 
-      ? participantAlt.replace("@s.whatsapp.net", "")
-      : participantId.split("@")[0];
-    const senderName = payload.data.pushName || "Cliente";
-    const messageText =
-      payload.data.message?.conversation ||
-      payload.data.message?.extendedTextMessage?.text ||
+    // Ignore messages sent by the bot itself
+    if (payload.message?.fromMe) {
+      console.log("Ignoring own message");
+      return new Response(
+        JSON.stringify({ success: true, message: "Own message ignored" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Extract sender info from UAZAPI format
+    // sender_pn contains the real phone number: "558498371318@s.whatsapp.net"
+    const senderPhone = payload.message?.sender_pn 
+      ? payload.message.sender_pn.replace("@s.whatsapp.net", "")
+      : payload.message?.sender?.split("@")[0] || "";
+    const senderName = payload.message?.senderName || "Cliente";
+    
+    // Message text - can be in 'text' or 'content' (content can be object for media)
+    const messageText = payload.message?.text || 
+      (typeof payload.message?.content === 'string' ? payload.message.content : "") || 
       "";
 
-    console.log("Processing message from:", senderPhone, "in group:", remoteJid);
+    // Group name comes directly from UAZAPI payload
+    const groupName = payload.message?.groupName || payload.chat?.name;
+    const instanceName = payload.instanceName;
+
+    console.log("Processing message from:", senderPhone, "Name:", senderName, "in group:", remoteJid, "Group name:", groupName);
 
     // Check if this group exists (active or not)
     let { data: group, error: groupError } = await supabase
@@ -280,10 +315,10 @@ serve(async (req) => {
       throw groupError;
     }
 
-    // If group doesn't exist, auto-register it
+    // If group doesn't exist, auto-register it with the group name from payload
     if (!group) {
       console.log("New group detected, auto-registering:", remoteJid);
-      const newGroup = await autoRegisterGroup(supabase, remoteJid, payload.instance);
+      const newGroup = await autoRegisterGroup(supabase, remoteJid, instanceName, groupName);
       
       if (!newGroup) {
         return new Response(
@@ -354,7 +389,7 @@ serve(async (req) => {
       .eq("phone_number", senderPhone)
       .maybeSingle();
 
-    // Update name if we have pushName
+    // Update name if we have senderName
     if (senderMember && senderName && senderName !== "Cliente") {
       await supabase
         .from("group_members")
