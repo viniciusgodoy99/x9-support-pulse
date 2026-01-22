@@ -58,6 +58,60 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          group_id: string
+          id: string
+          message_type: string | null
+          sender_name: string | null
+          sender_phone: string
+          sender_role: string
+          ticket_id: string | null
+          whatsapp_message_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          group_id: string
+          id?: string
+          message_type?: string | null
+          sender_name?: string | null
+          sender_phone: string
+          sender_role: string
+          ticket_id?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          message_type?: string | null
+          sender_name?: string | null
+          sender_phone?: string
+          sender_role?: string
+          ticket_id?: string | null
+          whatsapp_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "monitored_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monitored_groups: {
         Row: {
           created_at: string
@@ -127,14 +181,62 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_demands: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          priority: string
+          resolution_time_minutes: number | null
+          resolved_at: string | null
+          sla_exceeded: boolean
+          status: string
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          priority?: string
+          resolution_time_minutes?: number | null
+          resolved_at?: string | null
+          sla_exceeded?: boolean
+          status?: string
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          priority?: string
+          resolution_time_minutes?: number | null
+          resolved_at?: string | null
+          sla_exceeded?: boolean
+          status?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_demands_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
+          ai_summary: string | null
+          analysis_count: number
           created_at: string
           customer_name: string | null
           customer_phone: string | null
           first_response_at: string | null
           group_id: string
           id: string
+          last_analysis_at: string | null
+          next_analysis_at: string | null
           notes: string | null
           resolved_at: string | null
           resolved_by: string | null
@@ -142,12 +244,16 @@ export type Database = {
           status: Database["public"]["Enums"]["ticket_status"]
         }
         Insert: {
+          ai_summary?: string | null
+          analysis_count?: number
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
           first_response_at?: string | null
           group_id: string
           id?: string
+          last_analysis_at?: string | null
+          next_analysis_at?: string | null
           notes?: string | null
           resolved_at?: string | null
           resolved_by?: string | null
@@ -155,12 +261,16 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"]
         }
         Update: {
+          ai_summary?: string | null
+          analysis_count?: number
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
           first_response_at?: string | null
           group_id?: string
           id?: string
+          last_analysis_at?: string | null
+          next_analysis_at?: string | null
           notes?: string | null
           resolved_at?: string | null
           resolved_by?: string | null

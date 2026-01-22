@@ -469,86 +469,80 @@ serve(async (req) => {
     const isTeamMember = !!teamMember || isCS;
     console.log("Is team member:", isTeamMember, teamMember?.name || (isCS ? "CS from group" : ""));
 
-    if (!isTeamMember) {
-      // Customer message - check for existing open ticket or create new one
-      const { data: existingTicket, error: ticketError } = await supabase
+    // ===== TICKET PROCESSING WITH MESSAGE STORAGE =====
+    // Check for existing open ticket
+    let { data: existingTicket, error: ticketError } = await supabase
+      .from("tickets")
+      .select("*")
+      .eq("group_id", group.id)
+      .eq("status", "open")
+      .maybeSingle();
+
+    if (ticketError) {
+      console.error("Error fetching ticket:", ticketError);
+      throw ticketError;
+    }
+
+    let ticketId: string;
+
+    if (!existingTicket) {
+      // Create new ticket with next_analysis_at set to 1 hour from now
+      const nextAnalysisAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // +1 hour
+      
+      const { data: newTicket, error: createError } = await supabase
         .from("tickets")
-        .select("*")
-        .eq("group_id", group.id)
-        .eq("status", "open")
-        .maybeSingle();
+        .insert({
+          group_id: group.id,
+          status: "open",
+          customer_phone: isTeamMember ? null : senderPhone,
+          customer_name: isTeamMember ? null : senderName,
+          next_analysis_at: nextAnalysisAt,
+        })
+        .select()
+        .single();
 
-      if (ticketError) {
-        console.error("Error fetching ticket:", ticketError);
-        throw ticketError;
+      if (createError) {
+        console.error("Error creating ticket:", createError);
+        throw createError;
       }
 
-      if (!existingTicket) {
-        // Create new ticket
-        const { data: newTicket, error: createError } = await supabase
-          .from("tickets")
-          .insert({
-            group_id: group.id,
-            status: "open",
-            customer_phone: senderPhone,
-            customer_name: senderName,
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          console.error("Error creating ticket:", createError);
-          throw createError;
-        }
-
-        console.log("New ticket created:", newTicket.id);
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: "Ticket created",
-            ticketId: newTicket.id,
-          }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      } else {
-        console.log("Existing ticket found:", existingTicket.id);
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: "Ticket exists",
-            ticketId: existingTicket.id,
-          }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
+      ticketId = newTicket.id;
+      console.log("New ticket created:", ticketId, "next_analysis_at:", nextAnalysisAt);
     } else {
-      // Team member message
-      const { data: openTicket, error: ticketError } = await supabase
-        .from("tickets")
-        .select("*")
-        .eq("group_id", group.id)
-        .eq("status", "open")
-        .maybeSingle();
+      ticketId = existingTicket.id;
+      console.log("Using existing ticket:", ticketId);
+    }
 
-      if (ticketError) {
-        console.error("Error fetching ticket:", ticketError);
-        throw ticketError;
+    // ===== SAVE MESSAGE TO DATABASE =====
+    const senderRole = isTeamMember ? "cs" : "client";
+    const messageType = payload.message?.type || payload.message?.messageType || "text";
+    const whatsappMessageId = payload.message?.id || payload.message?.messageid;
+
+    // Only save if we have message content
+    if (messageText && messageText.trim()) {
+      const { error: messageError } = await supabase
+        .from("messages")
+        .insert({
+          ticket_id: ticketId,
+          group_id: group.id,
+          sender_phone: senderPhone,
+          sender_name: senderName,
+          sender_role: senderRole,
+          content: messageText,
+          message_type: messageType,
+          whatsapp_message_id: whatsappMessageId,
+        });
+
+      if (messageError) {
+        console.error("Error saving message:", messageError);
+        // Don't throw - message saving failure shouldn't block ticket processing
+      } else {
+        console.log("Message saved for ticket:", ticketId, "role:", senderRole);
       }
+    }
 
-      if (!openTicket) {
-        console.log("No open ticket for team response");
-        return new Response(
-          JSON.stringify({ success: true, message: "No open ticket" }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
+    // ===== HANDLE TEAM MEMBER SPECIFIC ACTIONS =====
+    if (isTeamMember) {
       // Check if this is a resolution command
       const isResolutionCommand = messageText.toLowerCase().trim() === "/resolvido";
 
@@ -561,62 +555,66 @@ serve(async (req) => {
             resolved_at: new Date().toISOString(),
             resolved_by: teamMember?.id || null,
           })
-          .eq("id", openTicket.id);
+          .eq("id", ticketId);
 
         if (updateError) {
           console.error("Error resolving ticket:", updateError);
           throw updateError;
         }
 
-        console.log("Ticket resolved:", openTicket.id);
+        console.log("Ticket resolved:", ticketId);
         return new Response(
           JSON.stringify({
             success: true,
             message: "Ticket resolved",
-            ticketId: openTicket.id,
+            ticketId: ticketId,
           }),
           {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           }
         );
-      } else if (!openTicket.first_response_at) {
+      } else if (!existingTicket?.first_response_at) {
         // First response from team
         const { error: updateError } = await supabase
           .from("tickets")
           .update({
             first_response_at: new Date().toISOString(),
           })
-          .eq("id", openTicket.id);
+          .eq("id", ticketId);
 
         if (updateError) {
           console.error("Error updating first response:", updateError);
           throw updateError;
         }
 
-        console.log("First response recorded for ticket:", openTicket.id);
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: "First response recorded",
-            ticketId: openTicket.id,
-          }),
-          {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        console.log("First response recorded for ticket:", ticketId);
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "Message processed",
-          ticketId: openTicket.id,
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    } else {
+      // Update customer info on existing ticket if not set
+      if (existingTicket && (!existingTicket.customer_phone || !existingTicket.customer_name)) {
+        const updates: Record<string, string> = {};
+        if (!existingTicket.customer_phone && senderPhone) updates.customer_phone = senderPhone;
+        if (!existingTicket.customer_name && senderName) updates.customer_name = senderName;
+        
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from("tickets")
+            .update(updates)
+            .eq("id", ticketId);
         }
-      );
+      }
     }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: existingTicket ? "Message saved" : "Ticket created and message saved",
+        ticketId: ticketId,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("Webhook error:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
