@@ -227,7 +227,7 @@ serve(async (req) => {
           await supabase
             .from("tickets")
             .update({
-              next_analysis_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+              next_analysis_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2 minutes for testing
             })
             .eq("id", ticket.id);
           continue;
@@ -263,10 +263,10 @@ serve(async (req) => {
                 updates.resolution_time_minutes = demand.resolution_time_minutes || null;
               }
               
-              // Check if SLA exceeded (demand open for more than 1 hour)
+              // Check if SLA exceeded (demand open for more than 2 minutes - for testing)
               if (demand.status === "open") {
                 const demandAge = Date.now() - new Date(ticket.created_at).getTime();
-                if (demandAge > 60 * 60 * 1000) {
+                if (demandAge > 2 * 60 * 1000) {
                   updates.sla_exceeded = true;
                 }
               }
@@ -281,7 +281,7 @@ serve(async (req) => {
           } else {
             // Create new demand
             const demandAge = Date.now() - new Date(ticket.created_at).getTime();
-            const slaExceeded = demand.status === "open" && demandAge > 60 * 60 * 1000;
+            const slaExceeded = demand.status === "open" && demandAge > 2 * 60 * 1000; // 2 minutes for testing
 
             const { error: insertError } = await supabase
               .from("ticket_demands")
@@ -317,8 +317,8 @@ serve(async (req) => {
           ticketUpdates.next_analysis_at = null;
           console.log(`All demands resolved - closing ticket ${ticket.id}`);
         } else {
-          // Still has open demands - schedule next analysis in 1 hour
-          ticketUpdates.next_analysis_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+          // Still has open demands - schedule next analysis in 2 minutes (for testing)
+          ticketUpdates.next_analysis_at = new Date(Date.now() + 2 * 60 * 1000).toISOString();
           console.log(`Ticket ${ticket.id} has open demands - next analysis at ${ticketUpdates.next_analysis_at}`);
         }
 
