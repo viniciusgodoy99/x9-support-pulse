@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Brain, ChevronDown, ChevronUp, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Brain, ChevronDown, ChevronUp, Clock, CheckCircle2, AlertCircle, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,17 @@ const getPriorityColor = (priority: string) => {
   }
 };
 
+const categoryConfig: Record<string, { label: string; className: string }> = {
+  duvida: { label: "Dúvida", className: "bg-blue-500/10 text-blue-600 border-blue-500/30" },
+  solicitacao: { label: "Solicitação", className: "bg-green-500/10 text-green-600 border-green-500/30" },
+  reclamacao: { label: "Reclamação", className: "bg-red-500/10 text-red-600 border-red-500/30" },
+  agendamento: { label: "Agendamento", className: "bg-purple-500/10 text-purple-600 border-purple-500/30" },
+  suporte_tecnico: { label: "Suporte Técnico", className: "bg-orange-500/10 text-orange-600 border-orange-500/30" },
+  financeiro: { label: "Financeiro", className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" },
+  feedback: { label: "Feedback", className: "bg-cyan-500/10 text-cyan-600 border-cyan-500/30" },
+  geral: { label: "Geral", className: "bg-muted text-muted-foreground border-muted-foreground/30" },
+};
+
 export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
   const [expanded, setExpanded] = useState(false);
   
@@ -33,6 +44,11 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
   
   const slaStatus = duration < limit / 2 ? "ok" : duration < limit ? "warning" : "critical";
   const hasAiAnalysis = !!ticket.ai_summary || (ticket.demands && ticket.demands.length > 0);
+  
+  // Get unique categories from demands
+  const uniqueCategories = ticket.demands 
+    ? [...new Set(ticket.demands.map(d => d.category || "geral"))]
+    : [];
   
   return (
     <Card className="overflow-hidden">
@@ -57,6 +73,23 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
               <p className="text-sm text-muted-foreground">
                 Cliente: {ticket.customer_name}
               </p>
+            )}
+            {uniqueCategories.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <Tag className="h-3 w-3 text-muted-foreground" />
+                {uniqueCategories.map((cat) => {
+                  const config = categoryConfig[cat] || categoryConfig.geral;
+                  return (
+                    <Badge
+                      key={cat}
+                      variant="outline"
+                      className={cn("text-xs", config.className)}
+                    >
+                      {config.label}
+                    </Badge>
+                  );
+                })}
+              </div>
             )}
           </div>
           
@@ -141,10 +174,15 @@ function DemandRow({ demand }: { demand: TicketDemand }) {
       
       <div className="flex-1 min-w-0">
         <p className="text-sm">{demand.description}</p>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
           <Badge variant="outline" className={cn("text-xs", getPriorityColor(demand.priority))}>
             {demand.priority}
           </Badge>
+          {demand.category && categoryConfig[demand.category] && (
+            <Badge variant="outline" className={cn("text-xs", categoryConfig[demand.category].className)}>
+              {categoryConfig[demand.category].label}
+            </Badge>
+          )}
           {isResolved && demand.resolution_time_minutes && (
             <span className="text-xs text-muted-foreground">
               Resolvido em {demand.resolution_time_minutes}min
