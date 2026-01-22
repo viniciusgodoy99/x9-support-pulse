@@ -391,21 +391,54 @@ serve(async (req) => {
       }
     }
 
-    // Update sender info in group_members - search by phone_number (not whatsapp_id)
+    // Get sender_lid to match with whatsapp_id in group_members
+    // sender_lid format: "248519843647735@lid" - we need to match this with stored whatsapp_id
+    const senderLid = payload.message?.sender_lid || payload.message?.sender || "";
+    const senderLidClean = senderLid.replace("@lid", "").replace("@s.whatsapp.net", "");
+    
+    console.log("Looking for member - senderLid:", senderLid, "senderPhone:", senderPhone);
+
+    // Update sender info in group_members - search by whatsapp_id (LID) OR phone_number
+    // This handles both new format (LID) and old format (phone number)
     const { data: senderMember } = await supabase
       .from("group_members")
-      .select("id, name, role")
+      .select("id, name, role, phone_number, whatsapp_id")
       .eq("group_id", group.id)
-      .eq("phone_number", senderPhone)
+      .or(`whatsapp_id.ilike.%${senderLidClean}%,phone_number.eq.${senderPhone}`)
       .maybeSingle();
 
-    // Update name if we have senderName
-    if (senderMember && senderName && senderName !== "Cliente") {
-      await supabase
-        .from("group_members")
-        .update({ name: senderName })
-        .eq("id", senderMember.id);
-      console.log("Updated member name:", senderPhone, "->", senderName);
+    console.log("Found member:", senderMember?.id, "current phone:", senderMember?.phone_number);
+
+    // Update name AND phone_number with real values from webhook
+    if (senderMember) {
+      const updates: Record<string, string> = {};
+      
+      // Update name if we have a valid senderName
+      if (senderName && senderName !== "Cliente" && senderName !== senderMember.name) {
+        updates.name = senderName;
+      }
+      
+      // Update phone_number with the REAL phone number from sender_pn
+      // This is crucial because sync saves LID but we want the real number
+      if (senderPhone && senderMember.phone_number !== senderPhone) {
+        updates.phone_number = senderPhone;
+        console.log("Updating phone_number from", senderMember.phone_number, "to", senderPhone);
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        const { error: updateError } = await supabase
+          .from("group_members")
+          .update(updates)
+          .eq("id", senderMember.id);
+        
+        if (updateError) {
+          console.error("Error updating member:", updateError);
+        } else {
+          console.log("Updated member:", senderMember.id, "updates:", updates);
+        }
+      }
+    } else {
+      console.log("No matching member found for senderLid:", senderLidClean, "or senderPhone:", senderPhone);
     }
 
     // Check if sender is a CS (team member) based on group_members role

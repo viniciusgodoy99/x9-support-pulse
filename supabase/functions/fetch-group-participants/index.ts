@@ -11,6 +11,58 @@ interface GroupParticipant {
   id: string;
   phoneNumber?: string; // Real phone number: "558494947662@s.whatsapp.net"
   admin?: string;
+  name?: string;
+}
+
+interface ContactInfo {
+  phone?: string;
+  name?: string;
+  exists?: boolean;
+}
+
+// Fetch contact info from UAZAPI to get real phone number and name
+async function fetchContactInfo(
+  baseUrl: string,
+  apiKey: string,
+  whatsappId: string
+): Promise<ContactInfo | null> {
+  try {
+    // Extract the ID part (without @lid or @s.whatsapp.net)
+    const cleanId = whatsappId.split("@")[0];
+    
+    // Try /contact/check endpoint to get real phone number
+    const url = `${baseUrl}/contact/check`;
+    console.log("Fetching contact info for:", cleanId);
+    
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "token": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        phone: cleanId,
+      }),
+    });
+
+    if (!response.ok) {
+      console.log("Contact check failed for:", cleanId, response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log("Contact info response:", JSON.stringify(data));
+    
+    // UAZAPI returns: { Exists, JID, PN, Name, ... }
+    return {
+      phone: data.PN || data.phone,
+      name: data.Name || data.name || data.PushName || data.pushName,
+      exists: data.Exists || data.exists,
+    };
+  } catch (error) {
+    console.error("Error fetching contact info:", error);
+    return null;
+  }
 }
 
 serve(async (req) => {
@@ -101,15 +153,36 @@ serve(async (req) => {
 
     for (const participant of participants) {
       const whatsappId = participant.id;
-      // Use phoneNumber field (real number) if available, otherwise fallback to id
-      const phoneNumber = participant.phoneNumber 
+      let phoneNumber = participant.phoneNumber 
         ? participant.phoneNumber.replace("@s.whatsapp.net", "")
         : whatsappId.split("@")[0];
+      let participantName = participant.name;
       const isAdmin = participant.admin === "admin" || participant.admin === "superadmin";
+
+      // If we only have a LID (not a real phone number), try to fetch contact info
+      // LIDs are typically long numeric strings without country code format
+      const isLid = whatsappId.includes("@lid") || 
+                   (!whatsappId.includes("@s.whatsapp.net") && phoneNumber.length > 13);
+      
+      if (isLid) {
+        console.log("Participant has LID, attempting to fetch real phone number:", whatsappId);
+        const contactInfo = await fetchContactInfo(baseUrl, apiKey, whatsappId);
+        if (contactInfo) {
+          if (contactInfo.phone) {
+            const realPhone = contactInfo.phone.replace("@s.whatsapp.net", "");
+            console.log("Got real phone number:", realPhone, "for LID:", phoneNumber);
+            phoneNumber = realPhone;
+          }
+          if (contactInfo.name) {
+            participantName = contactInfo.name;
+            console.log("Got name:", participantName);
+          }
+        }
+      }
 
       const { data: existingMember } = await supabase
         .from("group_members")
-        .select("id, is_admin, phone_number")
+        .select("id, is_admin, phone_number, name")
         .eq("group_id", groupId)
         .eq("whatsapp_id", whatsappId)
         .maybeSingle();
@@ -133,20 +206,24 @@ serve(async (req) => {
             phone_number: phoneNumber,
             is_admin: isAdmin,
             role: role,
+            name: participantName || null,
           });
 
         if (!insertError) {
           added++;
-          console.log("Added member:", phoneNumber, "role:", role);
+          console.log("Added member:", phoneNumber, "name:", participantName, "role:", role);
         }
       } else {
-        // Update admin status and phone_number if changed
+        // Update admin status, phone_number and name if changed
         const updates: any = {};
         if (existingMember.is_admin !== isAdmin) {
           updates.is_admin = isAdmin;
         }
-        if (existingMember.phone_number !== phoneNumber) {
+        if (existingMember.phone_number !== phoneNumber && phoneNumber) {
           updates.phone_number = phoneNumber;
+        }
+        if (participantName && existingMember.name !== participantName) {
+          updates.name = participantName;
         }
         
         if (Object.keys(updates).length > 0) {
@@ -155,6 +232,7 @@ serve(async (req) => {
             .update(updates)
             .eq("id", existingMember.id);
           updated++;
+          console.log("Updated member:", phoneNumber, "updates:", updates);
         }
       }
     }
