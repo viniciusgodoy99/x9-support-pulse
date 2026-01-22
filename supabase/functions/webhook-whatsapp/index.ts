@@ -478,8 +478,8 @@ serve(async (req) => {
     let ticketId: string;
 
     if (!existingTicket) {
-      // Create new ticket with next_analysis_at set to 1 hour from now
-      const nextAnalysisAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // +1 hour
+      // Create new ticket with next_analysis_at set to 2 minutes from now (for testing)
+      const nextAnalysisAt = new Date(Date.now() + 2 * 60 * 1000).toISOString(); // +2 minutes
       
       const { data: newTicket, error: createError } = await supabase
         .from("tickets")
