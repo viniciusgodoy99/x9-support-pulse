@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { Clock, CheckCircle, AlertTriangle, Brain, ListTodo, Timer } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { Ticket } from "@/hooks/useTickets";
+import type { Ticket, TicketDemand } from "@/hooks/useTickets";
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -36,9 +36,58 @@ function getSlaStatus(waitingTimeMinutes: number, slaLimit: number) {
   return "critical";
 }
 
+function DemandItem({ demand }: { demand: TicketDemand }) {
+  const priorityColors = {
+    low: "text-muted-foreground",
+    normal: "text-foreground",
+    high: "text-sla-warning",
+    urgent: "text-sla-critical",
+  };
+
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <div className={cn(
+        "mt-0.5 h-4 w-4 rounded-full flex items-center justify-center flex-shrink-0",
+        demand.status === "resolved" 
+          ? "bg-sla-ok/20 text-sla-ok" 
+          : demand.sla_exceeded 
+            ? "bg-sla-critical/20 text-sla-critical" 
+            : "bg-muted text-muted-foreground"
+      )}>
+        {demand.status === "resolved" ? (
+          <CheckCircle className="h-3 w-3" />
+        ) : demand.sla_exceeded ? (
+          <AlertTriangle className="h-3 w-3" />
+        ) : (
+          <Timer className="h-3 w-3" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={cn(
+          "truncate",
+          demand.status === "resolved" ? "line-through text-muted-foreground" : priorityColors[demand.priority]
+        )}>
+          {demand.description}
+        </p>
+        {demand.status === "resolved" && demand.resolution_time_minutes && (
+          <p className="text-xs text-muted-foreground">
+            Resolvido em {demand.resolution_time_minutes}min
+          </p>
+        )}
+        {demand.sla_exceeded && demand.status === "open" && (
+          <p className="text-xs text-sla-critical font-medium">
+            SLA excedido!
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TicketCard({ ticket, onResolve }: TicketCardProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isResolving, setIsResolving] = useState(false);
+  const [showDemands, setShowDemands] = useState(false);
 
   useEffect(() => {
     const startTime = new Date(ticket.created_at).getTime();
@@ -65,6 +114,13 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
       setIsResolving(false);
     }
   };
+
+  // Calculate demand stats
+  const demands = ticket.demands || [];
+  const openDemands = demands.filter(d => d.status === "open");
+  const resolvedDemands = demands.filter(d => d.status === "resolved");
+  const slaExceededDemands = demands.filter(d => d.sla_exceeded && d.status === "open");
+  const hasAnalysis = ticket.analysis_count > 0;
 
   return (
     <div className={cn(
@@ -97,17 +153,25 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
               {ticket.customer_name || ticket.customer_phone || "Cliente"}
             </p>
           </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              "font-mono text-xs",
-              slaStatus === "ok" && "border-sla-ok text-sla-ok",
-              slaStatus === "warning" && "border-sla-warning text-sla-warning",
-              slaStatus === "critical" && "border-sla-critical text-sla-critical"
+          <div className="flex flex-col items-end gap-1">
+            <Badge
+              variant="outline"
+              className={cn(
+                "font-mono text-xs",
+                slaStatus === "ok" && "border-sla-ok text-sla-ok",
+                slaStatus === "warning" && "border-sla-warning text-sla-warning",
+                slaStatus === "critical" && "border-sla-critical text-sla-critical"
+              )}
+            >
+              {ticket.first_response_at ? "Em Atendimento" : "Aguardando"}
+            </Badge>
+            {hasAnalysis && (
+              <Badge variant="secondary" className="text-xs gap-1">
+                <Brain className="h-3 w-3" />
+                {ticket.analysis_count}x
+              </Badge>
             )}
-          >
-            {ticket.first_response_at ? "Em Atendimento" : "Aguardando"}
-          </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -148,6 +212,60 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
             </>
           )}
         </div>
+
+        {/* AI Summary */}
+        {ticket.ai_summary && (
+          <div className="p-2 rounded-md bg-muted/50 border border-border/50">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+              <Brain className="h-3 w-3" />
+              <span>Resumo IA</span>
+            </div>
+            <p className="text-sm">{ticket.ai_summary}</p>
+          </div>
+        )}
+
+        {/* Demands Section */}
+        {demands.length > 0 && (
+          <div className="space-y-2">
+            <button
+              onClick={() => setShowDemands(!showDemands)}
+              className="flex items-center justify-between w-full text-sm hover:bg-muted/50 p-1 rounded -mx-1"
+            >
+              <div className="flex items-center gap-2">
+                <ListTodo className="h-4 w-4" />
+                <span className="font-medium">Demandas</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {slaExceededDemands.length > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {slaExceededDemands.length} SLA!
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-xs">
+                  {openDemands.length} abertas / {resolvedDemands.length} resolvidas
+                </Badge>
+              </div>
+            </button>
+            
+            {showDemands && (
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                {demands.map(demand => (
+                  <DemandItem key={demand.id} demand={demand} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Next Analysis Indicator */}
+        {ticket.next_analysis_at && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Brain className="h-3 w-3" />
+            <span>
+              Próxima análise: {new Date(ticket.next_analysis_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </div>
+        )}
 
         <Button
           variant="outline"

@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.fetch-group-participants]
 verify_jwt = false
+
+[functions.analyze-tickets]
+verify_jwt = false
