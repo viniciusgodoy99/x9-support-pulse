@@ -284,16 +284,9 @@ serve(async (req) => {
       );
     }
 
-    // Ignore messages sent by the bot itself
-    if (payload.message?.fromMe) {
-      console.log("Ignoring own message");
-      return new Response(
-        JSON.stringify({ success: true, message: "Own message ignored" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+    // NOTE: We no longer return early for fromMe messages here
+    // This allows us to update member info even for our own sent messages
+    // We'll check fromMe later, after updating member info
 
     // Extract sender info from UAZAPI format
     // sender_pn contains the real phone number: "558498371318@s.whatsapp.net"
@@ -417,7 +410,19 @@ serve(async (req) => {
       console.log("No matching member found for senderLid:", senderLidClean, "or senderPhone:", senderPhone);
     }
 
-    // ===== NOW CHECK IF CLIENT GROUP FOR TICKET PROCESSING =====
+    // ===== NOW CHECK IF WE SHOULD PROCESS TICKETS =====
+    // Skip ticket processing for own messages (but member info was already updated above)
+    if (payload.message?.fromMe) {
+      console.log("Own message - member info updated, skipping ticket processing");
+      return new Response(
+        JSON.stringify({ success: true, message: "Own message - member info updated" }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Skip ticket processing for non-client groups
     if (!group.is_client_group) {
       console.log("Group is not a client group, skipping ticket processing:", remoteJid);
       return new Response(
