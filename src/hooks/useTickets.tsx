@@ -102,15 +102,34 @@ export function useTickets(status?: "open" | "resolved") {
 
   const resolveTicket = async (ticketId: string) => {
     try {
-      const { error } = await supabase
-        .from("tickets")
-        .update({
-          status: "resolved",
-          resolved_at: new Date().toISOString(),
-        })
-        .eq("id", ticketId);
-
-      if (error) throw error;
+      // First, trigger AI analysis with force resolve
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      console.log(`Force resolving ticket ${ticketId} with AI analysis...`);
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/analyze-tickets`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": supabaseKey,
+          "Authorization": `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
+          ticketId,
+          forceResolve: true,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error calling analyze-tickets:", errorText);
+        throw new Error("Erro ao analisar ticket");
+      }
+      
+      const result = await response.json();
+      console.log("Analysis result:", result);
+      
       await fetchTickets();
     } catch (err) {
       console.error("Error resolving ticket:", err);

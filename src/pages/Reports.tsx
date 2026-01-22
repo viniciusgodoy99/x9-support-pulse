@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, Clock, Users } from "lucide-react";
+import { BarChart3, TrendingUp, Clock, Users, Brain } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useTickets } from "@/hooks/useTickets";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
-import { cn } from "@/lib/utils";
+import { TicketHistoryCard } from "@/components/reports/TicketHistoryCard";
 import {
   BarChart,
   Bar,
@@ -230,56 +230,19 @@ export default function Reports() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Histórico de Atendimentos</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-primary" />
+                  Histórico de Atendimentos
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {tickets
                     .filter((t) => t.status === "resolved")
-                    .slice(0, 10)
-                    .map((ticket) => {
-                      const created = new Date(ticket.created_at);
-                      const resolved = ticket.resolved_at
-                        ? new Date(ticket.resolved_at)
-                        : new Date();
-                      const duration = Math.round(
-                        (resolved.getTime() - created.getTime()) / (1000 * 60)
-                      );
-                      const limit = ticket.monitored_groups?.sla_limit_minutes || 30;
-
-                      return (
-                        <div
-                          key={ticket.id}
-                          className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div>
-                              <p className="font-medium">
-                                {ticket.monitored_groups?.name || "Grupo"}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {created.toLocaleString("pt-BR")}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "font-mono",
-                                duration < limit / 2 && "border-sla-ok text-sla-ok",
-                                duration >= limit / 2 &&
-                                  duration < limit &&
-                                  "border-sla-warning text-sla-warning",
-                                duration >= limit && "border-sla-critical text-sla-critical"
-                              )}
-                            >
-                              {duration}min
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })}
+                    .slice(0, 20)
+                    .map((ticket) => (
+                      <TicketHistoryCard key={ticket.id} ticket={ticket} />
+                    ))}
                   {tickets.filter((t) => t.status === "resolved").length === 0 && (
                     <div className="text-center text-muted-foreground py-8">
                       Nenhum atendimento finalizado ainda

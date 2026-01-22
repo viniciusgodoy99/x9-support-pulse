@@ -162,29 +162,72 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Starting ticket analysis job...");
+    // Check if this is a force resolve request
+    let ticketId: string | null = null;
+    let forceResolve = false;
+    
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        ticketId = body.ticketId || null;
+        forceResolve = body.forceResolve === true;
+      } catch {
+        // Not JSON body, continue with normal flow
+      }
+    }
 
-    // Find tickets that need analysis (next_analysis_at <= now AND status = open)
-    const { data: ticketsToAnalyze, error: ticketsError } = await supabase
-      .from("tickets")
-      .select(`
-        id,
-        group_id,
-        created_at,
-        last_analysis_at,
-        analysis_count,
-        monitored_groups (
-          name
-        )
-      `)
-      .eq("status", "open")
-      .lte("next_analysis_at", new Date().toISOString())
-      .order("next_analysis_at", { ascending: true })
-      .limit(10); // Process up to 10 tickets per run
+    console.log(`Starting ticket analysis job... ticketId=${ticketId}, forceResolve=${forceResolve}`);
 
-    if (ticketsError) {
-      console.error("Error fetching tickets:", ticketsError);
-      throw ticketsError;
+    let ticketsToAnalyze;
+    
+    if (ticketId) {
+      // Analyze specific ticket
+      const { data, error } = await supabase
+        .from("tickets")
+        .select(`
+          id,
+          group_id,
+          created_at,
+          last_analysis_at,
+          analysis_count,
+          monitored_groups (
+            name
+          )
+        `)
+        .eq("id", ticketId)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching ticket:", error);
+        throw error;
+      }
+      
+      ticketsToAnalyze = data ? [data] : [];
+    } else {
+      // Find tickets that need analysis (next_analysis_at <= now AND status = open)
+      const { data, error: ticketsError } = await supabase
+        .from("tickets")
+        .select(`
+          id,
+          group_id,
+          created_at,
+          last_analysis_at,
+          analysis_count,
+          monitored_groups (
+            name
+          )
+        `)
+        .eq("status", "open")
+        .lte("next_analysis_at", new Date().toISOString())
+        .order("next_analysis_at", { ascending: true })
+        .limit(10); // Process up to 10 tickets per run
+
+      if (ticketsError) {
+        console.error("Error fetching tickets:", ticketsError);
+        throw ticketsError;
+      }
+      
+      ticketsToAnalyze = data;
     }
 
     if (!ticketsToAnalyze || ticketsToAnalyze.length === 0) {
@@ -203,10 +246,10 @@ serve(async (req) => {
     for (const ticket of ticketsToAnalyze) {
       try {
         const groupName = (ticket.monitored_groups as any)?.name || ticket.group_id;
-        console.log(`Analyzing ticket ${ticket.id} for group ${groupName}`);
+        console.log(`Analyzing ticket ${ticket.id} for group ${groupName}${forceResolve ? ' (FORCE RESOLVE)' : ''}`);
 
-        // Fetch messages since last analysis (or since ticket creation)
-        const sinceTime = ticket.last_analysis_at || ticket.created_at;
+        // For force resolve, fetch ALL messages; otherwise only since last analysis
+        const sinceTime = forceResolve ? ticket.created_at : (ticket.last_analysis_at || ticket.created_at);
         
         const { data: messages, error: messagesError } = await supabase
           .from("messages")
@@ -310,12 +353,29 @@ serve(async (req) => {
           ai_summary: analysis.summary,
         };
 
-        if (analysis.all_resolved) {
-          // All demands resolved - close the ticket
+        if (analysis.all_resolved || forceResolve) {
+          // All demands resolved OR force resolve - close the ticket
           ticketUpdates.status = "resolved";
           ticketUpdates.resolved_at = new Date().toISOString();
           ticketUpdates.next_analysis_at = null;
-          console.log(`All demands resolved - closing ticket ${ticket.id}`);
+          
+          // If force resolve, mark all open demands as resolved
+          if (forceResolve) {
+            const { error: updateDemandsError } = await supabase
+              .from("ticket_demands")
+              .update({
+                status: "resolved",
+                resolved_at: new Date().toISOString(),
+              })
+              .eq("ticket_id", ticket.id)
+              .eq("status", "open");
+            
+            if (updateDemandsError) {
+              console.error(`Error updating demands for force resolve:`, updateDemandsError);
+            }
+          }
+          
+          console.log(`${forceResolve ? 'Force resolving' : 'All demands resolved - closing'} ticket ${ticket.id}`);
         } else {
           // Still has open demands - schedule next analysis in 2 minutes (for testing)
           ticketUpdates.next_analysis_at = new Date(Date.now() + 2 * 60 * 1000).toISOString();
