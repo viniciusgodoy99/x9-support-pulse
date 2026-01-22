@@ -51,7 +51,21 @@ Analise a conversa entre Atendentes (CS) e Clientes e identifique:
 1. TODAS as demandas/pedidos/solicitações feitas pelo cliente
 2. O status de cada demanda: "resolved" se foi atendida/respondida, "open" se ainda está pendente
 3. A prioridade baseada na urgência aparente: "low", "normal", "high", "urgent"
-4. Para demandas resolvidas, estime o tempo aproximado de resolução em minutos
+4. A CATEGORIA de cada demanda (OBRIGATÓRIO - você DEVE classificar cada demanda):
+   - "duvida": Perguntas, questionamentos, pedidos de esclarecimento
+   - "solicitacao": Pedidos de informação, materiais, relatórios, dados, envio de arquivos
+   - "reclamacao": Insatisfação, problemas, queixas, críticas
+   - "agendamento": Solicitações sobre datas, horários, reuniões, gravações, calendário
+   - "suporte_tecnico": Problemas técnicos, bugs, erros de sistema, falhas
+   - "financeiro": Pagamentos, cobranças, notas fiscais, valores, orçamentos
+   - "feedback": Retorno sobre serviços, avaliações, sugestões de melhoria
+   - "geral": APENAS quando não se encaixar em NENHUMA outra categoria
+5. Para demandas resolvidas, estime o tempo aproximado de resolução em minutos
+
+REGRAS DE CATEGORIZAÇÃO:
+- SEMPRE escolha a categoria mais específica possível
+- "geral" deve ser usado APENAS como último recurso
+- Se houver dúvida entre duas categorias, escolha a que melhor representa a INTENÇÃO do cliente
 
 Considere que:
 - Uma demanda é considerada RESOLVIDA quando o CS deu uma resposta satisfatória ou confirmou a resolução
