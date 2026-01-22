@@ -23,9 +23,8 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const apiUrl = Deno.env.get("EVOLUTION_API_URL");
     const apiKey = Deno.env.get("EVOLUTION_API_KEY");
-    const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
 
-    if (!apiUrl || !apiKey || !instanceName) {
+    if (!apiUrl || !apiKey) {
       throw new Error("UAZAPI credentials not configured");
     }
 
@@ -49,18 +48,21 @@ serve(async (req) => {
 
     console.log("Fetching participants for group:", group.name, group.whatsapp_id);
 
-    // Fetch group info (includes participants with phoneNumber) from UAZAPI
+    // Fetch group info from UAZAPI using POST /group/info
     const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
-    const encodedInstance = encodeURIComponent(instanceName);
-    const url = `${baseUrl}/group/findGroupInfos/${encodedInstance}?groupJid=${group.whatsapp_id}`;
-    console.log("UAZAPI URL:", url);
+    const url = `${baseUrl}/group/info`;
+    console.log("UAZAPI URL:", url, "groupjid:", group.whatsapp_id);
     
     const response = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
         "apikey": apiKey,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        groupjid: group.whatsapp_id,
+        force: true,
+      }),
     });
 
     if (!response.ok) {
@@ -81,10 +83,15 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log("Group info response received");
+    console.log("UAZAPI group info response received");
     
-    // findGroupInfos returns participants with phoneNumber field
-    const participants: GroupParticipant[] = data.participants || [];
+    // UAZAPI returns: { Name, Participants: [{ JID, PN, IsAdmin, IsSuperAdmin, ... }] }
+    // Map to internal format
+    const participants: GroupParticipant[] = (data.Participants || []).map((p: any) => ({
+      id: p.JID || p.id,
+      phoneNumber: p.PN || p.phoneNumber,
+      admin: p.IsAdmin ? "admin" : (p.IsSuperAdmin ? "superadmin" : undefined),
+    }));
 
     console.log(`Found ${participants.length} participants`);
 

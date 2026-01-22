@@ -46,30 +46,31 @@ interface GroupParticipant {
   admin?: string;
 }
 
-// Fetch group info from UAZAPI (same endpoint structure as Evolution)
+// Fetch group info from UAZAPI
 async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string; participants?: GroupParticipant[] } | null> {
   const apiUrl = Deno.env.get("EVOLUTION_API_URL");
   const apiKey = Deno.env.get("EVOLUTION_API_KEY");
-  const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
 
-  if (!apiUrl || !apiKey || !instanceName) {
+  if (!apiUrl || !apiKey) {
     console.error("UAZAPI credentials not configured");
     return null;
   }
 
   try {
-    // Ensure URL has protocol and encode instance name
     const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
-    const encodedInstance = encodeURIComponent(instanceName);
-    const url = `${baseUrl}/group/findGroupInfos/${encodedInstance}?groupJid=${groupJid}`;
-    console.log("Fetching group info from:", url);
+    const url = `${baseUrl}/group/info`;
+    console.log("Fetching group info from UAZAPI:", url, "groupjid:", groupJid);
 
     const response = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
         "apikey": apiKey,
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        groupjid: groupJid,
+        force: true,
+      }),
     });
 
     if (!response.ok) {
@@ -79,9 +80,18 @@ async function fetchGroupInfo(groupJid: string): Promise<{ subject?: string; par
     }
 
     const data = await response.json();
-    console.log("Group info response:", JSON.stringify(data, null, 2));
-    // Response is the group object directly with 'subject' and 'participants' fields
-    return data || null;
+    console.log("UAZAPI group info response:", JSON.stringify(data, null, 2));
+
+    // Map UAZAPI response to internal format
+    // UAZAPI returns: { Name, Participants: [{ JID, PN, IsAdmin, ... }] }
+    return {
+      subject: data.Name,
+      participants: data.Participants?.map((p: any) => ({
+        id: p.JID || p.id,
+        phoneNumber: p.PN || p.phoneNumber,
+        admin: p.IsAdmin ? "admin" : (p.IsSuperAdmin ? "superadmin" : undefined),
+      })),
+    };
   } catch (error) {
     console.error("Error fetching group info:", error);
     return null;
