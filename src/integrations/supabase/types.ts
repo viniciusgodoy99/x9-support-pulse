@@ -183,6 +183,7 @@ export type Database = {
       }
       ticket_demands: {
         Row: {
+          category: string
           created_at: string
           description: string
           id: string
@@ -194,6 +195,7 @@ export type Database = {
           ticket_id: string
         }
         Insert: {
+          category?: string
           created_at?: string
           description: string
           id?: string
@@ -205,6 +207,7 @@ export type Database = {
           ticket_id: string
         }
         Update: {
+          category?: string
           created_at?: string
           description?: string
           id?: string

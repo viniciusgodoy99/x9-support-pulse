@@ -7,6 +7,7 @@ export interface TicketDemand {
   description: string;
   status: "open" | "resolved";
   priority: "low" | "normal" | "high" | "urgent";
+  category: "duvida" | "solicitacao" | "reclamacao" | "agendamento" | "suporte_tecnico" | "financeiro" | "feedback" | "geral";
   created_at: string;
   resolved_at: string | null;
   resolution_time_minutes: number | null;

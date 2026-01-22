@@ -19,6 +19,7 @@ interface Demand {
   description: string;
   status: "open" | "resolved";
   priority: "low" | "normal" | "high" | "urgent";
+  category: "duvida" | "solicitacao" | "reclamacao" | "agendamento" | "suporte_tecnico" | "financeiro" | "feedback" | "geral";
   resolution_time_minutes?: number;
 }
 
@@ -100,12 +101,17 @@ Use a função analyze_conversation para estruturar sua resposta.`;
                       enum: ["low", "normal", "high", "urgent"],
                       description: "Prioridade baseada na urgência aparente"
                     },
+                    category: {
+                      type: "string",
+                      enum: ["duvida", "solicitacao", "reclamacao", "agendamento", "suporte_tecnico", "financeiro", "feedback", "geral"],
+                      description: "Categoria da demanda: duvida (perguntas), solicitacao (pedidos), reclamacao (insatisfação), agendamento (datas/horários), suporte_tecnico (problemas técnicos), financeiro (pagamentos), feedback (retorno sobre serviços), geral (outros)"
+                    },
                     resolution_time_minutes: { 
                       type: "number",
                       description: "Tempo estimado de resolução em minutos (apenas para resolvidas)"
                     }
                   },
-                  required: ["description", "status", "priority"]
+                  required: ["description", "status", "priority", "category"]
                 }
               },
               all_resolved: { 
@@ -333,6 +339,7 @@ serve(async (req) => {
                 description: demand.description,
                 status: demand.status,
                 priority: demand.priority,
+                category: demand.category || "geral",
                 resolution_time_minutes: demand.status === "resolved" ? demand.resolution_time_minutes : null,
                 resolved_at: demand.status === "resolved" ? new Date().toISOString() : null,
                 sla_exceeded: slaExceeded,
