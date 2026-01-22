@@ -410,19 +410,8 @@ serve(async (req) => {
       console.log("No matching member found for senderLid:", senderLidClean, "or senderPhone:", senderPhone);
     }
 
-    // ===== NOW CHECK IF WE SHOULD PROCESS TICKETS =====
-    // Skip ticket processing for own messages (but member info was already updated above)
-    if (payload.message?.fromMe) {
-      console.log("Own message - member info updated, skipping ticket processing");
-      return new Response(
-        JSON.stringify({ success: true, message: "Own message - member info updated" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Skip ticket processing for non-client groups
+    // ===== CHECK IF CLIENT GROUP =====
+    // For NON-client groups, skip ticket processing entirely
     if (!group.is_client_group) {
       console.log("Group is not a client group, skipping ticket processing:", remoteJid);
       return new Response(
@@ -433,7 +422,10 @@ serve(async (req) => {
       );
     }
 
-    console.log("Processing tickets for client group:", group.name);
+    // FOR CLIENT GROUPS: Process tickets for ALL messages (including fromMe)
+    // This ensures any interaction triggers monitoring
+    console.log("Processing tickets for client group:", group.name, 
+      payload.message?.fromMe ? "(own message)" : "(received message)");
 
     // Check if we need to sync group members (first time or no members)
     const { data: existingMembers, error: membersError } = await supabase
