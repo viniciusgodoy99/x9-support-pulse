@@ -3,10 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
-import { Smartphone, RefreshCw, CheckCircle2, XCircle, Loader2, QrCode } from "lucide-react";
+import { Smartphone, RefreshCw, CheckCircle2, XCircle, Loader2, QrCode, LogOut } from "lucide-react";
 
 export default function WhatsAppConnect() {
-  const { status, qrCode, loading, error, fetchQrCode, checkStatus } = useWhatsAppConnection();
+  const { status, qrCode, loading, error, fetchQrCode, checkStatus, disconnect } = useWhatsAppConnection();
 
   const getStatusBadge = () => {
     switch (status) {
@@ -81,10 +81,29 @@ export default function WhatsAppConnect() {
                     Sua instância está ativa e monitorando grupos
                   </p>
                 </div>
-                <Button variant="outline" onClick={checkStatus}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Verificar Status
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={checkStatus} disabled={loading}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Verificar Status
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={disconnect}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Desconectando...
+                      </>
+                    ) : (
+                      <>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Desconectar
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center space-y-6">

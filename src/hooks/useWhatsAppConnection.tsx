@@ -70,6 +70,37 @@ export function useWhatsAppConnection() {
     }
   }, [toast]);
 
+  const disconnect = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('whatsapp-connect', {
+        body: { action: 'logout' },
+      });
+
+      if (fnError) throw fnError;
+      
+      setStatus('disconnected');
+      setQrCode(null);
+      
+      toast({
+        title: "WhatsApp Desconectado",
+        description: "A instância foi desconectada com sucesso.",
+      });
+    } catch (err) {
+      console.error('Error disconnecting:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao desconectar');
+      toast({
+        title: "Erro",
+        description: err instanceof Error ? err.message : 'Erro ao desconectar',
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
   // Check status on mount
   useEffect(() => {
     checkStatus();
@@ -93,5 +124,6 @@ export function useWhatsAppConnection() {
     error,
     fetchQrCode,
     checkStatus,
+    disconnect,
   };
 }

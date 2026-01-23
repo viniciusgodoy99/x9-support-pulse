@@ -69,6 +69,57 @@ serve(async (req) => {
       return await statusResponse.json();
     };
 
+    // ========== ACTION: LOGOUT ==========
+    if (action === 'logout') {
+      console.log('Requesting logout from UAZAPI...');
+      
+      const logoutEndpoints = [
+        { method: 'DELETE', url: `${UAZAPI_URL}/instance/logout` },
+        { method: 'PUT', url: `${UAZAPI_URL}/instance/logout` },
+        { method: 'POST', url: `${UAZAPI_URL}/instance/logout` },
+        { method: 'DELETE', url: `${UAZAPI_URL}/instance/disconnect` },
+        { method: 'PUT', url: `${UAZAPI_URL}/instance/disconnect` },
+      ];
+
+      for (const endpoint of logoutEndpoints) {
+        try {
+          console.log(`Trying ${endpoint.method} ${endpoint.url}`);
+          const resp = await fetch(endpoint.url, {
+            method: endpoint.method,
+            headers: {
+              'token': UAZAPI_TOKEN,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          const text = await resp.text();
+          console.log(`Response ${resp.status}: ${text}`);
+          
+          if (resp.ok || resp.status === 200) {
+            return new Response(
+              JSON.stringify({ 
+                status: 'disconnected',
+                message: 'WhatsApp desconectado com sucesso'
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } catch (e) {
+          console.log(`Error with ${endpoint.method} ${endpoint.url}:`, e);
+        }
+      }
+
+      // Even if API calls fail, return disconnected to reset UI state
+      return new Response(
+        JSON.stringify({ 
+          status: 'disconnected',
+          message: 'Estado resetado localmente'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========== ACTION: STATUS ==========
     if (action === 'status') {
       const statusData = await getInstanceStatus();
       
