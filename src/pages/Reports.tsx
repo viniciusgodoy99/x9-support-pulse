@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { BarChart3, TrendingUp, Clock, Users, Brain, Filter, MessageSquare } from "lucide-react";
+import { BarChart3, TrendingUp, Clock, Users, Brain, Filter, MessageSquare, X } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTickets } from "@/hooks/useTickets";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useGroups } from "@/hooks/useGroups";
@@ -168,71 +170,96 @@ export default function Reports() {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-            <BarChart3 className="h-8 w-8 text-primary" />
-            Relatórios
-          </h1>
-          <p className="text-muted-foreground">
-            Análise detalhada do desempenho da equipe
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+              <BarChart3 className="h-8 w-8 text-primary" />
+              Relatórios
+            </h1>
+            <p className="text-muted-foreground">
+              Análise detalhada do desempenho da equipe
+            </p>
+          </div>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Filter className="h-4 w-4" />
+                Filtros Avançados
+                {(selectedCS !== "all" || selectedGroup !== "all") && (
+                  <Badge variant="secondary" className="ml-1">
+                    {(selectedCS !== "all" ? 1 : 0) + (selectedGroup !== "all" ? 1 : 0)}
+                  </Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">Filtros</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Filtre os dados por CS ou grupo
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Filtrar por CS
+                  </Label>
+                  <Select value={selectedCS} onValueChange={setSelectedCS}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um CS" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os CS</SelectItem>
+                      {csMembers.map(member => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    Filtrar por Grupo
+                  </Label>
+                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os grupos</SelectItem>
+                      {clientGroups.map(group => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(selectedCS !== "all" || selectedGroup !== "all") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={() => {
+                      setSelectedCS("all");
+                      setSelectedGroup("all");
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                    Limpar Filtros
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
-
-        {/* Filters */}
-        <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-lg">Filtros</CardTitle>
-            </div>
-            <CardDescription>
-              Filtre os dados por CS responsável ou selecione um grupo específico
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Filtrar por CS
-                </Label>
-                <Select value={selectedCS} onValueChange={setSelectedCS}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um CS" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os CS</SelectItem>
-                    {csMembers.map(member => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {member.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4" />
-                  Filtrar por Grupo
-                </Label>
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um grupo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os grupos</SelectItem>
-                    {clientGroups.map(group => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
