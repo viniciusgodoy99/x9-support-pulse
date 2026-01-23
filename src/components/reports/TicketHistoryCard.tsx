@@ -116,16 +116,6 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
               {duration}min
             </Badge>
             
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsModalOpen(true)}
-              className="h-8 gap-1.5"
-            >
-              <Eye className="h-4 w-4" />
-              Ver Detalhes
-            </Button>
-            
             {hasAiAnalysis && (
               <Button
                 variant="ghost"
@@ -175,6 +165,18 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
             )}
           </div>
         )}
+        
+        <div className="flex justify-end mt-4 pt-3 border-t border-border">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsModalOpen(true)}
+            className="h-8 gap-1.5"
+          >
+            <Eye className="h-4 w-4" />
+            Ver Detalhes
+          </Button>
+        </div>
       </CardContent>
     </Card>
     
