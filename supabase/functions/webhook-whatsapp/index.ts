@@ -510,7 +510,9 @@ serve(async (req) => {
     }
 
     // ===== SAVE MESSAGE TO DATABASE =====
-    const senderRole = isTeamMember ? "cs" : "client";
+    // sender_role: only actual CS (role === 'cs' or in team_members table) should be marked as "cs"
+    // Other roles like 'client' or 'traffic_manager' are NOT CS
+    const senderRole = (isCS || !!teamMember) ? "cs" : "client";
     const messageType = payload.message?.type || payload.message?.messageType || "text";
     const whatsappMessageId = payload.message?.id || payload.message?.messageid;
 
