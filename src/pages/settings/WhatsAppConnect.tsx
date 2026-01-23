@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
-import { Smartphone, RefreshCw, CheckCircle2, XCircle, Loader2, QrCode, LogOut } from "lucide-react";
+import { Smartphone, RefreshCw, CheckCircle2, XCircle, Loader2, QrCode, LogOut, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function WhatsAppConnect() {
-  const { status, qrCode, loading, error, fetchQrCode, checkStatus, disconnect } = useWhatsAppConnection();
+  const { status, qrCode, loading, error, profile, fetchQrCode, checkStatus, disconnect } = useWhatsAppConnection();
 
   const getStatusBadge = () => {
     switch (status) {
@@ -72,15 +73,36 @@ export default function WhatsAppConnect() {
           <CardContent className="space-y-6">
             {status === 'connected' ? (
               <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center">
-                  <CheckCircle2 className="h-10 w-10 text-primary" />
+                {/* Profile Avatar */}
+                <div className="relative">
+                  <Avatar className="h-20 w-20 border-4 border-primary/20">
+                    {profile?.pictureUrl ? (
+                      <AvatarImage src={profile.pictureUrl} alt={profile.name || 'WhatsApp Profile'} />
+                    ) : null}
+                    <AvatarFallback className="bg-primary/20 text-primary">
+                      {profile?.name ? profile.name.charAt(0).toUpperCase() : <User className="h-8 w-8" />}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                    <CheckCircle2 className="h-4 w-4 text-primary-foreground" />
+                  </div>
                 </div>
+
+                {/* Profile Info */}
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold">WhatsApp Conectado!</h3>
-                  <p className="text-muted-foreground text-sm">
+                  <h3 className="text-lg font-semibold">
+                    {profile?.name || 'WhatsApp Conectado!'}
+                  </h3>
+                  {profile?.phoneNumber && (
+                    <p className="text-sm text-muted-foreground">
+                      {profile.phoneNumber}
+                    </p>
+                  )}
+                  <p className="text-muted-foreground text-sm mt-1">
                     Sua instância está ativa e monitorando grupos
                   </p>
                 </div>
+                
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={checkStatus} disabled={loading}>
                     <RefreshCw className="h-4 w-4 mr-2" />

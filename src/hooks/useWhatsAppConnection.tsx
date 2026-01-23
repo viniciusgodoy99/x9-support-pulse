@@ -4,11 +4,18 @@ import { useToast } from "@/hooks/use-toast";
 
 type ConnectionStatus = "connected" | "disconnected" | "waiting" | "loading";
 
+export interface WhatsAppProfile {
+  name: string | null;
+  pictureUrl: string | null;
+  phoneNumber: string | null;
+}
+
 export function useWhatsAppConnection() {
   const [status, setStatus] = useState<ConnectionStatus>("loading");
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<WhatsAppProfile | null>(null);
   const { toast } = useToast();
 
   const checkStatus = useCallback(async () => {
@@ -22,8 +29,14 @@ export function useWhatsAppConnection() {
       if (statusData.status === 'connected') {
         setStatus('connected');
         setQrCode(null);
+        setProfile({
+          name: statusData.profileName || null,
+          pictureUrl: statusData.profilePicUrl || null,
+          phoneNumber: statusData.phoneNumber || null,
+        });
       } else {
         setStatus('disconnected');
+        setProfile(null);
       }
       
       setError(null);
@@ -83,6 +96,7 @@ export function useWhatsAppConnection() {
       
       setStatus('disconnected');
       setQrCode(null);
+      setProfile(null);
       
       toast({
         title: "WhatsApp Desconectado",
@@ -122,6 +136,7 @@ export function useWhatsAppConnection() {
     qrCode,
     loading,
     error,
+    profile,
     fetchQrCode,
     checkStatus,
     disconnect,
