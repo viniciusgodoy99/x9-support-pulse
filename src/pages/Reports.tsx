@@ -46,12 +46,24 @@ export default function Reports() {
     [groups]
   );
 
-  // Filter tickets based on selected group
+  // Filter tickets based on selected group and CS
   const filteredTickets = useMemo(() => {
-    if (selectedGroup === "all") return tickets;
-    return tickets.filter(t => t.monitored_groups?.id === selectedGroup);
-  }, [tickets, selectedGroup]);
+    let result = tickets;
+    
+    // Filter by group
+    if (selectedGroup !== "all") {
+      result = result.filter(t => t.monitored_groups?.id === selectedGroup);
+    }
+    
+    // Filter by CS (using resolved_by)
+    if (selectedCS !== "all") {
+      result = result.filter(t => t.resolved_by === selectedCS);
+    }
+    
+    return result;
+  }, [tickets, selectedGroup, selectedCS]);
 
+  // SLA Distribution calculation
   useEffect(() => {
     if (filteredTickets.length === 0) {
       setSlaDistribution([]);
@@ -84,23 +96,72 @@ export default function Reports() {
     ]);
   }, [filteredTickets]);
 
-  // Weekly trend mock data
-  const weeklyTrend = [
-    { day: "Seg", tickets: 12, slaAvg: 18 },
-    { day: "Ter", tickets: 19, slaAvg: 22 },
-    { day: "Qua", tickets: 15, slaAvg: 15 },
-    { day: "Qui", tickets: 22, slaAvg: 25 },
-    { day: "Sex", tickets: 18, slaAvg: 20 },
-    { day: "Sáb", tickets: 8, slaAvg: 12 },
-    { day: "Dom", tickets: 5, slaAvg: 10 },
-  ];
+  // Weekly trend - real data from last 7 days
+  const weeklyTrend = useMemo(() => {
+    const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const today = new Date();
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() - (6 - i));
+      return date;
+    });
 
-  // Team performance mock data
-  const teamPerformance = members.map((m) => ({
-    name: m.name.split(" ")[0],
-    tickets: Math.floor(Math.random() * 30) + 10,
-    avgSla: Math.floor(Math.random() * 25) + 5,
-  }));
+    return last7Days.map(date => {
+      const dayTickets = filteredTickets.filter(t => {
+        const ticketDate = new Date(t.created_at);
+        return ticketDate.toDateString() === date.toDateString();
+      });
+
+      const resolvedWithResponse = dayTickets.filter(
+        t => t.status === "resolved" && t.first_response_at
+      );
+
+      const avgSla = resolvedWithResponse.length > 0
+        ? resolvedWithResponse.reduce((acc, t) => {
+            const created = new Date(t.created_at).getTime();
+            const responded = new Date(t.first_response_at!).getTime();
+            return acc + (responded - created) / (1000 * 60);
+          }, 0) / resolvedWithResponse.length
+        : 0;
+
+      return {
+        day: days[date.getDay()],
+        tickets: dayTickets.length,
+        slaAvg: Math.round(avgSla),
+      };
+    });
+  }, [filteredTickets]);
+
+  // Team performance - real data based on filtered tickets
+  const teamPerformance = useMemo(() => {
+    // Filter members based on CS filter
+    const membersToShow = selectedCS === "all" 
+      ? members 
+      : members.filter(m => m.id === selectedCS);
+
+    return membersToShow.map(member => {
+      // Tickets resolved by this member
+      const memberTickets = filteredTickets.filter(
+        t => t.resolved_by === member.id && t.status === "resolved"
+      );
+
+      // Calculate average SLA
+      const ticketsWithResponse = memberTickets.filter(t => t.first_response_at);
+      const avgSla = ticketsWithResponse.length > 0
+        ? ticketsWithResponse.reduce((acc, t) => {
+            const created = new Date(t.created_at).getTime();
+            const responded = new Date(t.first_response_at!).getTime();
+            return acc + (responded - created) / (1000 * 60);
+          }, 0) / ticketsWithResponse.length
+        : 0;
+
+      return {
+        name: member.name.split(" ")[0],
+        tickets: memberTickets.length,
+        avgSla: Math.round(avgSla),
+      };
+    });
+  }, [members, filteredTickets, selectedCS]);
 
   const loading = ticketsLoading || membersLoading || groupsLoading;
 
