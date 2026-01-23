@@ -63,11 +63,22 @@ Analise a conversa entre Atendentes (CS) e Clientes e identifique:
    - "geral": APENAS quando não se encaixar em NENHUMA outra categoria
 5. Para demandas resolvidas, estime o tempo aproximado de resolução em minutos
 6. Para demandas resolvidas, identifique o NOME do Atendente (CS) que resolveu a demanda com base nas mensagens
+7. Gere um RESUMO ESTRUTURADO seguindo este formato:
+   "O cliente [NOME DO CLIENTE] solicitou [DESCRIÇÃO DA DEMANDA PRINCIPAL]. O atendente [NOME DO CS] [resolveu/está atendendo] a solicitação."
 
 REGRAS DE CATEGORIZAÇÃO:
 - SEMPRE escolha a categoria mais específica possível
 - "geral" deve ser usado APENAS como último recurso
 - Se houver dúvida entre duas categorias, escolha a que melhor representa a INTENÇÃO do cliente
+
+REGRAS DO RESUMO:
+- SEMPRE comece identificando o cliente pelo nome (quem tem role = "client")
+- Descreva a demanda principal de forma clara e objetiva
+- Identifique o atendente (CS) que tratou/resolveu a solicitação (quem tem role = "cs")
+- Use "O cliente [NOME]" para quem faz a solicitação
+- Use "O atendente [NOME]" para quem resolve
+- Se houver múltiplas demandas, foque na principal ou mais urgente
+- Máximo de 2-3 frases
 
 Considere que:
 - Uma demanda é considerada RESOLVIDA quando o CS deu uma resposta satisfatória ou confirmou a resolução
@@ -140,7 +151,7 @@ Use a função analyze_conversation para estruturar sua resposta.`;
               },
               summary: { 
                 type: "string",
-                description: "Resumo executivo do atendimento em até 2 frases"
+                description: "Resumo estruturado no formato: 'O cliente [NOME] solicitou [DEMANDA]. O atendente [NOME CS] resolveu/está atendendo a solicitação.' Sempre identificando cliente, demanda e atendente. Máximo 2-3 frases."
               }
             },
             required: ["demands", "all_resolved", "summary"]
