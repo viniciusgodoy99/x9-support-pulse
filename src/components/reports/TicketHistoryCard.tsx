@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Brain, ChevronDown, ChevronUp, Clock, CheckCircle2, AlertCircle, Tag, Eye, User, Phone, Calendar, Timer, FileText, MessageSquare } from "lucide-react";
+import { Brain, ChevronDown, ChevronUp, Clock, CheckCircle2, AlertCircle, Tag, Eye, User, Phone, Calendar, Timer, FileText, MessageSquare, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import type { Ticket, TicketDemand } from "@/hooks/useTickets";
 
 interface TicketHistoryCardProps {
@@ -339,7 +341,33 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
 }
 
 function DemandRow({ demand }: { demand: TicketDemand }) {
+  const [isLoading, setIsLoading] = useState(false);
   const isResolved = demand.status === "resolved";
+
+  const handleMarkAsPending = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("ticket_demands")
+        .update({
+          status: "open",
+          resolved_at: null,
+          resolution_time_minutes: null,
+          resolved_by_name: null,
+          resolved_by_phone: null,
+          sla_exceeded: false,
+        })
+        .eq("id", demand.id);
+
+      if (error) throw error;
+      toast.success("Demanda marcada como pendente");
+    } catch (err) {
+      console.error("Erro ao atualizar demanda:", err);
+      toast.error("Erro ao atualizar demanda");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   return (
     <div className="flex items-start gap-3 p-2 rounded-md bg-background border border-border">
@@ -375,6 +403,18 @@ function DemandRow({ demand }: { demand: TicketDemand }) {
             <Badge variant="outline" className="text-xs border-sla-critical text-sla-critical">
               SLA Estourado
             </Badge>
+          )}
+          {isResolved && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleMarkAsPending}
+              disabled={isLoading}
+              className="h-6 px-2 py-0 text-xs gap-1 text-sla-warning hover:text-sla-warning/80 hover:bg-sla-warning/10"
+            >
+              <RotateCcw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+              Reabrir
+            </Button>
           )}
         </div>
       </div>
