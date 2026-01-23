@@ -10,6 +10,7 @@ const corsHeaders = {
 interface Message {
   id: string;
   sender_name: string | null;
+  sender_phone: string | null;
   sender_role: "cs" | "client";
   content: string;
   created_at: string;
@@ -290,7 +291,7 @@ serve(async (req) => {
         
         const { data: messages, error: messagesError } = await supabase
           .from("messages")
-          .select("id, sender_name, sender_role, content, created_at")
+          .select("id, sender_name, sender_phone, sender_role, content, created_at")
           .eq("ticket_id", ticket.id)
           .gte("created_at", sinceTime)
           .order("created_at", { ascending: true });
