@@ -117,6 +117,7 @@ export type Database = {
           created_at: string
           evolution_instance: string | null
           id: string
+          instance_id: string | null
           is_active: boolean
           is_client_group: boolean
           name: string
@@ -129,6 +130,7 @@ export type Database = {
           created_at?: string
           evolution_instance?: string | null
           id?: string
+          instance_id?: string | null
           is_active?: boolean
           is_client_group?: boolean
           name: string
@@ -141,6 +143,7 @@ export type Database = {
           created_at?: string
           evolution_instance?: string | null
           id?: string
+          instance_id?: string | null
           is_active?: boolean
           is_client_group?: boolean
           name?: string
@@ -149,7 +152,15 @@ export type Database = {
           updated_at?: string
           whatsapp_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "monitored_groups_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_instances"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       settings: {
         Row: {
@@ -320,6 +331,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_instances: {
+        Row: {
+          api_token: string
+          api_url: string
+          created_at: string | null
+          id: string
+          instance_name: string | null
+          is_default: boolean | null
+          name: string
+          phone_number: string | null
+          profile_name: string | null
+          profile_picture_url: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_token: string
+          api_url: string
+          created_at?: string | null
+          id?: string
+          instance_name?: string | null
+          is_default?: boolean | null
+          name: string
+          phone_number?: string | null
+          profile_name?: string | null
+          profile_picture_url?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_token?: string
+          api_url?: string
+          created_at?: string | null
+          id?: string
+          instance_name?: string | null
+          is_default?: boolean | null
+          name?: string
+          phone_number?: string | null
+          profile_name?: string | null
+          profile_picture_url?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
