@@ -28,41 +28,45 @@ export interface CreateInstanceData {
 export function useWhatsAppInstances() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchInstances = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('whatsapp_instances')
+      setError(null);
+      // Use explicit any type since table might not be in generated types yet
+      const { data, error: fetchError } = await supabase
+        .from('whatsapp_instances' as any)
         .select('*')
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as { data: any[] | null; error: any };
 
-      if (error) throw error;
-      setInstances((data as WhatsAppInstance[]) || []);
+      if (fetchError) {
+        console.error('Supabase error:', fetchError);
+        throw fetchError;
+      }
+      
+      setInstances((data as unknown as WhatsAppInstance[]) || []);
     } catch (err) {
       console.error('Error fetching instances:', err);
-      toast({
-        title: 'Erro ao carregar instâncias',
-        description: 'Não foi possível carregar as instâncias do WhatsApp.',
-        variant: 'destructive',
-      });
+      setError('Não foi possível carregar as instâncias');
+      setInstances([]);
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
-  const createInstance = async (data: CreateInstanceData): Promise<WhatsAppInstance | null> => {
+  const createInstance = useCallback(async (data: CreateInstanceData): Promise<WhatsAppInstance | null> => {
     try {
       // If setting as default, unset other defaults first
       if (data.is_default) {
         await supabase
-          .from('whatsapp_instances')
+          .from('whatsapp_instances' as any)
           .update({ is_default: false })
           .eq('is_default', true);
       }
 
       const { data: newInstance, error } = await supabase
-        .from('whatsapp_instances')
+        .from('whatsapp_instances' as any)
         .insert({
           name: data.name,
           api_url: data.api_url,
@@ -71,7 +75,7 @@ export function useWhatsAppInstances() {
           is_default: data.is_default || false,
         })
         .select()
-        .single();
+        .single() as { data: any; error: any };
 
       if (error) throw error;
 
@@ -81,7 +85,7 @@ export function useWhatsAppInstances() {
       });
 
       await fetchInstances();
-      return newInstance as WhatsAppInstance;
+      return newInstance as unknown as WhatsAppInstance;
     } catch (err) {
       console.error('Error creating instance:', err);
       toast({
@@ -91,20 +95,20 @@ export function useWhatsAppInstances() {
       });
       return null;
     }
-  };
+  }, [toast, fetchInstances]);
 
-  const updateInstance = async (id: string, updates: Partial<WhatsAppInstance>): Promise<boolean> => {
+  const updateInstance = useCallback(async (id: string, updates: Partial<WhatsAppInstance>): Promise<boolean> => {
     try {
       // If setting as default, unset other defaults first
       if (updates.is_default) {
         await supabase
-          .from('whatsapp_instances')
+          .from('whatsapp_instances' as any)
           .update({ is_default: false })
           .eq('is_default', true);
       }
 
       const { error } = await supabase
-        .from('whatsapp_instances')
+        .from('whatsapp_instances' as any)
         .update(updates)
         .eq('id', id);
 
@@ -121,12 +125,12 @@ export function useWhatsAppInstances() {
       });
       return false;
     }
-  };
+  }, [toast, fetchInstances]);
 
-  const deleteInstance = async (id: string): Promise<boolean> => {
+  const deleteInstance = useCallback(async (id: string): Promise<boolean> => {
     try {
       const { error } = await supabase
-        .from('whatsapp_instances')
+        .from('whatsapp_instances' as any)
         .delete()
         .eq('id', id);
 
@@ -148,7 +152,7 @@ export function useWhatsAppInstances() {
       });
       return false;
     }
-  };
+  }, [toast, fetchInstances]);
 
   useEffect(() => {
     fetchInstances();
@@ -157,6 +161,7 @@ export function useWhatsAppInstances() {
   return {
     instances,
     loading,
+    error,
     fetchInstances,
     createInstance,
     updateInstance,
