@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Monitoring from "./pages/Monitoring";
 import Reports from "./pages/Reports";
+import PendingDemands from "./pages/PendingDemands";
 import GroupsSettings from "./pages/settings/Groups";
 import GroupMembers from "./pages/settings/GroupMembers";
 import TeamSettings from "./pages/settings/Team";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/monitoring" element={<Monitoring />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/pending-demands" element={<PendingDemands />} />
           <Route path="/settings/groups" element={<GroupsSettings />} />
           <Route path="/settings/groups/:groupId/members" element={<GroupMembers />} />
           <Route path="/settings/team" element={<TeamSettings />} />
