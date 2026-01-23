@@ -1,4 +1,4 @@
-import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake, Clock, Smartphone, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake, Clock, Smartphone, CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -32,6 +32,7 @@ const configItems = [{
   url: "/settings",
   icon: Clock
 }];
+
 export function AppSidebar() {
   const { status } = useWhatsAppStatus();
 
@@ -39,6 +40,8 @@ export function AppSidebar() {
     switch (status) {
       case 'connected':
         return <CheckCircle2 className="h-3 w-3 text-primary" />;
+      case 'partial':
+        return <AlertCircle className="h-3 w-3 text-yellow-500" />;
       case 'loading':
         return <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />;
       default:

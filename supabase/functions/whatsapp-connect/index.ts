@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,43 +13,58 @@ serve(async (req) => {
   }
 
   try {
-    let UAZAPI_URL = Deno.env.get('EVOLUTION_API_URL');
-    const UAZAPI_TOKEN = Deno.env.get('EVOLUTION_API_KEY');
+    const body = await req.json().catch(() => ({}));
+    const { action = 'status', instanceId } = body;
+    
+    console.log(`WhatsApp Connect - Action: ${action}, InstanceId: ${instanceId || 'none'}`);
 
-    if (!UAZAPI_URL || !UAZAPI_TOKEN) {
-      console.error('Missing UAZAPI credentials');
-      return new Response(
-        JSON.stringify({ error: 'Credenciais da UAZAPI não configuradas' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let UAZAPI_URL: string;
+    let UAZAPI_TOKEN: string;
+    let instanceDbId: string | null = null;
+
+    // If instanceId is provided, fetch credentials from database
+    if (instanceId) {
+      console.log(`Fetching instance ${instanceId} from database...`);
+      const { data: instance, error: instanceError } = await supabase
+        .from('whatsapp_instances')
+        .select('*')
+        .eq('id', instanceId)
+        .maybeSingle();
+
+      if (instanceError) {
+        console.error('Error fetching instance:', instanceError);
+        throw new Error('Erro ao buscar instância');
+      }
+
+      if (!instance) {
+        throw new Error('Instância não encontrada');
+      }
+
+      UAZAPI_URL = instance.api_url;
+      UAZAPI_TOKEN = instance.api_token;
+      instanceDbId = instance.id;
+      console.log(`Using instance: ${instance.name} (${UAZAPI_URL})`);
+    } else {
+      // Fallback to environment variables for backward compatibility
+      UAZAPI_URL = Deno.env.get('EVOLUTION_API_URL') || '';
+      UAZAPI_TOKEN = Deno.env.get('EVOLUTION_API_KEY') || '';
+      console.log('Using environment variables for UAZAPI credentials');
     }
 
-    // Ensure URL has protocol
+    if (!UAZAPI_URL || !UAZAPI_TOKEN) {
+      throw new Error('Credenciais da UAZAPI não configuradas');
+    }
+
+    // Ensure URL has protocol and no trailing slash
     if (!UAZAPI_URL.startsWith('http://') && !UAZAPI_URL.startsWith('https://')) {
       UAZAPI_URL = `https://${UAZAPI_URL}`;
     }
-    
-    // Remove trailing slash if present
     UAZAPI_URL = UAZAPI_URL.replace(/\/$/, '');
-    
-    console.log(`Using UAZAPI URL: ${UAZAPI_URL}`);
-
-    const url = new URL(req.url);
-    let action = url.searchParams.get('action');
-
-    // Also allow POST with JSON body: { action: "qr" | "status" }
-    if (!action && req.method !== 'GET') {
-      try {
-        const body = await req.json().catch(() => null);
-        if (body && typeof body.action === 'string') action = body.action;
-      } catch {
-        // ignore
-      }
-    }
-
-    action = action || 'qr';
-
-    console.log(`WhatsApp Connect - Action: ${action}`);
 
     // Helper function to get instance status
     const getInstanceStatus = async () => {
@@ -69,8 +85,8 @@ serve(async (req) => {
       return await statusResponse.json();
     };
 
-    // ========== ACTION: LOGOUT ==========
-    if (action === 'logout') {
+    // ========== ACTION: DISCONNECT ==========
+    if (action === 'disconnect' || action === 'logout') {
       console.log('Requesting logout from UAZAPI...');
       
       const logoutEndpoints = [
@@ -78,7 +94,6 @@ serve(async (req) => {
         { method: 'PUT', url: `${UAZAPI_URL}/instance/logout` },
         { method: 'POST', url: `${UAZAPI_URL}/instance/logout` },
         { method: 'DELETE', url: `${UAZAPI_URL}/instance/disconnect` },
-        { method: 'PUT', url: `${UAZAPI_URL}/instance/disconnect` },
       ];
 
       for (const endpoint of logoutEndpoints) {
@@ -92,28 +107,32 @@ serve(async (req) => {
             },
           });
           
-          const text = await resp.text();
-          console.log(`Response ${resp.status}: ${text}`);
-          
           if (resp.ok || resp.status === 200) {
-            return new Response(
-              JSON.stringify({ 
-                status: 'disconnected',
-                message: 'WhatsApp desconectado com sucesso'
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+            console.log('Logout successful');
+            break;
           }
         } catch (e) {
           console.log(`Error with ${endpoint.method} ${endpoint.url}:`, e);
         }
       }
 
-      // Even if API calls fail, return disconnected to reset UI state
+      // Update instance status in database
+      if (instanceDbId) {
+        await supabase
+          .from('whatsapp_instances')
+          .update({
+            status: 'disconnected',
+            profile_name: null,
+            profile_picture_url: null,
+            phone_number: null,
+          })
+          .eq('id', instanceDbId);
+      }
+
       return new Response(
         JSON.stringify({ 
           status: 'disconnected',
-          message: 'Estado resetado localmente'
+          message: 'WhatsApp desconectado com sucesso'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -124,6 +143,12 @@ serve(async (req) => {
       const statusData = await getInstanceStatus();
       
       if (!statusData) {
+        if (instanceDbId) {
+          await supabase
+            .from('whatsapp_instances')
+            .update({ status: 'disconnected' })
+            .eq('id', instanceDbId);
+        }
         return new Response(
           JSON.stringify({ 
             status: 'disconnected', 
@@ -135,7 +160,6 @@ serve(async (req) => {
 
       console.log('Status response:', JSON.stringify(statusData));
 
-      // UAZAPI returns nested structure: { instance: {...}, status: { connected: bool } }
       const isConnected = 
         statusData.status?.connected === true ||
         statusData.status?.loggedIn === true ||
@@ -158,12 +182,30 @@ serve(async (req) => {
         statusData.picture ||
         null;
 
-      const phoneNumber =
+      let phoneNumber =
         statusData.instance?.owner ||
         statusData.instance?.phone ||
         statusData.owner ||
         statusData.phone ||
         null;
+
+      // Format phone number
+      if (phoneNumber && !phoneNumber.includes('+')) {
+        phoneNumber = '+' + phoneNumber.replace('@s.whatsapp.net', '').replace('@c.us', '');
+      }
+
+      // Update instance in database
+      if (instanceDbId) {
+        await supabase
+          .from('whatsapp_instances')
+          .update({
+            status: isConnected ? 'connected' : 'disconnected',
+            profile_name: isConnected ? profileName : null,
+            profile_picture_url: isConnected ? profilePicUrl : null,
+            phone_number: isConnected ? phoneNumber : null,
+          })
+          .eq('id', instanceDbId);
+      }
 
       return new Response(
         JSON.stringify({ 
@@ -177,9 +219,18 @@ serve(async (req) => {
       );
     }
 
+    // ========== ACTION: QR ==========
     if (action === 'qr') {
       console.log('Requesting QR code from UAZAPI...');
       
+      // Update status to waiting
+      if (instanceDbId) {
+        await supabase
+          .from('whatsapp_instances')
+          .update({ status: 'waiting' })
+          .eq('id', instanceDbId);
+      }
+
       // First check current status - if qrcode is available there, use it
       const statusData = await getInstanceStatus();
       
@@ -190,6 +241,26 @@ serve(async (req) => {
           statusData.status?.loggedIn === true;
         
         if (isConnected) {
+          // Update as connected
+          if (instanceDbId) {
+            const profileName = statusData.instance?.profileName || statusData.profileName || null;
+            const profilePicUrl = statusData.instance?.profilePicUrl || statusData.profilePicUrl || null;
+            let phoneNumber = statusData.instance?.owner || statusData.owner || null;
+            if (phoneNumber && !phoneNumber.includes('+')) {
+              phoneNumber = '+' + phoneNumber.replace('@s.whatsapp.net', '').replace('@c.us', '');
+            }
+
+            await supabase
+              .from('whatsapp_instances')
+              .update({
+                status: 'connected',
+                profile_name: profileName,
+                profile_picture_url: profilePicUrl,
+                phone_number: phoneNumber,
+              })
+              .eq('id', instanceDbId);
+          }
+
           return new Response(
             JSON.stringify({ 
               status: 'connected',
@@ -206,24 +277,10 @@ serve(async (req) => {
             JSON.stringify({
               status: 'waiting',
               qrCode: statusData.instance.qrcode,
-              pairingCode: statusData.instance.paircode || null
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-      }
-
-      const instanceNameFromSecret = Deno.env.get('EVOLUTION_INSTANCE_NAME') || null;
-      const instanceNameFromStatus =
-        (statusData?.instance?.name as string | undefined) ||
-        (statusData?.instance?.id as string | undefined) ||
-        null;
-      const instanceName = instanceNameFromSecret || instanceNameFromStatus;
-
-      if (!instanceName) {
-        console.warn('No instance name available (EVOLUTION_INSTANCE_NAME missing and status did not include name/id).');
-      } else {
-        console.log(`Using instance identifier: ${instanceName}`);
       }
 
       const headers = {
@@ -232,41 +289,21 @@ serve(async (req) => {
       };
 
       const tryGetQrFromJson = (payload: any) => {
-        const qrCode =
-          payload?.base64 ||
+        return payload?.base64 ||
           payload?.qr ||
           payload?.qrcode ||
           payload?.code ||
           payload?.instance?.qrcode ||
           payload?.instance?.qrCode ||
           null;
-        const pairingCode = payload?.pairingCode || payload?.paircode || payload?.instance?.paircode || null;
-        return { qrCode, pairingCode };
       };
 
-      const attempts: Array<{ label: string; method: string; url: string; body?: any }> = [];
-
-      // Some providers require instance identifier either in path, query, or body.
-      if (instanceName) {
-        const encoded = encodeURIComponent(instanceName);
-        attempts.push({ label: 'connect_get_path', method: 'GET', url: `${UAZAPI_URL}/instance/connect/${encoded}` });
-        attempts.push({ label: 'connect_get_query', method: 'GET', url: `${UAZAPI_URL}/instance/connect?instanceName=${encoded}` });
-        attempts.push({ label: 'connect_post_body', method: 'POST', url: `${UAZAPI_URL}/instance/connect`, body: { instanceName } });
-        attempts.push({ label: 'connect_post_body_alt', method: 'POST', url: `${UAZAPI_URL}/instance/connect`, body: { name: instanceName } });
-
-        attempts.push({ label: 'qrcode_get_path', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode/${encoded}` });
-        attempts.push({ label: 'qrcode_get_query', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode?instanceName=${encoded}` });
-        attempts.push({ label: 'qrcode_post_body', method: 'POST', url: `${UAZAPI_URL}/instance/qrcode`, body: { instanceName } });
-
-        attempts.push({ label: 'qr_get_path', method: 'GET', url: `${UAZAPI_URL}/instance/qr/${encoded}` });
-        attempts.push({ label: 'qr_get_query', method: 'GET', url: `${UAZAPI_URL}/instance/qr?instanceName=${encoded}` });
-        attempts.push({ label: 'qr_post_body', method: 'POST', url: `${UAZAPI_URL}/instance/qr`, body: { instanceName } });
-      }
-
-      // Fallbacks without instance in URL
-      attempts.push({ label: 'qrcode_get', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode` });
-      attempts.push({ label: 'qr_get', method: 'GET', url: `${UAZAPI_URL}/instance/qr` });
-      attempts.push({ label: 'qrcode_root_get', method: 'GET', url: `${UAZAPI_URL}/qrcode` });
+      // Try various QR endpoints
+      const attempts = [
+        { label: 'qrcode_get', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode` },
+        { label: 'qr_get', method: 'GET', url: `${UAZAPI_URL}/instance/qr` },
+        { label: 'connect_get', method: 'GET', url: `${UAZAPI_URL}/instance/connect` },
+      ];
 
       for (const attempt of attempts) {
         console.log(`Trying QR endpoint [${attempt.label}]: ${attempt.method} ${attempt.url}`);
@@ -275,11 +312,14 @@ serve(async (req) => {
           const resp = await fetch(attempt.url, {
             method: attempt.method,
             headers,
-            body: attempt.body ? JSON.stringify(attempt.body) : undefined,
           });
 
+          if (!resp.ok) {
+            console.log(`Attempt [${attempt.label}] -> ${resp.status}`);
+            continue;
+          }
+
           const text = await resp.text();
-          // Consume body first, then parse if possible.
           const parsed = (() => {
             try {
               return JSON.parse(text);
@@ -288,78 +328,55 @@ serve(async (req) => {
             }
           })();
 
-          if (!resp.ok) {
-            console.log(`Attempt [${attempt.label}] -> ${resp.status}.`);
-            continue;
-          }
-
-          const { qrCode, pairingCode } = tryGetQrFromJson(parsed);
+          const qrCode = tryGetQrFromJson(parsed);
           if (qrCode) {
             console.log(`QR code obtained via [${attempt.label}]`);
             return new Response(
               JSON.stringify({
                 status: 'waiting',
                 qrCode,
-                pairingCode,
               }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
         } catch (endpointError) {
-          const msg = endpointError instanceof Error ? endpointError.message : String(endpointError);
-          console.log(`Attempt [${attempt.label}] failed: ${msg}`);
+          console.log(`Attempt [${attempt.label}] failed:`, endpointError);
         }
       }
 
-      // If no endpoint worked, try restart to generate new QR (also varies by provider)
+      // Try restart to generate new QR
       console.log('No QR code available, trying to restart instance...');
 
-      const restartAttempts: Array<{ label: string; method: string; url: string; body?: any }> = [];
-      if (instanceName) {
-        const encoded = encodeURIComponent(instanceName);
-        restartAttempts.push({ label: 'restart_put_path', method: 'PUT', url: `${UAZAPI_URL}/instance/restart/${encoded}` });
-        restartAttempts.push({ label: 'restart_put_query', method: 'PUT', url: `${UAZAPI_URL}/instance/restart?instanceName=${encoded}` });
-        restartAttempts.push({ label: 'restart_put_body', method: 'PUT', url: `${UAZAPI_URL}/instance/restart`, body: { instanceName } });
-        restartAttempts.push({ label: 'restart_put_body_alt', method: 'PUT', url: `${UAZAPI_URL}/instance/restart`, body: { name: instanceName } });
-      }
-      restartAttempts.push({ label: 'restart_put', method: 'PUT', url: `${UAZAPI_URL}/instance/restart` });
-
-      for (const attempt of restartAttempts) {
-        console.log(`Trying restart [${attempt.label}]: ${attempt.method} ${attempt.url}`);
-        try {
-          const resp = await fetch(attempt.url, {
-            method: attempt.method,
-            headers,
-            body: attempt.body ? JSON.stringify(attempt.body) : undefined,
-          });
-          await resp.text();
-          if (resp.ok) {
-            console.log('Instance restart requested, please try again in a few seconds');
-            return new Response(
-              JSON.stringify({
-                status: 'restarting',
-                message: 'Instância reiniciando. Aguarde alguns segundos e tente novamente.',
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-        } catch (restartError) {
-          const msg = restartError instanceof Error ? restartError.message : String(restartError);
-          console.log(`Restart attempt [${attempt.label}] failed: ${msg}`);
+      try {
+        const restartResp = await fetch(`${UAZAPI_URL}/instance/restart`, {
+          method: 'PUT',
+          headers,
+        });
+        
+        if (restartResp.ok) {
+          return new Response(
+            JSON.stringify({
+              status: 'restarting',
+              message: 'Instância reiniciando. Aguarde alguns segundos e tente novamente.',
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
+      } catch (e) {
+        console.log('Restart failed:', e);
       }
 
       return new Response(
         JSON.stringify({ 
           error: 'QR code não disponível',
-          message: 'Não foi possível gerar o QR code. A instância pode estar desconectada. Tente novamente em alguns segundos.'
+          message: 'Não foi possível gerar o QR code. Tente novamente em alguns segundos.'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
-      JSON.stringify({ error: 'Ação inválida. Use action=qr ou action=status' }),
+      JSON.stringify({ error: 'Ação inválida. Use action=qr, action=status ou action=disconnect' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -367,7 +384,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('WhatsApp Connect error:', errorMessage);
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor', details: errorMessage }),
+      JSON.stringify({ error: errorMessage, details: String(error) }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
