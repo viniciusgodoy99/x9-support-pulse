@@ -12,9 +12,10 @@ export function useWhatsAppStatus() {
 
   const checkStatus = useCallback(async () => {
     try {
+      // Use explicit any type since table might not be in generated types yet
       const { data: instances, error } = await supabase
-        .from('whatsapp_instances')
-        .select('status');
+        .from('whatsapp_instances' as any)
+        .select('status') as { data: { status: string }[] | null; error: any };
 
       if (error) {
         console.error('Error checking WhatsApp status:', error);
