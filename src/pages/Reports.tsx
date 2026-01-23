@@ -368,6 +368,12 @@ export default function Reports() {
                     <Users className="h-12 w-12 mb-2 opacity-50" />
                     <p>Adicione membros da equipe para ver o desempenho</p>
                   </div>
+                ) : teamPerformance.every(m => m.tickets === 0) && selectedCS !== "all" ? (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+                    <Users className="h-12 w-12 mb-2 opacity-50" />
+                    <p>Nenhum ticket atribuído a este CS</p>
+                    <p className="text-xs mt-1">Os tickets precisam ter o campo "Resolvido por" preenchido</p>
+                  </div>
                 ) : (
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={teamPerformance}>
