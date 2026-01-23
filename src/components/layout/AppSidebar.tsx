@@ -1,4 +1,4 @@
-import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake, Settings } from "lucide-react";
+import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake, Clock } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -27,7 +27,7 @@ const configItems = [{
 }, {
   title: "SLA",
   url: "/settings",
-  icon: Settings
+  icon: Clock
 }];
 export function AppSidebar() {
   return <Sidebar className="border-r border-sidebar-border/50 frosted-glass">
