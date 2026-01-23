@@ -231,10 +231,27 @@ serve(async (req) => {
           .eq('id', instanceDbId);
       }
 
+      const headers = {
+        'token': UAZAPI_TOKEN,
+        'Content-Type': 'application/json',
+      };
+
+      const tryGetQrFromJson = (payload: any): string | null => {
+        return payload?.base64 ||
+          payload?.qr ||
+          payload?.qrcode ||
+          payload?.code ||
+          payload?.instance?.qrcode ||
+          payload?.instance?.qrCode ||
+          null;
+      };
+
       // First check current status - if qrcode is available there, use it
       const statusData = await getInstanceStatus();
       
       if (statusData) {
+        console.log('Status data:', JSON.stringify(statusData));
+        
         // Check if already connected
         const isConnected = 
           statusData.status?.connected === true ||
@@ -271,66 +288,81 @@ serve(async (req) => {
         }
 
         // Check if QR code is available in status response
-        if (statusData.instance?.qrcode) {
+        const existingQr = tryGetQrFromJson(statusData) || tryGetQrFromJson(statusData.instance);
+        if (existingQr && existingQr.length > 10) {
           console.log('QR code found in status response');
           return new Response(
             JSON.stringify({
               status: 'waiting',
-              qrCode: statusData.instance.qrcode,
+              qrCode: existingQr,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
       }
 
-      const headers = {
-        'token': UAZAPI_TOKEN,
-        'Content-Type': 'application/json',
-      };
+      // If instance is disconnected with empty QR, we need to restart it first
+      console.log('Instance disconnected, attempting to restart and generate QR...');
 
-      const tryGetQrFromJson = (payload: any) => {
-        return payload?.base64 ||
-          payload?.qr ||
-          payload?.qrcode ||
-          payload?.code ||
-          payload?.instance?.qrcode ||
-          payload?.instance?.qrCode ||
-          null;
-      };
-
-      // Try various QR endpoints
-      const attempts = [
-        { label: 'qrcode_get', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode` },
-        { label: 'qr_get', method: 'GET', url: `${UAZAPI_URL}/instance/qr` },
-        { label: 'connect_get', method: 'GET', url: `${UAZAPI_URL}/instance/connect` },
+      // Try restart endpoints to reinitialize the connection
+      const restartEndpoints = [
+        { method: 'PUT', url: `${UAZAPI_URL}/instance/restart` },
+        { method: 'POST', url: `${UAZAPI_URL}/instance/restart` },
+        { method: 'PUT', url: `${UAZAPI_URL}/instance/init` },
+        { method: 'POST', url: `${UAZAPI_URL}/instance/init` },
+        { method: 'PUT', url: `${UAZAPI_URL}/instance/connect` },
+        { method: 'POST', url: `${UAZAPI_URL}/instance/connect` },
       ];
 
-      for (const attempt of attempts) {
-        console.log(`Trying QR endpoint [${attempt.label}]: ${attempt.method} ${attempt.url}`);
-
+      let restartSucceeded = false;
+      for (const endpoint of restartEndpoints) {
         try {
-          const resp = await fetch(attempt.url, {
-            method: attempt.method,
+          console.log(`Trying restart: ${endpoint.method} ${endpoint.url}`);
+          const resp = await fetch(endpoint.url, {
+            method: endpoint.method,
             headers,
           });
-
-          if (!resp.ok) {
-            console.log(`Attempt [${attempt.label}] -> ${resp.status}`);
-            continue;
-          }
-
+          
           const text = await resp.text();
-          const parsed = (() => {
+          console.log(`Restart response [${resp.status}]: ${text.substring(0, 200)}`);
+          
+          if (resp.ok) {
+            restartSucceeded = true;
+            
+            // Try to get QR from restart response
             try {
-              return JSON.parse(text);
+              const parsed = JSON.parse(text);
+              const qrCode = tryGetQrFromJson(parsed);
+              if (qrCode && qrCode.length > 10) {
+                console.log('QR code found in restart response');
+                return new Response(
+                  JSON.stringify({
+                    status: 'waiting',
+                    qrCode,
+                  }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
             } catch {
-              return null;
+              // Response wasn't JSON, continue
             }
-          })();
+            break;
+          }
+        } catch (e) {
+          console.log(`Restart endpoint failed:`, e);
+        }
+      }
 
-          const qrCode = tryGetQrFromJson(parsed);
-          if (qrCode) {
-            console.log(`QR code obtained via [${attempt.label}]`);
+      // If restart succeeded, wait a moment and check status again for QR
+      if (restartSucceeded) {
+        console.log('Restart succeeded, waiting 2s then checking for QR...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const newStatusData = await getInstanceStatus();
+        if (newStatusData) {
+          const qrCode = tryGetQrFromJson(newStatusData) || tryGetQrFromJson(newStatusData.instance);
+          if (qrCode && qrCode.length > 10) {
+            console.log('QR code found after restart');
             return new Response(
               JSON.stringify({
                 status: 'waiting',
@@ -339,37 +371,66 @@ serve(async (req) => {
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
-        } catch (endpointError) {
-          console.log(`Attempt [${attempt.label}] failed:`, endpointError);
         }
+
+        // QR not available yet, tell user to retry
+        return new Response(
+          JSON.stringify({
+            status: 'restarting',
+            message: 'Instância reiniciada. Clique novamente para obter o QR Code.',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
-      // Try restart to generate new QR
-      console.log('No QR code available, trying to restart instance...');
+      // Try direct QR endpoints as fallback
+      const qrEndpoints = [
+        { method: 'GET', url: `${UAZAPI_URL}/instance/qrcode` },
+        { method: 'GET', url: `${UAZAPI_URL}/instance/qr` },
+        { method: 'POST', url: `${UAZAPI_URL}/instance/qrcode` },
+        { method: 'GET', url: `${UAZAPI_URL}/qrcode` },
+      ];
 
-      try {
-        const restartResp = await fetch(`${UAZAPI_URL}/instance/restart`, {
-          method: 'PUT',
-          headers,
-        });
-        
-        if (restartResp.ok) {
-          return new Response(
-            JSON.stringify({
-              status: 'restarting',
-              message: 'Instância reiniciando. Aguarde alguns segundos e tente novamente.',
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+      for (const endpoint of qrEndpoints) {
+        console.log(`Trying QR endpoint: ${endpoint.method} ${endpoint.url}`);
+
+        try {
+          const resp = await fetch(endpoint.url, {
+            method: endpoint.method,
+            headers,
+          });
+
+          if (!resp.ok) {
+            console.log(`QR endpoint returned ${resp.status}`);
+            continue;
+          }
+
+          const text = await resp.text();
+          try {
+            const parsed = JSON.parse(text);
+            const qrCode = tryGetQrFromJson(parsed);
+            if (qrCode && qrCode.length > 10) {
+              console.log(`QR code obtained from ${endpoint.url}`);
+              return new Response(
+                JSON.stringify({
+                  status: 'waiting',
+                  qrCode,
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          } catch {
+            // Not JSON
+          }
+        } catch (e) {
+          console.log(`QR endpoint failed:`, e);
         }
-      } catch (e) {
-        console.log('Restart failed:', e);
       }
 
       return new Response(
         JSON.stringify({ 
           error: 'QR code não disponível',
-          message: 'Não foi possível gerar o QR code. Tente novamente em alguns segundos.'
+          message: 'A instância precisa ser reiniciada. Aguarde alguns segundos e tente novamente.'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
