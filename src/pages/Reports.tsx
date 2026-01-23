@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { BarChart3, TrendingUp, Clock, Users, Brain, Filter, MessageSquare, X } from "lucide-react";
+import { BarChart3, TrendingUp, Clock, Users, Brain, Filter, MessageSquare, X, Tag } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useTickets } from "@/hooks/useTickets";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useGroups } from "@/hooks/useGroups";
@@ -28,6 +29,17 @@ import {
 
 const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
+const categoryConfig: Record<string, { label: string; className: string }> = {
+  duvida: { label: "Dúvida", className: "bg-blue-500/10 text-blue-600 border-blue-500/30" },
+  solicitacao: { label: "Solicitação", className: "bg-green-500/10 text-green-600 border-green-500/30" },
+  reclamacao: { label: "Reclamação", className: "bg-red-500/10 text-red-600 border-red-500/30" },
+  agendamento: { label: "Agendamento", className: "bg-purple-500/10 text-purple-600 border-purple-500/30" },
+  suporte_tecnico: { label: "Suporte Técnico", className: "bg-orange-500/10 text-orange-600 border-orange-500/30" },
+  financeiro: { label: "Financeiro", className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" },
+  feedback: { label: "Feedback", className: "bg-cyan-500/10 text-cyan-600 border-cyan-500/30" },
+  geral: { label: "Geral", className: "bg-muted text-muted-foreground border-muted-foreground/30" },
+};
+
 export default function Reports() {
   const { tickets, loading: ticketsLoading } = useTickets();
   const { members, loading: membersLoading } = useTeamMembers();
@@ -35,6 +47,7 @@ export default function Reports() {
   const [slaDistribution, setSlaDistribution] = useState<{ name: string; value: number }[]>([]);
   const [selectedCS, setSelectedCS] = useState<string>("all");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   // Filter only CS members
   const csMembers = useMemo(() => 
@@ -48,7 +61,7 @@ export default function Reports() {
     [groups]
   );
 
-  // Filter tickets based on selected group and CS
+  // Filter tickets based on selected group, CS, and categories
   const filteredTickets = useMemo(() => {
     let result = tickets;
     
@@ -62,8 +75,15 @@ export default function Reports() {
       result = result.filter(t => t.resolved_by === selectedCS);
     }
     
+    // Filter by categories (tickets that have at least one demand with selected category)
+    if (selectedCategories.length > 0) {
+      result = result.filter(t => 
+        t.demands?.some(d => selectedCategories.includes(d.category))
+      );
+    }
+    
     return result;
-  }, [tickets, selectedGroup, selectedCS]);
+  }, [tickets, selectedGroup, selectedCS, selectedCategories]);
 
   // SLA Distribution calculation
   useEffect(() => {
@@ -186,9 +206,9 @@ export default function Reports() {
               <Button variant="outline" className="gap-2">
                 <Filter className="h-4 w-4" />
                 Filtros Avançados
-                {(selectedCS !== "all" || selectedGroup !== "all") && (
+                {(selectedCS !== "all" || selectedGroup !== "all" || selectedCategories.length > 0) && (
                   <Badge variant="secondary" className="ml-1">
-                    {(selectedCS !== "all" ? 1 : 0) + (selectedGroup !== "all" ? 1 : 0)}
+                    {(selectedCS !== "all" ? 1 : 0) + (selectedGroup !== "all" ? 1 : 0) + selectedCategories.length}
                   </Badge>
                 )}
               </Button>
@@ -242,7 +262,37 @@ export default function Reports() {
                   </Select>
                 </div>
 
-                {(selectedCS !== "all" || selectedGroup !== "all") && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Tag className="h-4 w-4" />
+                    Filtrar por Categoria
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto p-1">
+                    {Object.entries(categoryConfig).map(([key, config]) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`cat-${key}`}
+                          checked={selectedCategories.includes(key)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedCategories([...selectedCategories, key]);
+                            } else {
+                              setSelectedCategories(selectedCategories.filter(c => c !== key));
+                            }
+                          }}
+                        />
+                        <label 
+                          htmlFor={`cat-${key}`} 
+                          className="text-sm cursor-pointer select-none"
+                        >
+                          {config.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {(selectedCS !== "all" || selectedGroup !== "all" || selectedCategories.length > 0) && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -250,6 +300,7 @@ export default function Reports() {
                     onClick={() => {
                       setSelectedCS("all");
                       setSelectedGroup("all");
+                      setSelectedCategories([]);
                     }}
                   >
                     <X className="h-4 w-4" />
