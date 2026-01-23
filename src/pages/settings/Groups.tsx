@@ -242,6 +242,108 @@ export default function GroupsSettings() {
           </Card>
         ) : (
           <>
+            {/* Classified Groups Section */}
+            {classifiedGroups.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-primary" />
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Grupos Classificados ({classifiedGroups.length})
+                  </h2>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {classifiedGroups.map((group) => (
+                    <Card
+                      key={group.id}
+                      className={!group.is_active ? "opacity-60" : ""}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-lg">{group.name}</CardTitle>
+                          <div className="flex gap-1">
+                            {group.is_client_group && (
+                              <Badge variant="default" className="bg-primary/80">
+                                Cliente
+                              </Badge>
+                            )}
+                            <Badge variant={group.is_active ? "secondary" : "outline"}>
+                              {group.is_active ? "Ativo" : "Inativo"}
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Limite de SLA</p>
+                          <p className="text-sm font-semibold">
+                            {group.sla_limit_minutes} minutos
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-t border-border">
+                          <Label htmlFor={`client-${group.id}`} className="text-sm">
+                            Grupo de Cliente
+                          </Label>
+                          <Switch
+                            id={`client-${group.id}`}
+                            checked={group.is_client_group}
+                            onCheckedChange={() => handleToggleClientGroup(group)}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                            title="Gerenciar membros"
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(group)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleActive(group)}
+                          >
+                            <Power className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação não pode ser desfeita. Todos os tickets
+                                  associados a este grupo serão removidos.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(group.id)}
+                                >
+                                  Remover
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Pending Classification Section */}
             {pendingGroups.length > 0 && (
               <div className="space-y-4">
@@ -317,107 +419,6 @@ export default function GroupsSettings() {
                                 <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                   Esta ação não pode ser desfeita.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(group.id)}
-                                >
-                                  Remover
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Classified Groups Section */}
-            {classifiedGroups.length > 0 && (
-              <div className="space-y-4">
-                {pendingGroups.length > 0 && (
-                  <h2 className="text-xl font-semibold text-foreground">
-                    Grupos Classificados ({classifiedGroups.length})
-                  </h2>
-                )}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {classifiedGroups.map((group) => (
-                    <Card
-                      key={group.id}
-                      className={!group.is_active ? "opacity-60" : ""}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-lg">{group.name}</CardTitle>
-                          <div className="flex gap-1">
-                            {group.is_client_group && (
-                              <Badge variant="default" className="bg-primary/80">
-                                Cliente
-                              </Badge>
-                            )}
-                            <Badge variant={group.is_active ? "secondary" : "outline"}>
-                              {group.is_active ? "Ativo" : "Inativo"}
-                            </Badge>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Limite de SLA</p>
-                          <p className="text-sm font-semibold">
-                            {group.sla_limit_minutes} minutos
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-t border-border">
-                          <Label htmlFor={`client-${group.id}`} className="text-sm">
-                            Grupo de Cliente
-                          </Label>
-                          <Switch
-                            id={`client-${group.id}`}
-                            checked={group.is_client_group}
-                            onCheckedChange={() => handleToggleClientGroup(group)}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
-                            title="Gerenciar membros"
-                          >
-                            <Users className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(group)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleActive(group)}
-                          >
-                            <Power className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta ação não pode ser desfeita. Todos os tickets
-                                  associados a este grupo serão removidos.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
