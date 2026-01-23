@@ -1,8 +1,15 @@
 import { useState } from "react";
-import { Brain, ChevronDown, ChevronUp, Clock, CheckCircle2, AlertCircle, Tag } from "lucide-react";
+import { Brain, ChevronDown, ChevronUp, Clock, CheckCircle2, AlertCircle, Tag, Eye, User, Phone, Calendar, Timer, FileText, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type { Ticket, TicketDemand } from "@/hooks/useTickets";
 
@@ -36,6 +43,7 @@ const categoryConfig: Record<string, { label: string; className: string }> = {
 
 export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
   const created = new Date(ticket.created_at);
   const resolved = ticket.resolved_at ? new Date(ticket.resolved_at) : new Date();
@@ -51,6 +59,7 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
     : [];
   
   return (
+    <>
     <Card className="overflow-hidden">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
@@ -93,7 +102,7 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
             )}
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Badge
               variant="outline"
               className={cn(
@@ -106,6 +115,16 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
               <Clock className="h-3 w-3 mr-1" />
               {duration}min
             </Badge>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsModalOpen(true)}
+              className="h-8 gap-1.5"
+            >
+              <Eye className="h-4 w-4" />
+              Ver Detalhes
+            </Button>
             
             {hasAiAnalysis && (
               <Button
@@ -158,6 +177,162 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
         )}
       </CardContent>
     </Card>
+    
+    {/* Modal de Detalhes */}
+    <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Detalhes do Atendimento
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          {/* Informações Gerais */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Informações Gerais
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">
+                  <span className="text-muted-foreground">Grupo:</span>{" "}
+                  <span className="font-medium">{ticket.monitored_groups?.name || "N/A"}</span>
+                </span>
+              </div>
+              {ticket.customer_name && (
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    <span className="text-muted-foreground">Cliente:</span>{" "}
+                    <span className="font-medium">{ticket.customer_name}</span>
+                  </span>
+                </div>
+              )}
+              {ticket.customer_phone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    <span className="text-muted-foreground">Telefone:</span>{" "}
+                    <span className="font-medium">{ticket.customer_phone}</span>
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">
+                  <span className="text-muted-foreground">Criado em:</span>{" "}
+                  <span className="font-medium">{created.toLocaleString("pt-BR")}</span>
+                </span>
+              </div>
+              {ticket.resolved_at && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-sla-ok" />
+                  <span className="text-sm">
+                    <span className="text-muted-foreground">Resolvido em:</span>{" "}
+                    <span className="font-medium">{resolved.toLocaleString("pt-BR")}</span>
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Timer className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">
+                  <span className="text-muted-foreground">Tempo de Atendimento:</span>{" "}
+                  <span className="font-medium">{duration} minutos</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <Separator />
+          
+          {/* SLA */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              SLA
+            </h3>
+            <div className="flex items-center gap-4">
+              <div className="text-sm">
+                <span className="text-muted-foreground">Limite:</span>{" "}
+                <span className="font-medium">{limit} minutos</span>
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "font-medium",
+                  slaStatus === "ok" && "border-sla-ok text-sla-ok bg-sla-ok/10",
+                  slaStatus === "warning" && "border-sla-warning text-sla-warning bg-sla-warning/10",
+                  slaStatus === "critical" && "border-sla-critical text-sla-critical bg-sla-critical/10"
+                )}
+              >
+                {slaStatus === "ok" && "✓ Dentro do SLA"}
+                {slaStatus === "warning" && "⚠ Alerta"}
+                {slaStatus === "critical" && "✕ SLA Estourado"}
+              </Badge>
+            </div>
+          </div>
+          
+          {/* Resumo da IA */}
+          {ticket.ai_summary && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-primary" />
+                  Resumo da IA
+                </h3>
+                <p className="text-sm bg-muted/50 p-4 rounded-lg">
+                  {ticket.ai_summary}
+                </p>
+                {ticket.analysis_count > 0 && (
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>{ticket.analysis_count} análise{ticket.analysis_count > 1 ? "s" : ""} realizada{ticket.analysis_count > 1 ? "s" : ""}</span>
+                    {ticket.last_analysis_at && (
+                      <span>Última análise: {new Date(ticket.last_analysis_at).toLocaleString("pt-BR")}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          
+          {/* Demandas */}
+          {ticket.demands && ticket.demands.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Demandas Identificadas ({ticket.demands.length})
+                </h3>
+                <div className="space-y-2">
+                  {ticket.demands.map((demand) => (
+                    <DemandRow key={demand.id} demand={demand} />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+          
+          {/* Notas */}
+          {ticket.notes && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Notas
+                </h3>
+                <p className="text-sm bg-muted/50 p-4 rounded-lg whitespace-pre-wrap">
+                  {ticket.notes}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
