@@ -313,6 +313,12 @@ serve(async (req) => {
           continue;
         }
 
+        // Get timestamp of last message for accurate resolved_at (instead of NOW())
+        const lastMessageTimestamp = messages[messages.length - 1].created_at;
+
+        // Find timestamp of last CS message for demand resolution
+        const lastCsMessageTimestamp = [...messages].reverse().find(m => m.sender_role === "cs")?.created_at || lastMessageTimestamp;
+
         console.log(`Found ${messages.length} messages to analyze for ticket ${ticket.id}`);
 
         // Call AI to analyze the conversation
@@ -339,7 +345,7 @@ serve(async (req) => {
               const updates: Record<string, any> = { status: demand.status };
               
               if (demand.status === "resolved") {
-                updates.resolved_at = new Date().toISOString();
+                updates.resolved_at = lastCsMessageTimestamp;
                 updates.resolution_time_minutes = demand.resolution_time_minutes || null;
                 
                 // Find CS who resolved this demand
@@ -413,7 +419,7 @@ serve(async (req) => {
                 priority: demand.priority,
                 category: demand.category || "geral",
                 resolution_time_minutes: demand.status === "resolved" ? demand.resolution_time_minutes : null,
-                resolved_at: demand.status === "resolved" ? new Date().toISOString() : null,
+                resolved_at: demand.status === "resolved" ? lastCsMessageTimestamp : null,
                 sla_exceeded: slaExceeded,
                 resolved_by_name: resolvedByName,
                 resolved_by_phone: resolvedByPhone,
@@ -437,7 +443,7 @@ serve(async (req) => {
         if (analysis.all_resolved || forceResolve) {
           // All demands resolved OR force resolve - close the ticket
           ticketUpdates.status = "resolved";
-          ticketUpdates.resolved_at = new Date().toISOString();
+          ticketUpdates.resolved_at = lastMessageTimestamp;
           ticketUpdates.next_analysis_at = null;
           
           // If force resolve, mark all open demands as resolved
@@ -446,7 +452,7 @@ serve(async (req) => {
               .from("ticket_demands")
               .update({
                 status: "resolved",
-                resolved_at: new Date().toISOString(),
+                resolved_at: lastMessageTimestamp,
               })
               .eq("ticket_id", ticket.id)
               .eq("status", "open");
