@@ -34,7 +34,19 @@ serve(async (req) => {
     console.log(`Using UAZAPI URL: ${UAZAPI_URL}`);
 
     const url = new URL(req.url);
-    const action = url.searchParams.get('action') || 'qr';
+    let action = url.searchParams.get('action');
+
+    // Also allow POST with JSON body: { action: "qr" | "status" }
+    if (!action && req.method !== 'GET') {
+      try {
+        const body = await req.json().catch(() => null);
+        if (body && typeof body.action === 'string') action = body.action;
+      } catch {
+        // ignore
+      }
+    }
+
+    action = action || 'qr';
 
     console.log(`WhatsApp Connect - Action: ${action}`);
 
@@ -124,74 +136,140 @@ serve(async (req) => {
         }
       }
 
-      // Try different QR code endpoints
-      const qrEndpoints = [
-        '/instance/qrcode',
-        '/instance/qr',
-        '/qrcode',
-      ];
+      const instanceNameFromSecret = Deno.env.get('EVOLUTION_INSTANCE_NAME') || null;
+      const instanceNameFromStatus =
+        (statusData?.instance?.name as string | undefined) ||
+        (statusData?.instance?.id as string | undefined) ||
+        null;
+      const instanceName = instanceNameFromSecret || instanceNameFromStatus;
 
-      for (const endpoint of qrEndpoints) {
-        console.log(`Trying endpoint: ${UAZAPI_URL}${endpoint}`);
-        
+      if (!instanceName) {
+        console.warn('No instance name available (EVOLUTION_INSTANCE_NAME missing and status did not include name/id).');
+      } else {
+        console.log(`Using instance identifier: ${instanceName}`);
+      }
+
+      const headers = {
+        'token': UAZAPI_TOKEN,
+        'Content-Type': 'application/json',
+      };
+
+      const tryGetQrFromJson = (payload: any) => {
+        const qrCode =
+          payload?.base64 ||
+          payload?.qr ||
+          payload?.qrcode ||
+          payload?.code ||
+          payload?.instance?.qrcode ||
+          payload?.instance?.qrCode ||
+          null;
+        const pairingCode = payload?.pairingCode || payload?.paircode || payload?.instance?.paircode || null;
+        return { qrCode, pairingCode };
+      };
+
+      const attempts: Array<{ label: string; method: string; url: string; body?: any }> = [];
+
+      // Some providers require instance identifier either in path, query, or body.
+      if (instanceName) {
+        const encoded = encodeURIComponent(instanceName);
+        attempts.push({ label: 'connect_get_path', method: 'GET', url: `${UAZAPI_URL}/instance/connect/${encoded}` });
+        attempts.push({ label: 'connect_get_query', method: 'GET', url: `${UAZAPI_URL}/instance/connect?instanceName=${encoded}` });
+        attempts.push({ label: 'connect_post_body', method: 'POST', url: `${UAZAPI_URL}/instance/connect`, body: { instanceName } });
+        attempts.push({ label: 'connect_post_body_alt', method: 'POST', url: `${UAZAPI_URL}/instance/connect`, body: { name: instanceName } });
+
+        attempts.push({ label: 'qrcode_get_path', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode/${encoded}` });
+        attempts.push({ label: 'qrcode_get_query', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode?instanceName=${encoded}` });
+        attempts.push({ label: 'qrcode_post_body', method: 'POST', url: `${UAZAPI_URL}/instance/qrcode`, body: { instanceName } });
+
+        attempts.push({ label: 'qr_get_path', method: 'GET', url: `${UAZAPI_URL}/instance/qr/${encoded}` });
+        attempts.push({ label: 'qr_get_query', method: 'GET', url: `${UAZAPI_URL}/instance/qr?instanceName=${encoded}` });
+        attempts.push({ label: 'qr_post_body', method: 'POST', url: `${UAZAPI_URL}/instance/qr`, body: { instanceName } });
+      }
+
+      // Fallbacks without instance in URL
+      attempts.push({ label: 'qrcode_get', method: 'GET', url: `${UAZAPI_URL}/instance/qrcode` });
+      attempts.push({ label: 'qr_get', method: 'GET', url: `${UAZAPI_URL}/instance/qr` });
+      attempts.push({ label: 'qrcode_root_get', method: 'GET', url: `${UAZAPI_URL}/qrcode` });
+
+      for (const attempt of attempts) {
+        console.log(`Trying QR endpoint [${attempt.label}]: ${attempt.method} ${attempt.url}`);
+
         try {
-          const qrResponse = await fetch(`${UAZAPI_URL}${endpoint}`, {
-            method: 'GET',
-            headers: {
-              'token': UAZAPI_TOKEN,
-              'Content-Type': 'application/json',
-            },
+          const resp = await fetch(attempt.url, {
+            method: attempt.method,
+            headers,
+            body: attempt.body ? JSON.stringify(attempt.body) : undefined,
           });
 
-          if (qrResponse.ok) {
-            const qrData = await qrResponse.json();
-            console.log('QR response received from', endpoint, ':', JSON.stringify(qrData));
-
-            const qrCode = qrData.base64 || qrData.qr || qrData.qrcode || qrData.code;
-            
-            if (qrCode) {
-              return new Response(
-                JSON.stringify({
-                  status: 'waiting',
-                  qrCode: qrCode,
-                  pairingCode: qrData.pairingCode || qrData.paircode || null
-                }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
+          const text = await resp.text();
+          // Consume body first, then parse if possible.
+          const parsed = (() => {
+            try {
+              return JSON.parse(text);
+            } catch {
+              return null;
             }
-          } else {
-            const errorText = await qrResponse.text();
-            console.log(`Endpoint ${endpoint} returned ${qrResponse.status}:`, errorText);
+          })();
+
+          if (!resp.ok) {
+            console.log(`Attempt [${attempt.label}] -> ${resp.status}.`);
+            continue;
+          }
+
+          const { qrCode, pairingCode } = tryGetQrFromJson(parsed);
+          if (qrCode) {
+            console.log(`QR code obtained via [${attempt.label}]`);
+            return new Response(
+              JSON.stringify({
+                status: 'waiting',
+                qrCode,
+                pairingCode,
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
           }
         } catch (endpointError) {
-          console.log(`Endpoint ${endpoint} failed:`, endpointError);
+          const msg = endpointError instanceof Error ? endpointError.message : String(endpointError);
+          console.log(`Attempt [${attempt.label}] failed: ${msg}`);
         }
       }
 
-      // If no endpoint worked, try restart to generate new QR
+      // If no endpoint worked, try restart to generate new QR (also varies by provider)
       console.log('No QR code available, trying to restart instance...');
-      
-      try {
-        const restartResponse = await fetch(`${UAZAPI_URL}/instance/restart`, {
-          method: 'PUT',
-          headers: {
-            'token': UAZAPI_TOKEN,
-            'Content-Type': 'application/json',
-          },
-        });
 
-        if (restartResponse.ok) {
-          console.log('Instance restart requested, please try again in a few seconds');
-          return new Response(
-            JSON.stringify({ 
-              status: 'restarting',
-              message: 'Instância reiniciando. Aguarde alguns segundos e tente novamente.'
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+      const restartAttempts: Array<{ label: string; method: string; url: string; body?: any }> = [];
+      if (instanceName) {
+        const encoded = encodeURIComponent(instanceName);
+        restartAttempts.push({ label: 'restart_put_path', method: 'PUT', url: `${UAZAPI_URL}/instance/restart/${encoded}` });
+        restartAttempts.push({ label: 'restart_put_query', method: 'PUT', url: `${UAZAPI_URL}/instance/restart?instanceName=${encoded}` });
+        restartAttempts.push({ label: 'restart_put_body', method: 'PUT', url: `${UAZAPI_URL}/instance/restart`, body: { instanceName } });
+        restartAttempts.push({ label: 'restart_put_body_alt', method: 'PUT', url: `${UAZAPI_URL}/instance/restart`, body: { name: instanceName } });
+      }
+      restartAttempts.push({ label: 'restart_put', method: 'PUT', url: `${UAZAPI_URL}/instance/restart` });
+
+      for (const attempt of restartAttempts) {
+        console.log(`Trying restart [${attempt.label}]: ${attempt.method} ${attempt.url}`);
+        try {
+          const resp = await fetch(attempt.url, {
+            method: attempt.method,
+            headers,
+            body: attempt.body ? JSON.stringify(attempt.body) : undefined,
+          });
+          await resp.text();
+          if (resp.ok) {
+            console.log('Instance restart requested, please try again in a few seconds');
+            return new Response(
+              JSON.stringify({
+                status: 'restarting',
+                message: 'Instância reiniciando. Aguarde alguns segundos e tente novamente.',
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } catch (restartError) {
+          const msg = restartError instanceof Error ? restartError.message : String(restartError);
+          console.log(`Restart attempt [${attempt.label}] failed: ${msg}`);
         }
-      } catch (restartError) {
-        console.log('Restart failed:', restartError);
       }
 
       return new Response(

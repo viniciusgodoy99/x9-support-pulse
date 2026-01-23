@@ -13,28 +13,11 @@ export function useWhatsAppConnection() {
 
   const checkStatus = useCallback(async () => {
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('whatsapp-connect', {
-        body: {},
-        headers: { 'Content-Type': 'application/json' },
+      const { data: statusData, error: fnError } = await supabase.functions.invoke('whatsapp-connect', {
+        body: { action: 'status' },
       });
 
-      // Build URL with query param since invoke doesn't support query params directly
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-connect?action=status`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Falha ao verificar status');
-      }
-
-      const statusData = await response.json();
+      if (fnError) throw fnError;
       
       if (statusData.status === 'connected') {
         setStatus('connected');
@@ -55,22 +38,11 @@ export function useWhatsAppConnection() {
     setError(null);
     
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-connect?action=qr`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const { data, error: fnError } = await supabase.functions.invoke('whatsapp-connect', {
+        body: { action: 'qr' },
+      });
 
-      if (!response.ok) {
-        throw new Error('Falha ao gerar QR code');
-      }
-
-      const data = await response.json();
+      if (fnError) throw fnError;
       
       if (data.status === 'connected') {
         setStatus('connected');
