@@ -11,6 +11,7 @@ import GroupsSettings from "./pages/settings/Groups";
 import GroupMembers from "./pages/settings/GroupMembers";
 import TeamSettings from "./pages/settings/Team";
 import Settings from "./pages/settings/Settings";
+import WhatsAppConnect from "./pages/settings/WhatsAppConnect";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/settings/groups" element={<GroupsSettings />} />
           <Route path="/settings/groups/:groupId/members" element={<GroupMembers />} />
           <Route path="/settings/team" element={<TeamSettings />} />
+          <Route path="/settings/whatsapp" element={<WhatsAppConnect />} />
           <Route path="/settings" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
