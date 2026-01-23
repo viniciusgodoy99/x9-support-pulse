@@ -442,7 +442,10 @@ serve(async (req) => {
       }
     }
 
-    // Check if sender is a CS (team member) based on group_members role
+    // Check if sender has a defined role in group_members
+    // Any role other than 'unknown' is considered part of the team/attendance
+    // Roles: cs, client, traffic_manager = team | unknown = potential customer
+    const hasDefinedRole = senderMember?.role && senderMember.role !== "unknown";
     const isCS = senderMember?.role === "cs";
 
     // Also check team_members table for backward compatibility
@@ -458,8 +461,9 @@ serve(async (req) => {
       throw teamError;
     }
 
-    const isTeamMember = !!teamMember || isCS;
-    console.log("Is team member:", isTeamMember, teamMember?.name || (isCS ? "CS from group" : ""));
+    // Team member = in team_members table OR has any defined role in the group
+    const isTeamMember = !!teamMember || hasDefinedRole;
+    console.log("Is team member:", isTeamMember, "role:", senderMember?.role, teamMember?.name || "");
 
     // ===== TICKET PROCESSING WITH MESSAGE STORAGE =====
     // Check for existing open ticket
