@@ -38,8 +38,8 @@ serve(async (req) => {
 
     console.log(`WhatsApp Connect - Action: ${action}`);
 
-    if (action === 'status') {
-      // Check connection status
+    // Helper function to get instance status
+    const getInstanceStatus = async () => {
       const statusResponse = await fetch(`${UAZAPI_URL}/instance/status`, {
         method: 'GET',
         headers: {
@@ -51,6 +51,16 @@ serve(async (req) => {
       if (!statusResponse.ok) {
         const errorText = await statusResponse.text();
         console.error('Status check failed:', errorText);
+        return null;
+      }
+
+      return await statusResponse.json();
+    };
+
+    if (action === 'status') {
+      const statusData = await getInstanceStatus();
+      
+      if (!statusData) {
         return new Response(
           JSON.stringify({ 
             status: 'disconnected', 
@@ -60,15 +70,14 @@ serve(async (req) => {
         );
       }
 
-      const statusData = await statusResponse.json();
       console.log('Status response:', JSON.stringify(statusData));
 
-      // UAZAPI returns status in different formats, handle common cases
+      // UAZAPI returns nested structure: { instance: {...}, status: { connected: bool } }
       const isConnected = 
-        statusData.state === 'open' || 
-        statusData.status === 'open' ||
-        statusData.connected === true ||
-        statusData.state === 'connected';
+        statusData.status?.connected === true ||
+        statusData.status?.loggedIn === true ||
+        statusData.instance?.status === 'connected' ||
+        statusData.state === 'open';
 
       return new Response(
         JSON.stringify({ 
@@ -80,23 +89,18 @@ serve(async (req) => {
     }
 
     if (action === 'qr') {
-      // Generate QR code for connection
       console.log('Requesting QR code from UAZAPI...');
       
-      const qrResponse = await fetch(`${UAZAPI_URL}/instance/connect`, {
-        method: 'GET',
-        headers: {
-          'token': UAZAPI_TOKEN,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!qrResponse.ok) {
-        const errorText = await qrResponse.text();
-        console.error('QR generation failed:', errorText);
-        
+      // First check current status - if qrcode is available there, use it
+      const statusData = await getInstanceStatus();
+      
+      if (statusData) {
         // Check if already connected
-        if (errorText.includes('already') || errorText.includes('connected')) {
+        const isConnected = 
+          statusData.status?.connected === true ||
+          statusData.status?.loggedIn === true;
+        
+        if (isConnected) {
           return new Response(
             JSON.stringify({ 
               status: 'connected',
@@ -106,22 +110,96 @@ serve(async (req) => {
           );
         }
 
-        return new Response(
-          JSON.stringify({ error: 'Falha ao gerar QR code', details: errorText }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Check if QR code is available in status response
+        if (statusData.instance?.qrcode) {
+          console.log('QR code found in status response');
+          return new Response(
+            JSON.stringify({
+              status: 'waiting',
+              qrCode: statusData.instance.qrcode,
+              pairingCode: statusData.instance.paircode || null
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
 
-      const qrData = await qrResponse.json();
-      console.log('QR response received, has base64:', !!qrData.base64);
+      // Try different QR code endpoints
+      const qrEndpoints = [
+        '/instance/qrcode',
+        '/instance/qr',
+        '/qrcode',
+      ];
+
+      for (const endpoint of qrEndpoints) {
+        console.log(`Trying endpoint: ${UAZAPI_URL}${endpoint}`);
+        
+        try {
+          const qrResponse = await fetch(`${UAZAPI_URL}${endpoint}`, {
+            method: 'GET',
+            headers: {
+              'token': UAZAPI_TOKEN,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (qrResponse.ok) {
+            const qrData = await qrResponse.json();
+            console.log('QR response received from', endpoint, ':', JSON.stringify(qrData));
+
+            const qrCode = qrData.base64 || qrData.qr || qrData.qrcode || qrData.code;
+            
+            if (qrCode) {
+              return new Response(
+                JSON.stringify({
+                  status: 'waiting',
+                  qrCode: qrCode,
+                  pairingCode: qrData.pairingCode || qrData.paircode || null
+                }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          } else {
+            const errorText = await qrResponse.text();
+            console.log(`Endpoint ${endpoint} returned ${qrResponse.status}:`, errorText);
+          }
+        } catch (endpointError) {
+          console.log(`Endpoint ${endpoint} failed:`, endpointError);
+        }
+      }
+
+      // If no endpoint worked, try restart to generate new QR
+      console.log('No QR code available, trying to restart instance...');
+      
+      try {
+        const restartResponse = await fetch(`${UAZAPI_URL}/instance/restart`, {
+          method: 'PUT',
+          headers: {
+            'token': UAZAPI_TOKEN,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (restartResponse.ok) {
+          console.log('Instance restart requested, please try again in a few seconds');
+          return new Response(
+            JSON.stringify({ 
+              status: 'restarting',
+              message: 'Instância reiniciando. Aguarde alguns segundos e tente novamente.'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (restartError) {
+        console.log('Restart failed:', restartError);
+      }
 
       return new Response(
-        JSON.stringify({
-          status: 'waiting',
-          qrCode: qrData.base64 || qrData.qr || qrData.code,
-          pairingCode: qrData.pairingCode || null
+        JSON.stringify({ 
+          error: 'QR code não disponível',
+          message: 'Não foi possível gerar o QR code. A instância pode estar desconectada. Tente novamente em alguns segundos.'
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
