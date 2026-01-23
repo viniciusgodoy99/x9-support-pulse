@@ -25,7 +25,7 @@ const configItems = [{
   url: "/settings/team",
   icon: Users
 }, {
-  title: "Configurações",
+  title: "SLA",
   url: "/settings",
   icon: Settings
 }];
@@ -67,7 +67,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {configItems.map(item => <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink to={item.url} className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors" activeClassName="bg-primary text-primary-foreground">
+                    <NavLink to={item.url} end={item.url === "/settings"} className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors" activeClassName="bg-primary text-primary-foreground">
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
