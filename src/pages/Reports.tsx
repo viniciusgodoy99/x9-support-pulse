@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
-import { BarChart3, TrendingUp, Clock, Users, Brain } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { BarChart3, TrendingUp, Clock, Users, Brain, Filter, MessageSquare } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTickets } from "@/hooks/useTickets";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useGroups } from "@/hooks/useGroups";
 import { TicketHistoryCard } from "@/components/reports/TicketHistoryCard";
 import {
   BarChart,
@@ -26,12 +29,36 @@ const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3
 export default function Reports() {
   const { tickets, loading: ticketsLoading } = useTickets();
   const { members, loading: membersLoading } = useTeamMembers();
+  const { groups, loading: groupsLoading } = useGroups();
   const [slaDistribution, setSlaDistribution] = useState<{ name: string; value: number }[]>([]);
+  const [selectedCS, setSelectedCS] = useState<string>("all");
+  const [selectedGroup, setSelectedGroup] = useState<string>("all");
+
+  // Filter only CS members
+  const csMembers = useMemo(() => 
+    members.filter(m => m.role === "CS" && m.is_active),
+    [members]
+  );
+
+  // Filter only client groups
+  const clientGroups = useMemo(() => 
+    groups.filter(g => g.is_client_group && g.is_active),
+    [groups]
+  );
+
+  // Filter tickets based on selected group
+  const filteredTickets = useMemo(() => {
+    if (selectedGroup === "all") return tickets;
+    return tickets.filter(t => t.monitored_groups?.id === selectedGroup);
+  }, [tickets, selectedGroup]);
 
   useEffect(() => {
-    if (tickets.length === 0) return;
+    if (filteredTickets.length === 0) {
+      setSlaDistribution([]);
+      return;
+    }
 
-    const resolvedTickets = tickets.filter(
+    const resolvedTickets = filteredTickets.filter(
       (t) => t.status === "resolved" && t.first_response_at
     );
 
@@ -55,7 +82,7 @@ export default function Reports() {
       { name: "Alerta", value: warning },
       { name: "Estourado", value: critical },
     ]);
-  }, [tickets]);
+  }, [filteredTickets]);
 
   // Weekly trend mock data
   const weeklyTrend = [
@@ -75,7 +102,7 @@ export default function Reports() {
     avgSla: Math.floor(Math.random() * 25) + 5,
   }));
 
-  const loading = ticketsLoading || membersLoading;
+  const loading = ticketsLoading || membersLoading || groupsLoading;
 
   return (
     <MainLayout>
@@ -89,6 +116,62 @@ export default function Reports() {
             Análise detalhada do desempenho da equipe
           </p>
         </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-lg">Filtros</CardTitle>
+            </div>
+            <CardDescription>
+              Filtre os dados por CS responsável ou selecione um grupo específico
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Filtrar por CS
+                </Label>
+                <Select value={selectedCS} onValueChange={setSelectedCS}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um CS" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os CS</SelectItem>
+                    {csMembers.map(member => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Filtrar por Grupo
+                </Label>
+                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os grupos</SelectItem>
+                    {clientGroups.map(group => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -237,13 +320,13 @@ export default function Reports() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {tickets
+                  {filteredTickets
                     .filter((t) => t.status === "resolved")
                     .slice(0, 20)
                     .map((ticket) => (
                       <TicketHistoryCard key={ticket.id} ticket={ticket} />
                     ))}
-                  {tickets.filter((t) => t.status === "resolved").length === 0 && (
+                  {filteredTickets.filter((t) => t.status === "resolved").length === 0 && (
                     <div className="text-center text-muted-foreground py-8">
                       Nenhum atendimento finalizado ainda
                     </div>
