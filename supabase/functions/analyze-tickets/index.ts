@@ -446,6 +446,24 @@ serve(async (req) => {
           ticketUpdates.resolved_at = lastMessageTimestamp;
           ticketUpdates.next_analysis_at = null;
           
+          // Find CS who resolved the ticket based on last CS message
+          const lastCsMessage = [...messages as any[]].reverse().find(m => m.sender_role === "cs");
+          if (lastCsMessage?.sender_phone) {
+            // Look up team_member by phone number
+            const { data: teamMember } = await supabase
+              .from("team_members")
+              .select("id")
+              .eq("phone_number", lastCsMessage.sender_phone)
+              .single();
+            
+            if (teamMember) {
+              ticketUpdates.resolved_by = teamMember.id;
+              console.log(`Ticket ${ticket.id} resolved_by set to team_member ${teamMember.id}`);
+            } else {
+              console.log(`No team_member found for phone ${lastCsMessage.sender_phone}`);
+            }
+          }
+          
           // If force resolve, mark all open demands as resolved
           if (forceResolve) {
             const { error: updateDemandsError } = await supabase
