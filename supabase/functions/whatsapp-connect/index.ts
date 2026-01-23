@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const UAZAPI_URL = Deno.env.get('EVOLUTION_API_URL');
+    let UAZAPI_URL = Deno.env.get('EVOLUTION_API_URL');
     const UAZAPI_TOKEN = Deno.env.get('EVOLUTION_API_KEY');
 
     if (!UAZAPI_URL || !UAZAPI_TOKEN) {
@@ -22,6 +22,16 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Ensure URL has protocol
+    if (!UAZAPI_URL.startsWith('http://') && !UAZAPI_URL.startsWith('https://')) {
+      UAZAPI_URL = `https://${UAZAPI_URL}`;
+    }
+    
+    // Remove trailing slash if present
+    UAZAPI_URL = UAZAPI_URL.replace(/\/$/, '');
+    
+    console.log(`Using UAZAPI URL: ${UAZAPI_URL}`);
 
     const url = new URL(req.url);
     const action = url.searchParams.get('action') || 'qr';
