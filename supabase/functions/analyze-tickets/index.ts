@@ -21,6 +21,7 @@ interface Demand {
   priority: "low" | "normal" | "high" | "urgent";
   category: "duvida" | "solicitacao" | "reclamacao" | "agendamento" | "suporte_tecnico" | "financeiro" | "feedback" | "geral";
   resolution_time_minutes?: number;
+  resolved_by_name?: string;
 }
 
 interface AnalysisResult {
@@ -61,6 +62,7 @@ Analise a conversa entre Atendentes (CS) e Clientes e identifique:
    - "feedback": Retorno sobre serviços, avaliações, sugestões de melhoria
    - "geral": APENAS quando não se encaixar em NENHUMA outra categoria
 5. Para demandas resolvidas, estime o tempo aproximado de resolução em minutos
+6. Para demandas resolvidas, identifique o NOME do Atendente (CS) que resolveu a demanda com base nas mensagens
 
 REGRAS DE CATEGORIZAÇÃO:
 - SEMPRE escolha a categoria mais específica possível
@@ -123,6 +125,10 @@ Use a função analyze_conversation para estruturar sua resposta.`;
                     resolution_time_minutes: { 
                       type: "number",
                       description: "Tempo estimado de resolução em minutos (apenas para resolvidas)"
+                    },
+                    resolved_by_name: {
+                      type: "string",
+                      description: "Nome do Atendente (CS) que resolveu esta demanda (apenas para resolvidas)"
                     }
                   },
                   required: ["description", "status", "priority", "category"]
@@ -324,6 +330,27 @@ serve(async (req) => {
               if (demand.status === "resolved") {
                 updates.resolved_at = new Date().toISOString();
                 updates.resolution_time_minutes = demand.resolution_time_minutes || null;
+                
+                // Find CS who resolved this demand
+                let resolvedByName = demand.resolved_by_name || null;
+                let resolvedByPhone: string | null = null;
+                
+                if (!resolvedByName) {
+                  const lastCsMessage = [...messages as Message[]].reverse().find(m => m.sender_role === "cs");
+                  if (lastCsMessage) {
+                    resolvedByName = lastCsMessage.sender_name || null;
+                  }
+                }
+                
+                if (resolvedByName && messages) {
+                  const csMessage = (messages as any[]).find(m => m.sender_name === resolvedByName && m.sender_role === "cs");
+                  if (csMessage?.sender_phone) {
+                    resolvedByPhone = csMessage.sender_phone;
+                  }
+                }
+                
+                updates.resolved_by_name = resolvedByName;
+                updates.resolved_by_phone = resolvedByPhone;
               }
               
               // Check if SLA exceeded (demand open for more than 2 minutes - for testing)
@@ -346,6 +373,26 @@ serve(async (req) => {
             const demandAge = Date.now() - new Date(ticket.created_at).getTime();
             const slaExceeded = demand.status === "open" && demandAge > 2 * 60 * 1000; // 2 minutes for testing
 
+            // For resolved demands, find CS who resolved if AI didn't identify
+            let resolvedByName = demand.resolved_by_name || null;
+            let resolvedByPhone: string | null = null;
+            
+            if (demand.status === "resolved" && !resolvedByName) {
+              // Fallback: find the last CS message
+              const lastCsMessage = [...messages as Message[]].reverse().find(m => m.sender_role === "cs");
+              if (lastCsMessage) {
+                resolvedByName = lastCsMessage.sender_name || null;
+              }
+            }
+            
+            // Find phone for the CS
+            if (resolvedByName && messages) {
+              const csMessage = (messages as any[]).find(m => m.sender_name === resolvedByName && m.sender_role === "cs");
+              if (csMessage?.sender_phone) {
+                resolvedByPhone = csMessage.sender_phone;
+              }
+            }
+
             const { error: insertError } = await supabase
               .from("ticket_demands")
               .insert({
@@ -357,6 +404,8 @@ serve(async (req) => {
                 resolution_time_minutes: demand.status === "resolved" ? demand.resolution_time_minutes : null,
                 resolved_at: demand.status === "resolved" ? new Date().toISOString() : null,
                 sla_exceeded: slaExceeded,
+                resolved_by_name: resolvedByName,
+                resolved_by_phone: resolvedByPhone,
               });
 
             if (insertError) {

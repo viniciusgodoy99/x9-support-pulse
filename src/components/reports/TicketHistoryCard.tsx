@@ -360,9 +360,15 @@ function DemandRow({ demand }: { demand: TicketDemand }) {
               {categoryConfig[demand.category].label}
             </Badge>
           )}
+          {isResolved && demand.resolved_by_name && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <User className="h-3 w-3" />
+              <span>{demand.resolved_by_name}</span>
+            </div>
+          )}
           {isResolved && demand.resolution_time_minutes && (
             <span className="text-xs text-muted-foreground">
-              Resolvido em {demand.resolution_time_minutes}min
+              • {demand.resolution_time_minutes}min
             </span>
           )}
           {demand.sla_exceeded && (

@@ -12,6 +12,8 @@ export interface TicketDemand {
   resolved_at: string | null;
   resolution_time_minutes: number | null;
   sla_exceeded: boolean;
+  resolved_by_name: string | null;
+  resolved_by_phone: string | null;
 }
 
 export interface Ticket {

@@ -225,6 +225,8 @@ export type Database = {
           priority: string
           resolution_time_minutes: number | null
           resolved_at: string | null
+          resolved_by_name: string | null
+          resolved_by_phone: string | null
           sla_exceeded: boolean
           status: string
           ticket_id: string
@@ -237,6 +239,8 @@ export type Database = {
           priority?: string
           resolution_time_minutes?: number | null
           resolved_at?: string | null
+          resolved_by_name?: string | null
+          resolved_by_phone?: string | null
           sla_exceeded?: boolean
           status?: string
           ticket_id: string
@@ -249,6 +253,8 @@ export type Database = {
           priority?: string
           resolution_time_minutes?: number | null
           resolved_at?: string | null
+          resolved_by_name?: string | null
+          resolved_by_phone?: string | null
           sla_exceeded?: boolean
           status?: string
           ticket_id?: string
