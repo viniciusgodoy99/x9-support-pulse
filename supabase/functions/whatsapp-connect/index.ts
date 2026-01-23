@@ -142,9 +142,35 @@ serve(async (req) => {
         statusData.instance?.status === 'connected' ||
         statusData.state === 'open';
 
+      // Extract profile info
+      const profileName = 
+        statusData.instance?.profileName ||
+        statusData.instance?.name ||
+        statusData.profileName ||
+        statusData.name ||
+        null;
+      
+      const profilePicUrl = 
+        statusData.instance?.profilePicUrl ||
+        statusData.instance?.profilePictureUrl ||
+        statusData.instance?.picture ||
+        statusData.profilePicUrl ||
+        statusData.picture ||
+        null;
+
+      const phoneNumber =
+        statusData.instance?.owner ||
+        statusData.instance?.phone ||
+        statusData.owner ||
+        statusData.phone ||
+        null;
+
       return new Response(
         JSON.stringify({ 
           status: isConnected ? 'connected' : 'disconnected',
+          profileName,
+          profilePicUrl,
+          phoneNumber,
           details: statusData
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
