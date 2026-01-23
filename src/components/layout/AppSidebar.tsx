@@ -1,4 +1,4 @@
-import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake } from "lucide-react";
+import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -24,6 +24,10 @@ const configItems = [{
   title: "Equipe",
   url: "/settings/team",
   icon: Users
+}, {
+  title: "Configurações",
+  url: "/settings",
+  icon: Settings
 }];
 export function AppSidebar() {
   return <Sidebar className="border-r border-sidebar-border/50 frosted-glass">
