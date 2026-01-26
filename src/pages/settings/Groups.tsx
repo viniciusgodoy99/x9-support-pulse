@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter } from "lucide-react";
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter, Archive, RotateCcw } from "lucide-react";
+import { format, addDays, differenceInDays } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -44,8 +46,21 @@ import { toast } from "@/hooks/use-toast";
 
 export default function GroupsSettings() {
   const navigate = useNavigate();
-  const { groups, loading, addGroup, updateGroup, classifyGroup, deleteGroup } = useGroups();
+  const { 
+    groups, 
+    archivedGroups,
+    loading, 
+    loadingArchived,
+    addGroup, 
+    updateGroup, 
+    classifyGroup, 
+    archiveGroup,
+    restoreGroup,
+    deleteGroup,
+    fetchArchivedGroups 
+  } = useGroups();
   const [isOpen, setIsOpen] = useState(false);
+  const [showArchivedDialog, setShowArchivedDialog] = useState(false);
   const [editingGroup, setEditingGroup] = useState<MonitoredGroup | null>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -176,15 +191,66 @@ export default function GroupsSettings() {
     return matchesSearch && matchesStatus;
   });
 
+  const getDaysUntilArchive = (createdAt: string) => {
+    const created = new Date(createdAt);
+    const archiveDate = addDays(created, 7);
+    const daysLeft = differenceInDays(archiveDate, new Date());
+    return Math.max(0, daysLeft);
+  };
+
+  const handleOpenArchivedDialog = async () => {
+    await fetchArchivedGroups();
+    setShowArchivedDialog(true);
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreGroup(id);
+      toast({ title: "Grupo restaurado com sucesso!" });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível restaurar o grupo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleArchive = async (id: string) => {
+    try {
+      await archiveGroup(id);
+      toast({ title: "Grupo arquivado com sucesso!" });
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível arquivar o grupo.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const headerContent = (
-    <div className="flex flex-1 items-center gap-3">
-      <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Grupos Monitorados</h1>
-        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
-          Gerencie os grupos de WhatsApp monitorados
-        </p>
+    <div className="flex flex-1 items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Grupos Monitorados</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+            Gerencie os grupos de WhatsApp monitorados
+          </p>
+        </div>
       </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline" onClick={handleOpenArchivedDialog}>
+            <Archive className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Arquivados</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Ver grupos arquivados</p>
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 
@@ -242,6 +308,90 @@ export default function GroupsSettings() {
                   </Button>
                 </DialogFooter>
               </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Archived Groups Dialog */}
+          <Dialog open={showArchivedDialog} onOpenChange={setShowArchivedDialog}>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Archive className="h-5 w-5" />
+                  Grupos Arquivados
+                </DialogTitle>
+                <DialogDescription>
+                  Grupos que ficaram mais de 7 dias sem classificação. Você pode restaurá-los para o painel de classificação.
+                </DialogDescription>
+              </DialogHeader>
+              
+              {loadingArchived ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : archivedGroups.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Archive className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Nenhum grupo arquivado</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {archivedGroups.map((group) => (
+                    <Card key={group.id}>
+                      <CardContent className="flex items-center justify-between p-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium truncate">{group.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Arquivado em {group.archived_at ? format(new Date(group.archived_at), "dd/MM/yyyy 'às' HH:mm") : "Data desconhecida"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" onClick={() => handleRestore(group.id)}>
+                                <RotateCcw className="h-4 w-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Restaurar</span>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Restaurar grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remover grupo permanentemente?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita. Todos os dados associados a este grupo serão removidos.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDelete(group.id)}>
+                                        Remover
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remover permanentemente</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </DialogContent>
           </Dialog>
 
@@ -457,9 +607,14 @@ export default function GroupsSettings() {
                               <p>{group.name}</p>
                             </TooltipContent>
                           </Tooltip>
-                          <Badge variant="outline" className="flex-shrink-0 bg-amber-500/10 text-amber-600 border-amber-500/30">
-                            Novo
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                              Novo
+                            </Badge>
+                            <span className="text-xs text-amber-600">
+                              Arquiva em {getDaysUntilArchive(group.created_at)} {getDaysUntilArchive(group.created_at) === 1 ? "dia" : "dias"}
+                            </span>
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4 overflow-hidden">

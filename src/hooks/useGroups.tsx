@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MonitoredGroup {
@@ -9,21 +9,26 @@ export interface MonitoredGroup {
   is_client_group: boolean;
   pending_classification: boolean;
   sla_limit_minutes: number;
+  is_archived: boolean;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export function useGroups() {
   const [groups, setGroups] = useState<MonitoredGroup[]>([]);
+  const [archivedGroups, setArchivedGroups] = useState<MonitoredGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingArchived, setLoadingArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchGroups = async () => {
+  const fetchGroups = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from("monitored_groups")
         .select("*")
+        .eq("is_archived", false)
         .order("pending_classification", { ascending: false })
         .order("name");
 
@@ -35,14 +40,33 @@ export function useGroups() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const fetchArchivedGroups = useCallback(async () => {
+    try {
+      setLoadingArchived(true);
+      const { data, error } = await supabase
+        .from("monitored_groups")
+        .select("*")
+        .eq("is_archived", true)
+        .order("archived_at", { ascending: false });
+
+      if (error) throw error;
+      setArchivedGroups(data as MonitoredGroup[]);
+    } catch (err) {
+      console.error("Error fetching archived groups:", err);
+    } finally {
+      setLoadingArchived(false);
+    }
+  }, []);
 
   const addGroup = async (group: { name: string; whatsapp_id: string; sla_limit_minutes?: number }) => {
     try {
       const { error } = await supabase.from("monitored_groups").insert({
         ...group,
         is_client_group: false,
-        pending_classification: false, // Manually added groups are not pending
+        pending_classification: false,
+        is_archived: false,
       });
       if (error) throw error;
       await fetchGroups();
@@ -83,6 +107,41 @@ export function useGroups() {
     }
   };
 
+  const archiveGroup = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("monitored_groups")
+        .update({
+          is_archived: true,
+          archived_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) throw error;
+      await fetchGroups();
+    } catch (err) {
+      console.error("Error archiving group:", err);
+      throw err;
+    }
+  };
+
+  const restoreGroup = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("monitored_groups")
+        .update({
+          is_archived: false,
+          archived_at: null,
+          created_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      if (error) throw error;
+      await Promise.all([fetchGroups(), fetchArchivedGroups()]);
+    } catch (err) {
+      console.error("Error restoring group:", err);
+      throw err;
+    }
+  };
+
   const deleteGroup = async (id: string) => {
     try {
       const { error } = await supabase
@@ -90,7 +149,7 @@ export function useGroups() {
         .delete()
         .eq("id", id);
       if (error) throw error;
-      await fetchGroups();
+      await Promise.all([fetchGroups(), fetchArchivedGroups()]);
     } catch (err) {
       console.error("Error deleting group:", err);
       throw err;
@@ -99,7 +158,21 @@ export function useGroups() {
 
   useEffect(() => {
     fetchGroups();
-  }, []);
+  }, [fetchGroups]);
 
-  return { groups, loading, error, refetch: fetchGroups, addGroup, updateGroup, classifyGroup, deleteGroup };
+  return {
+    groups,
+    archivedGroups,
+    loading,
+    loadingArchived,
+    error,
+    refetch: fetchGroups,
+    fetchArchivedGroups,
+    addGroup,
+    updateGroup,
+    classifyGroup,
+    archiveGroup,
+    restoreGroup,
+    deleteGroup,
+  };
 }

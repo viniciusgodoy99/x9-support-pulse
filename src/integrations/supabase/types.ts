@@ -114,11 +114,13 @@ export type Database = {
       }
       monitored_groups: {
         Row: {
+          archived_at: string | null
           created_at: string
           evolution_instance: string | null
           id: string
           instance_id: string | null
           is_active: boolean
+          is_archived: boolean
           is_client_group: boolean
           name: string
           pending_classification: boolean
@@ -127,11 +129,13 @@ export type Database = {
           whatsapp_id: string
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           evolution_instance?: string | null
           id?: string
           instance_id?: string | null
           is_active?: boolean
+          is_archived?: boolean
           is_client_group?: boolean
           name: string
           pending_classification?: boolean
@@ -140,11 +144,13 @@ export type Database = {
           whatsapp_id: string
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           evolution_instance?: string | null
           id?: string
           instance_id?: string | null
           is_active?: boolean
+          is_archived?: boolean
           is_client_group?: boolean
           name?: string
           pending_classification?: boolean
@@ -388,7 +394,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      archive_old_pending_groups: { Args: never; Returns: undefined }
     }
     Enums: {
       group_member_role: "cs" | "client" | "traffic_manager" | "unknown"
