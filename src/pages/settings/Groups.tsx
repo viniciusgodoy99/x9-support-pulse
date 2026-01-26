@@ -168,6 +168,13 @@ export default function GroupsSettings() {
     }
   };
 
+  const getDaysUntilArchive = (createdAt: string) => {
+    const created = new Date(createdAt);
+    const archiveDate = addDays(created, 7);
+    const daysLeft = differenceInDays(archiveDate, new Date());
+    return Math.max(0, daysLeft);
+  };
+
   const pendingGroups = groups.filter(g => g.pending_classification);
   const clientGroups = groups.filter(g => !g.pending_classification && g.is_client_group);
   const internalGroups = groups.filter(g => !g.pending_classification && !g.is_client_group);
@@ -207,13 +214,6 @@ export default function GroupsSettings() {
       (internalStatusFilter === "inactive" && !g.is_active);
     return matchesSearch && matchesStatus;
   });
-
-  const getDaysUntilArchive = (createdAt: string) => {
-    const created = new Date(createdAt);
-    const archiveDate = addDays(created, 7);
-    const daysLeft = differenceInDays(archiveDate, new Date());
-    return Math.max(0, daysLeft);
-  };
 
   const handleOpenArchivedDialog = async () => {
     await fetchArchivedGroups();
