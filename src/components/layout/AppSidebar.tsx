@@ -1,4 +1,4 @@
-import { LayoutDashboard, Radio, BarChart3, Users, MessageSquare, Snowflake, Clock, Smartphone, CheckCircle2, XCircle, Loader2, AlertCircle, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Radio, Users, MessageSquare, Snowflake, Clock, Smartphone, CheckCircle2, XCircle, Loader2, AlertCircle, ClipboardList } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -13,10 +13,6 @@ const navigationItems = [{
   title: "Monitoramento",
   url: "/monitoring",
   icon: Radio
-}, {
-  title: "Relatórios",
-  url: "/reports",
-  icon: BarChart3
 }, {
   title: "Demandas Pendentes",
   url: "/pending-demands",
