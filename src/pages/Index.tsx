@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Ticket, Clock, CheckCircle, AlertTriangle, TrendingUp, Snowflake } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTickets } from "@/hooks/useTickets";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { TicketHistoryCard } from "@/components/reports/TicketHistoryCard";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BarChart,
   Bar,
@@ -17,6 +19,8 @@ import {
 
 export default function Dashboard() {
   const { tickets, loading } = useTickets();
+  const { members } = useTeamMembers();
+  const [selectedMember, setSelectedMember] = useState<string>("all");
   const [stats, setStats] = useState({
     todayTotal: 0,
     pending: 0,
@@ -61,14 +65,38 @@ export default function Dashboard() {
     .filter((t) => t.status === "resolved")
     .slice(0, 5);
 
-  // Mock data for chart (would be calculated from real data)
-  const chartData = [
-    { name: "João", tempo: 12 },
-    { name: "Maria", tempo: 18 },
-    { name: "Carlos", tempo: 8 },
-    { name: "Ana", tempo: 15 },
-    { name: "Pedro", tempo: 22 },
-  ];
+  // Membros CS ativos para o filtro
+  const csMembers = useMemo(() => 
+    members.filter(m => m.role === "CS" && m.is_active),
+    [members]
+  );
+
+  // Cálculo real do tempo médio por membro
+  const teamPerformance = useMemo(() => {
+    const membersToShow = selectedMember === "all" 
+      ? csMembers 
+      : csMembers.filter(m => m.id === selectedMember);
+
+    return membersToShow.map(member => {
+      const memberTickets = tickets.filter(
+        t => t.resolved_by === member.id && t.status === "resolved"
+      );
+
+      const ticketsWithResponse = memberTickets.filter(t => t.first_response_at);
+      const avgTime = ticketsWithResponse.length > 0
+        ? ticketsWithResponse.reduce((acc, t) => {
+            const created = new Date(t.created_at).getTime();
+            const responded = new Date(t.first_response_at!).getTime();
+            return acc + (responded - created) / (1000 * 60);
+          }, 0) / ticketsWithResponse.length
+        : 0;
+
+      return {
+        name: member.name.split(" ")[0],
+        tempo: Math.round(avgTime),
+      };
+    });
+  }, [csMembers, tickets, selectedMember]);
 
   return (
     <MainLayout>
@@ -115,15 +143,28 @@ export default function Dashboard() {
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="frosted-glass border-border/50">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
                 Tempo Médio por Membro
               </CardTitle>
+              <Select value={selectedMember} onValueChange={setSelectedMember}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filtrar membro" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {csMembers.map(member => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
+                <BarChart data={teamPerformance}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="name" className="text-xs" />
                   <YAxis unit="min" className="text-xs" />
