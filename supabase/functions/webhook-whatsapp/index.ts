@@ -510,9 +510,18 @@ serve(async (req) => {
     }
 
     // ===== SAVE MESSAGE TO DATABASE =====
-    // sender_role: only actual CS (role === 'cs' or in team_members table) should be marked as "cs"
-    // Other roles like 'client' or 'traffic_manager' are NOT CS
-    const senderRole = (isCS || !!teamMember) ? "cs" : "client";
+    // Determinar sender_role: role do grupo tem PRIORIDADE sobre team_members
+    // Isso permite que uma pessoa seja CS em um grupo e Cliente em outro
+    let senderRole: "cs" | "client" = "client";
+    if (senderMember?.role) {
+      // Role definido no grupo específico tem prioridade
+      senderRole = senderMember.role === "cs" ? "cs" : "client";
+      console.log("Using group-specific role:", senderMember.role, "->", senderRole);
+    } else if (teamMember) {
+      // Fallback para team_members quando não há role no grupo
+      senderRole = "cs";
+      console.log("Using team_members fallback -> cs");
+    }
     const messageType = payload.message?.type || payload.message?.messageType || "text";
     const whatsappMessageId = payload.message?.id || payload.message?.messageid;
 
