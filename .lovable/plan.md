@@ -1,165 +1,119 @@
 
-# Plano: Corrigir Responsividade Mobile em Todos os Paineis
-
-## Objetivo
-Padronizar a responsividade em todas as paginas do aplicativo, utilizando como base os padroes ja implementados nas paginas de configuracoes (Groups.tsx) e no Dashboard (Index.tsx).
-
----
+# Plano: Ajustar Responsividade 100% do Painel de Dashboard
 
 ## Problemas Identificados
 
-1. **Monitoring.tsx**: Grid usa `md:grid-cols-2` em vez de `sm:grid-cols-2`, fazendo com que os cards fiquem em coluna unica ate 768px
-2. **PendingDemands.tsx**: 
-   - Grid usa `md:grid-cols-2` em vez de `sm:grid-cols-2`
-   - `SelectTrigger` com largura fixa `w-[180px]` pode causar overflow em mobile
-   - Popover de filtros tem largura fixa `w-80` que pode nao caber em telas pequenas
-3. **GroupMembers.tsx**: 
-   - `SelectTrigger` com largura fixa `w-44` causa overflow horizontal em mobile
-   - Layout do card de membro nao empilha corretamente em mobile
-4. **Team.tsx**: Grid usa `md:grid-cols-2` em vez de padrao responsivo completo
+Apos analisar o codigo do `Index.tsx`, identifiquei os seguintes problemas que ainda causam scroll horizontal ou quebra de layout em mobile:
+
+### 1. Grid de Graficos (Tendencia + Distribuicao SLA)
+- **Linha 416**: Usa `grid-cols-1 md:grid-cols-2` com `gap-6`
+- **Problema**: O gap de 6 (24px) e muito para mobile. Deveria usar `gap-4 sm:gap-6`
+
+### 2. CardContent dos Graficos
+- **Linhas 424, 470, 537**: O `CardContent` tem `overflow-hidden` mas falta padding responsivo
+- **Problema**: Falta `p-3 sm:p-4` para consistencia com outros componentes
+
+### 3. ResponsiveContainer sem restricao de largura
+- **Linhas 431, 477, 550**: Os wrappers `<div className="w-full overflow-hidden">` estao corretos, mas os graficos ainda podem causar overflow em casos extremos
+
+### 4. Eixo Y dos Graficos (YAxis)
+- **Problema Principal**: O `YAxis` do Recharts tem largura fixa padrao que pode causar overflow em telas muito pequenas
+- **Solucao**: Reduzir a largura do YAxis em mobile com `width={isMobile ? 30 : 40}`
+
+### 5. CardContent do Historico de Atendimentos
+- **Linha 585**: Falta padding responsivo - deveria ser `p-3 sm:p-4`
+
+### 6. Container Principal do Space
+- **Linha 261**: O `space-y-6` pode ser demais para mobile
+- **Solucao**: Usar `space-y-4 sm:space-y-6`
 
 ---
 
-## Solucao
+## Alteracoes em `src/pages/Index.tsx`
 
-### 1. Ajustar Monitoring.tsx
-
-**Linha 80 - Grid de Tickets:**
+### 1. Ajustar espacamento do container principal (Linha 261)
 ```tsx
 // De:
-<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+<div className="space-y-6 w-full max-w-full overflow-hidden">
 
 // Para:
-<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+<div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
 ```
 
----
-
-### 2. Ajustar PendingDemands.tsx
-
-**Linha 117-131 - Filtros na barra de acao:**
+### 2. Ajustar gap do grid de graficos (Linha 416)
 ```tsx
 // De:
-<div className="flex items-center gap-2">
-  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-    <SelectTrigger className="w-[180px]">
-      ...
+<div className="grid gap-6 grid-cols-1 md:grid-cols-2">
 
 // Para:
-<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-    <SelectTrigger className="w-full sm:w-[180px]">
-      ...
+<div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
 ```
 
-**Linha 153 - PopoverContent:**
+### 3. Ajustar padding e overflow do CardContent - Grafico de Tendencia (Linha 424)
 ```tsx
 // De:
-<PopoverContent className="w-80" align="end">
+<CardContent className="overflow-hidden">
 
 // Para:
-<PopoverContent className="w-[90vw] sm:w-80" align="end">
+<CardContent className="p-3 sm:p-4 overflow-hidden">
 ```
 
-**Linha 253 - Grid de Demandas:**
+### 4. Ajustar YAxis do LineChart para mobile (Linhas 434-435)
 ```tsx
 // De:
-<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+<XAxis dataKey="day" className="text-xs" />
+<YAxis className="text-xs" />
 
 // Para:
-<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+<XAxis dataKey="day" className="text-xs" tick={{ fontSize: 10 }} />
+<YAxis className="text-xs" width={isMobile ? 30 : 40} tick={{ fontSize: 10 }} />
 ```
 
----
-
-### 3. Ajustar GroupMembers.tsx
-
-**Linha 131-145 - Barra de acao:**
+### 5. Ajustar padding e overflow do CardContent - Grafico de SLA (Linha 470)
 ```tsx
 // De:
-<div className="flex flex-wrap items-center justify-between gap-4">
+<CardContent className="overflow-hidden">
 
 // Para:
-<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+<CardContent className="p-3 sm:p-4 overflow-hidden">
 ```
 
-**Linha 149 - Grid de stats:**
+### 6. Ajustar padding e overflow do CardContent - Desempenho (Linha 537)
 ```tsx
 // De:
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+<CardContent className="overflow-hidden">
 
 // Para:
-<div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+<CardContent className="p-3 sm:p-4 overflow-hidden">
 ```
 
-**Linha 235 - Layout do card de membro:**
+### 7. Ajustar YAxis do BarChart para mobile (Linhas 553-554)
 ```tsx
 // De:
-<div className="flex items-center justify-between">
-  <div className="flex items-center gap-4 flex-1">
-    ...
-  </div>
-  <Select ...>
-    <SelectTrigger className="w-44">
-      ...
+<XAxis dataKey="name" className="text-xs" />
+<YAxis className="text-xs" />
 
 // Para:
-<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-  <div className="flex items-center gap-4 flex-1 min-w-0">
-    ...
-  </div>
-  <Select ...>
-    <SelectTrigger className="w-full sm:w-44">
-      ...
+<XAxis dataKey="name" className="text-xs" tick={{ fontSize: 10 }} />
+<YAxis className="text-xs" width={isMobile ? 30 : 40} tick={{ fontSize: 10 }} />
 ```
 
----
-
-### 4. Ajustar Team.tsx
-
-**Linha 244 - Grid de membros:**
+### 8. Ajustar padding do CardContent - Historico (Linha 585)
 ```tsx
 // De:
-<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+<CardContent>
 
 // Para:
-<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+<CardContent className="p-3 sm:p-4">
 ```
 
----
+### 9. Ajustar espacamento interno do container de cards (Linha 414)
+```tsx
+// De:
+<div className="space-y-6">
 
-## Resultado Visual Esperado (Mobile)
-
-### Monitoring (antes e depois)
-```
-ANTES:                    DEPOIS:
-+------------------+      +------------------+
-| Ticket A         |      | Ticket A         |
-+------------------+      +------------------+
-| Ticket B         |      | Ticket B         |
-+------------------+      +------------------+
-(coluna unica ate 768px)  (coluna unica, sem overflow)
-```
-
-### PendingDemands (antes e depois)
-```
-ANTES:                         DEPOIS:
-+------------------------+     +------------------+
-| [Grupo ▼] [Filtros] [R]|     | [Grupo        ▼] |
-+------------------------+     | [Filtros] [Atual]|
-(overflow horizontal)          +------------------+
-                               (empilhado, sem overflow)
-```
-
-### GroupMembers (antes e depois)
-```
-ANTES:                              DEPOIS:
-+---------------------------+       +------------------+
-| 👤 Nome [CS (Atendiment..]|       | 👤 Nome          |
-+---------------------------+       | 📞 5511999...    |
-(select truncado)                   | [CS (Atendi.. ▼] |
-                                    +------------------+
-                                    (empilhado, sem corte)
+// Para:
+<div className="space-y-4 sm:space-y-6">
 ```
 
 ---
@@ -168,18 +122,23 @@ ANTES:                              DEPOIS:
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| src/pages/Monitoring.tsx | Ajustar grid responsivo |
-| src/pages/PendingDemands.tsx | Ajustar barra de filtros, popover e grid |
-| src/pages/settings/GroupMembers.tsx | Ajustar barra de acao, stats e cards de membros |
-| src/pages/settings/Team.tsx | Ajustar grid responsivo |
+| src/pages/Index.tsx | Ajustar espacamentos, paddings, YAxis dos graficos |
 
 ---
 
-## Padroes de Responsividade Utilizados
+## Resumo das Correcoes
 
-1. **Grids adaptativos**: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
-2. **Gaps responsivos**: `gap-3 sm:gap-4`
-3. **Larguras responsivas**: `w-full sm:w-[180px]`, `w-full sm:w-44`
-4. **Layouts que empilham**: `flex-col sm:flex-row`
-5. **Popover responsivo**: `w-[90vw] sm:w-80`
-6. **Overflow controlado**: `overflow-hidden`, `min-w-0`, `truncate`
+1. **Espacamentos responsivos**: `space-y-4 sm:space-y-6`, `gap-4 sm:gap-6`
+2. **Paddings responsivos nos CardContent**: `p-3 sm:p-4`
+3. **YAxis com largura responsiva**: `width={isMobile ? 30 : 40}`
+4. **Fonte menor nos eixos**: `tick={{ fontSize: 10 }}`
+
+---
+
+## Resultado Esperado
+
+Apos as alteracoes:
+- Nenhum scroll horizontal em telas de 320px ate 400px
+- Graficos visiveis e funcionais em qualquer tamanho de tela
+- Espacamentos proporcionais ao tamanho da tela
+- Eixos dos graficos legiveis mas compactos em mobile
