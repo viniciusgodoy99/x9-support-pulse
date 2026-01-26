@@ -332,13 +332,34 @@ serve(async (req) => {
           .select("id, description, status")
           .eq("ticket_id", ticket.id);
 
+        // Helper function to calculate similarity between two strings
+        const calculateSimilarity = (str1: string, str2: string): number => {
+          const words1 = str1.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          const words2 = str2.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          
+          if (words1.length === 0 || words2.length === 0) {
+            // Fallback to substring check for very short descriptions
+            return str1.toLowerCase().includes(str2.toLowerCase().slice(0, 20)) ||
+                   str2.toLowerCase().includes(str1.toLowerCase().slice(0, 20)) ? 0.6 : 0;
+          }
+          
+          const commonWords = words1.filter(w => 
+            words2.some(w2 => w2.includes(w) || w.includes(w2))
+          );
+          const totalUniqueWords = new Set([...words1, ...words2]).size;
+          
+          return totalUniqueWords > 0 ? commonWords.length / totalUniqueWords : 0;
+        };
+
         // Process each demand from analysis
         for (const demand of analysis.demands) {
-          // Check if this demand already exists (fuzzy match on description)
-          const existingDemand = existingDemands?.find(
-            ed => ed.description.toLowerCase().includes(demand.description.toLowerCase().slice(0, 30)) ||
-                  demand.description.toLowerCase().includes(ed.description.toLowerCase().slice(0, 30))
-          );
+          // Check if this demand already exists (improved similarity matching)
+          const existingDemand = existingDemands?.find(ed => {
+            // Exact match
+            if (ed.description.toLowerCase() === demand.description.toLowerCase()) return true;
+            // Similarity >= 50%
+            return calculateSimilarity(ed.description, demand.description) >= 0.5;
+          });
 
           if (existingDemand) {
             // Update existing demand if status changed
@@ -466,6 +487,25 @@ serve(async (req) => {
           }
           
           console.log(`All demands resolved - closing ticket ${ticket.id}`);
+          
+          // Close ALL remaining open demands (safety net for any orphaned demands)
+          const lastCsMessageForDemands = [...messages as Message[]].reverse().find(m => m.sender_role === "cs");
+          const { error: updateOpenDemandsError, count: closedDemandsCount } = await supabase
+            .from("ticket_demands")
+            .update({
+              status: "resolved",
+              resolved_at: lastCsMessageTimestamp,
+              resolved_by_name: lastCsMessageForDemands?.sender_name || null,
+              resolved_by_phone: lastCsMessageForDemands?.sender_phone || null,
+            })
+            .eq("ticket_id", ticket.id)
+            .eq("status", "open");
+            
+          if (updateOpenDemandsError) {
+            console.error("Error closing remaining open demands:", updateOpenDemandsError);
+          } else if (closedDemandsCount && closedDemandsCount > 0) {
+            console.log(`Closed ${closedDemandsCount} remaining open demands for ticket ${ticket.id}`);
+          }
         } else {
           // Still has open demands - schedule next analysis in 2 minutes (for testing)
           ticketUpdates.next_analysis_at = new Date(Date.now() + 2 * 60 * 1000).toISOString();
