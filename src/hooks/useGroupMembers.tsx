@@ -65,6 +65,19 @@ export function useGroupMembers(groupId?: string) {
 
       if (updateError) throw updateError;
 
+      // Sync sender_role in ALL messages from this phone number
+      const newSenderRole = role === "cs" ? "cs" : "client";
+      const { error: messagesError } = await supabase
+        .from("messages")
+        .update({ sender_role: newSenderRole })
+        .eq("sender_phone", member.phone_number);
+
+      if (messagesError) {
+        console.error("Error updating messages sender_role:", messagesError);
+      } else {
+        console.log(`Updated sender_role to '${newSenderRole}' for all messages from ${member.phone_number}`);
+      }
+
       // If role is "cs", integrate with team_members and sync across all groups
       if (role === "cs" && member) {
         // Check if already exists in team_members
@@ -105,6 +118,18 @@ export function useGroupMembers(groupId?: string) {
           console.error("Error syncing role across groups:", syncError);
         } else {
           console.log("Synced CS role across all groups for:", member.phone_number);
+        }
+      }
+
+      // If removed from CS, remove from team_members
+      if (role !== "cs" && member) {
+        const { error: deleteTeamError } = await supabase
+          .from("team_members")
+          .delete()
+          .eq("phone_number", member.phone_number);
+
+        if (!deleteTeamError) {
+          console.log(`Removed ${member.phone_number} from team_members`);
         }
       }
 
