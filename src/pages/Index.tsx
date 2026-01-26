@@ -252,18 +252,19 @@ export default function Dashboard() {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Snowflake className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-muted-foreground text-sm">
-                Visão geral do monitoramento de SLA
-              </p>
+        <div className="frosted-glass rounded-lg p-4 sm:p-6 border border-border/50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Snowflake className="h-8 w-8 text-primary animate-pulse" />
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Dashboard</h1>
+                <p className="text-muted-foreground text-sm">
+                  Visão geral do monitoramento de SLA
+                </p>
+              </div>
             </div>
-          </div>
 
-          <Popover>
+            <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="gap-2 w-full sm:w-auto">
                 <Filter className="h-4 w-4" />
@@ -371,7 +372,8 @@ export default function Dashboard() {
                 )}
               </div>
             </PopoverContent>
-          </Popover>
+            </Popover>
+          </div>
         </div>
 
         {/* Stats Cards */}
