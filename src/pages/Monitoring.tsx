@@ -24,29 +24,32 @@ export default function Monitoring() {
     }
   };
 
-  return (
-    <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Radio className="h-8 w-8 text-primary animate-pulse" />
-              Monitoramento em Tempo Real
-            </h1>
-            <p className="text-muted-foreground">
-              Acompanhe os tickets abertos e tempos de resposta
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
-          </Button>
+  const headerContent = (
+    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+      <div className="flex items-center gap-3">
+        <Radio className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Monitoramento</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+            Acompanhe os tickets abertos e tempos de resposta
+          </p>
         </div>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => refetch()}
+        disabled={loading}
+      >
+        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+        Atualizar
+      </Button>
+    </div>
+  );
+
+  return (
+    <MainLayout headerContent={headerContent}>
+      <div className="space-y-6">
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
