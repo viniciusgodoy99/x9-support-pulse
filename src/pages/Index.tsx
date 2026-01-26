@@ -260,7 +260,7 @@ export default function Dashboard() {
     <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
         {/* Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Ticket className="h-5 w-5" />
             <span className="text-sm">
@@ -286,7 +286,7 @@ export default function Dashboard() {
                 <p>Abrir filtros avançados</p>
               </TooltipContent>
             </Tooltip>
-            <PopoverContent className="w-80" align="end">
+            <PopoverContent className="w-[90vw] sm:w-80" align="end">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <h4 className="font-medium leading-none">Filtros Avançados</h4>
@@ -381,7 +381,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
           <StatsCard title="Tickets Hoje" value={stats.todayTotal} subtitle="Total de atendimentos" icon={Ticket} />
           <StatsCard
             title="Pendentes"
@@ -415,9 +415,9 @@ export default function Dashboard() {
             {/* Tendência Semanal e Distribuição de SLA */}
             <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
               <Card className="frosted-glass border-border/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     Tendência Semanal
                   </CardTitle>
                 </CardHeader>
@@ -461,9 +461,9 @@ export default function Dashboard() {
               </Card>
 
               <Card className="frosted-glass border-border/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-primary" />
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                    <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     Distribuição de SLA
                   </CardTitle>
                 </CardHeader>
@@ -515,9 +515,9 @@ export default function Dashboard() {
 
             {/* Desempenho por Membro */}
             <Card className="frosted-glass border-border/50">
-              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
+              <CardHeader className="flex flex-col gap-3 p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                   Desempenho por Membro
                 </CardTitle>
                 <Select value={selectedCS} onValueChange={setSelectedCS}>
@@ -569,12 +569,14 @@ export default function Dashboard() {
 
             {/* Histórico de Atendimentos */}
             <Card className="frosted-glass border-border/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-primary" />
-                  Histórico de Atendimentos
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2 text-base sm:text-lg">
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                    Histórico de Atendimentos
+                  </div>
                   {resolvedTickets.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
+                    <Badge variant="secondary" className="w-fit">
                       {resolvedTickets.length} total
                     </Badge>
                   )}
@@ -595,40 +597,32 @@ export default function Dashboard() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-border">
-                    <span className="text-sm text-muted-foreground mr-2">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t border-border">
+                    <span className="text-sm text-muted-foreground order-2 sm:order-1">
                       Página {currentPage} de {totalPages}
                     </span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                          disabled={currentPage === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Página anterior</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                          disabled={currentPage === totalPages}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Próxima página</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <div className="flex items-center gap-2 order-1 sm:order-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="h-9 px-3"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span className="sm:hidden ml-1">Anterior</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="h-9 px-3"
+                      >
+                        <span className="sm:hidden mr-1">Próximo</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>

@@ -19,8 +19,8 @@ export function StatsCard({ title, value, subtitle, icon: Icon, variant = "defau
       variant === "warning" && "border-sla-warning/50",
       variant === "danger" && "border-sla-critical/50"
     )}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 sm:p-6 sm:pb-2">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
         <Icon className={cn(
@@ -31,9 +31,9 @@ export function StatsCard({ title, value, subtitle, icon: Icon, variant = "defau
           variant === "danger" && "text-sla-critical"
         )} />
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
         <div className={cn(
-          "text-3xl font-bold",
+          "text-2xl sm:text-3xl font-bold",
           variant === "default" && "text-foreground",
           variant === "success" && "text-sla-ok",
           variant === "warning" && "text-sla-warning",
