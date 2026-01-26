@@ -1,88 +1,140 @@
 
-# Plano: Ajustar Botões de Classificação para Não Ultrapassar o Card
+# Plano: Adicionar Tooltips aos Titulos Truncados e Botoes com Icones
 
-## Problema Identificado
+## Objetivo
 
-Os botões "Sim, é cliente" e "Não" na seção "Aguardando Classificação" estão ultrapassando os limites do card pai em telas menores. Isso acontece porque:
+Melhorar a experiencia do usuario adicionando tooltips que exibem informacoes completas ao passar o mouse sobre:
+1. Titulos de grupos que estao truncados
+2. Botoes que possuem apenas icones (sem texto)
 
-1. Os botões usam `flex-1` que distribui o espaço igualmente, mas não respeita o limite do container
-2. O texto dos botões ("Sim, é cliente") é longo e não quebra
-3. Falta `overflow-hidden` no container pai para evitar vazamento
-
-## Alterações Propostas
+## Alteracoes Propostas
 
 ### Arquivo: src/pages/settings/Groups.tsx
 
-**1. Adicionar overflow-hidden no Card (linha 405-407)**
+**1. Importar componentes de Tooltip**
 
+Adicionar na linha 1-6:
 ```tsx
-<Card
-  key={group.id}
-  className="min-w-0 overflow-hidden border-amber-500/50 bg-amber-500/5"
->
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 ```
 
-**2. Ajustar container dos botões de classificação (linha 422)**
+**2. Envolver o conteudo principal com TooltipProvider**
 
-Alterar de:
+O `TooltipProvider` deve envolver todo o conteudo para que os tooltips funcionem corretamente.
+
+**3. Adicionar Tooltip aos titulos truncados (3 locais)**
+
+Para cada `CardTitle` com texto truncado, envolver com Tooltip:
+
 ```tsx
-<div className="flex gap-2">
+<Tooltip>
+  <TooltipTrigger asChild>
+    <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">
+      {group.name}
+    </CardTitle>
+  </TooltipTrigger>
+  <TooltipContent>
+    <p>{group.name}</p>
+  </TooltipContent>
+</Tooltip>
 ```
 
-Para:
+**Locais:**
+- Linha 298 - Grupos de Clientes
+- Linha 411 - Aguardando Classificacao
+- Linha 530 - Grupos Internos
+
+**4. Adicionar Tooltip aos botoes com icones**
+
+Cada botao de icone sera envolvido com Tooltip:
+
+| Icone | Tooltip Text |
+|-------|-------------|
+| Users | "Gerenciar membros" |
+| Edit2 | "Editar grupo" |
+| Power | "Ativar/Desativar" |
+| Trash2 | "Remover grupo" |
+
+Exemplo de implementacao:
 ```tsx
-<div className="flex flex-col sm:flex-row gap-2">
+<Tooltip>
+  <TooltipTrigger asChild>
+    <Button variant="outline" size="sm" onClick={() => handleEdit(group)}>
+      <Edit2 className="h-4 w-4" />
+    </Button>
+  </TooltipTrigger>
+  <TooltipContent>
+    <p>Editar grupo</p>
+  </TooltipContent>
+</Tooltip>
 ```
 
-Isso faz os botões empilharem em mobile e ficarem lado a lado em telas maiores.
+**Locais dos botoes:**
 
-**3. Remover flex-1 e adicionar largura adaptativa (linhas 423-439)**
+**Grupos de Clientes (linhas 329-374):**
+- Users (linha 329) - "Gerenciar membros"
+- Edit2 (linha 337) - "Editar grupo"
+- Power (linha 344) - "Ativar/Desativar"
+- Trash2 (linha 353) - "Remover grupo"
 
-Alterar os botões para:
+**Aguardando Classificacao (linhas 442-480):**
+- Users (linha 443) - "Ver membros"
+- Edit2 (linha 451) - "Editar grupo"
+- Trash2 (linha 460) - "Remover grupo"
+
+**Grupos Internos (linhas 553-599):**
+- Users (linha 554) - "Gerenciar membros"
+- Edit2 (linha 562) - "Editar grupo"
+- Power (linha 569) - "Ativar/Desativar"
+- Trash2 (linha 578) - "Remover grupo"
+
+## Observacao sobre AlertDialog
+
+O botao de Trash2 esta dentro de um `AlertDialogTrigger`. Para adicionar tooltip neste caso, o Tooltip deve envolver o AlertDialogTrigger:
+
 ```tsx
-<Button
-  size="sm"
-  onClick={() => handleClassify(group, true)}
-  className="w-full sm:flex-1 text-xs sm:text-sm"
->
-  <Building2 className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-  <span className="truncate">Sim, é cliente</span>
-</Button>
-<Button
-  variant="outline"
-  size="sm"
-  onClick={() => handleClassify(group, false)}
-  className="w-full sm:flex-1"
->
-  <UserCircle className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-  Não
-</Button>
+<Tooltip>
+  <TooltipTrigger asChild>
+    <span>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </AlertDialogTrigger>
+        ...
+      </AlertDialog>
+    </span>
+  </TooltipTrigger>
+  <TooltipContent>
+    <p>Remover grupo</p>
+  </TooltipContent>
+</Tooltip>
 ```
 
-**4. Garantir que o CardContent não ultrapasse (linha 417)**
+Alternativamente, podemos usar a abordagem mais simples de adicionar o `title` attribute nos botoes dentro do AlertDialogTrigger, ja que o tooltip nativo do navegador funcionara.
 
-Adicionar `overflow-hidden`:
-```tsx
-<CardContent className="space-y-4 overflow-hidden">
-```
+## Resumo das Alteracoes
 
-## Resumo das Alterações
-
-| Elemento | Antes | Depois |
-|----------|-------|--------|
-| Card container | `min-w-0` | `min-w-0 overflow-hidden` |
-| Container botões | `flex gap-2` | `flex flex-col sm:flex-row gap-2` |
-| Botão "Sim" | `flex-1` | `w-full sm:flex-1 text-xs sm:text-sm` + texto truncado |
-| Botão "Não" | `flex-1` | `w-full sm:flex-1` |
-| CardContent | `space-y-4` | `space-y-4 overflow-hidden` |
+| Tipo | Quantidade | Descricao |
+|------|------------|-----------|
+| Import | 1 | Adicionar componentes Tooltip |
+| TooltipProvider | 1 | Envolver conteudo principal |
+| Tooltip em titulos | 3 | CardTitle em cada secao |
+| Tooltip em botoes | 11 | Botoes de acao (Users, Edit, Power, Delete) |
 
 ## Comportamento Esperado
 
-- **Mobile**: Botões empilhados verticalmente, ocupando largura total
-- **Tablet/Desktop**: Botões lado a lado com distribuição igual
-- **Texto longo**: Truncado com reticências se necessário
-- **Sem overflow**: Conteúdo sempre dentro dos limites do card
+- Ao passar o mouse sobre um titulo truncado, o nome completo do grupo aparece
+- Ao passar o mouse sobre qualquer botao de icone, uma descricao da acao aparece
+- Os tooltips aparecem apos um breve delay (comportamento padrao do Radix)
+- Os tooltips sao acessiveis via teclado
 
 ## Arquivo a Modificar
 
-1. `src/pages/settings/Groups.tsx` - Linhas 405-440 (seção Aguardando Classificação)
+1. `src/pages/settings/Groups.tsx`
