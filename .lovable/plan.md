@@ -1,114 +1,172 @@
 
-# Plano: Corrigir Gráfico de Tempo Médio e Adicionar Filtro de Membro
+# Plano: Unificar Dashboard e Relatorios em um Unico Painel
 
-## Situacao Atual
+## Objetivo
+Combinar as funcionalidades do Dashboard e Relatorios em uma unica pagina responsiva, eliminando redundancia e melhorando a experiencia do usuario.
 
-O grafico "Tempo Medio por Membro" no Dashboard usa **dados mockados**. Os nomes "Joao", "Maria", "Carlos" sao placeholders estaticos, nao refletem os membros reais da equipe nem dados reais de atendimento.
+## Analise das Diferencas
 
-A logica correta ja existe na pagina de Relatorios e funciona assim:
-1. Para cada membro da equipe (role = CS), busca tickets onde `resolved_by` = ID do membro
-2. Filtra apenas tickets resolvidos que possuem `first_response_at`
-3. Calcula: `(timestamp first_response_at - timestamp created_at) / 60000` = minutos
-4. Faz a media de todos os tickets do membro
+### Dashboard possui:
+- 4 Stats Cards (Tickets Hoje, Pendentes, SLA Medio, Resolvidos)
+- Grafico de Tempo Medio por Membro (com filtro simples)
+- Ultimos 5 Atendimentos (sem paginacao)
+
+### Relatorios possui:
+- Filtros Avancados (CS, Grupo, Categorias)
+- Grafico Tendencia Semanal (LineChart)
+- Grafico Distribuicao de SLA (PieChart)
+- Grafico Desempenho por Membro (BarChart com 2 metricas)
+- Historico de Atendimentos com paginacao
+
+## Estrutura da Pagina Unificada
+
+A nova pagina combinara todos os elementos em uma estrutura organizada por abas (tabs) para facilitar navegacao em telas menores:
+
+### Layout Proposto:
+
+```
++------------------------------------------+
+| Header: Dashboard + Botao Filtros        |
++------------------------------------------+
+| [Stats Cards - 4 em grid responsivo]     |
++------------------------------------------+
+| [Tabs: Visao Geral | Graficos | Historico]
++------------------------------------------+
+| Conteudo da aba selecionada              |
++------------------------------------------+
+```
+
+### Aba "Visao Geral" (padrao):
+- Tendencia Semanal (LineChart)
+- Distribuicao de SLA (PieChart)
+
+### Aba "Desempenho":
+- Grafico Tempo Medio por Membro (BarChart completo)
+
+### Aba "Historico":
+- Lista de atendimentos com paginacao
 
 ## Alteracoes Necessarias
 
-### Arquivo: `src/pages/Index.tsx`
+### 1. Arquivo: `src/pages/Index.tsx`
 
-1. **Adicionar imports necessarios**
-   - `useTeamMembers` hook para buscar membros reais
-   - `useMemo` do React para calculos otimizados
-   - Componentes de Select para o filtro
+Refatorar completamente para incluir:
 
-2. **Adicionar estado para o filtro**
-   - Estado `selectedMember` para controlar qual membro esta selecionado (default: "all")
+**Imports adicionais:**
+- Tabs, TabsList, TabsTrigger, TabsContent do Radix
+- LineChart, PieChart, Cell do Recharts
+- Popover, PopoverContent, PopoverTrigger
+- Checkbox, Label, Badge, Button
+- useGroups hook
+- Icones adicionais (Filter, Brain, Clock, ChevronLeft, ChevronRight, etc.)
 
-3. **Implementar calculo real do tempo medio**
-   - Usar `useMemo` para calcular `teamPerformance` baseado nos tickets reais
-   - Filtrar por membro selecionado quando aplicavel
-   - Logica identica a da pagina de Relatorios
+**Estados adicionais:**
+- selectedCS, selectedGroup, selectedCategories (filtros)
+- currentPage (paginacao)
+- slaDistribution (dados do pie chart)
 
-4. **Adicionar filtro de selecao**
-   - Select dropdown no header do card
-   - Opcao "Todos" + lista de membros CS ativos
-   - Atualiza o grafico dinamicamente
+**Calculos adicionais:**
+- filteredTickets (baseado nos filtros)
+- weeklyTrend (tendencia semanal)
+- resolvedTickets com paginacao
+- slaDistribution (distribuicao OK/Alerta/Estourado)
 
-## Resultado Esperado
+**Interface:**
+- Stats Cards mantidos no topo
+- Sistema de abas para organizar conteudo
+- Filtros avancados no header (Popover)
+- Grid responsivo que se adapta a diferentes tamanhos de tela
 
-- Grafico mostrara dados reais baseados nos atendimentos resolvidos
-- Usuario podera filtrar para ver apenas um membro especifico
-- Quando "Todos" selecionado, mostra comparativo entre todos os CS
-- Quando membro especifico selecionado, mostra apenas ele (util para analise individual)
+### 2. Arquivo: `src/pages/Reports.tsx`
 
----
+- Sera removido (conteudo migrado para Index.tsx)
+
+### 3. Arquivo: `src/App.tsx`
+
+- Remover rota `/reports`
+- Manter redirecionamento ou remover import de Reports
+
+### 4. Arquivo: `src/components/layout/AppSidebar.tsx`
+
+- Remover item "Relatorios" do menu de navegacao
+- Manter apenas "Dashboard" que agora contem tudo
+
+## Responsividade
+
+### Desktop (> 1024px):
+- Stats Cards: 4 colunas
+- Graficos lado a lado (2 colunas)
+- Tabs com conteudo amplo
+
+### Tablet (768px - 1024px):
+- Stats Cards: 2 colunas
+- Graficos empilhados ou lado a lado conforme espaco
+- Tabs funcionais
+
+### Mobile (< 768px):
+- Stats Cards: 1 coluna (ou 2 compactas)
+- Graficos em coluna unica com altura reduzida
+- Tabs ocupando largura total
+- Historico com cards compactos
 
 ## Detalhes Tecnicos
 
-### Imports a adicionar:
+### Estrutura de Tabs:
 ```typescript
-import { useMemo } from "react";
-import { useTeamMembers } from "@/hooks/useTeamMembers";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+<Tabs defaultValue="overview" className="w-full">
+  <TabsList className="grid w-full grid-cols-3">
+    <TabsTrigger value="overview">Visao Geral</TabsTrigger>
+    <TabsTrigger value="performance">Desempenho</TabsTrigger>
+    <TabsTrigger value="history">Historico</TabsTrigger>
+  </TabsList>
+  
+  <TabsContent value="overview">
+    {/* Tendencia + Distribuicao SLA */}
+  </TabsContent>
+  
+  <TabsContent value="performance">
+    {/* Grafico Tempo Medio por Membro */}
+  </TabsContent>
+  
+  <TabsContent value="history">
+    {/* Lista paginada de atendimentos */}
+  </TabsContent>
+</Tabs>
 ```
 
-### Estado do filtro:
+### Grid Responsivo dos Stats:
 ```typescript
-const [selectedMember, setSelectedMember] = useState<string>("all");
+<div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+  {/* Stats Cards */}
+</div>
 ```
 
-### Calculo do desempenho:
+### Grid Responsivo dos Graficos:
 ```typescript
-const csMembers = useMemo(() => 
-  members.filter(m => m.role === "CS" && m.is_active),
-  [members]
-);
-
-const teamPerformance = useMemo(() => {
-  const membersToShow = selectedMember === "all" 
-    ? csMembers 
-    : csMembers.filter(m => m.id === selectedMember);
-
-  return membersToShow.map(member => {
-    const memberTickets = tickets.filter(
-      t => t.resolved_by === member.id && t.status === "resolved"
-    );
-
-    const ticketsWithResponse = memberTickets.filter(t => t.first_response_at);
-    const avgTime = ticketsWithResponse.length > 0
-      ? ticketsWithResponse.reduce((acc, t) => {
-          const created = new Date(t.created_at).getTime();
-          const responded = new Date(t.first_response_at!).getTime();
-          return acc + (responded - created) / (1000 * 60);
-        }, 0) / ticketsWithResponse.length
-      : 0;
-
-    return {
-      name: member.name.split(" ")[0],
-      tempo: Math.round(avgTime),
-    };
-  });
-}, [csMembers, tickets, selectedMember]);
+<div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+  {/* Graficos lado a lado em desktop, empilhados em mobile */}
+</div>
 ```
 
-### Select no CardHeader:
+### Altura Responsiva dos Graficos:
 ```typescript
-<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-  <CardTitle className="flex items-center gap-2">
-    <TrendingUp className="h-5 w-5 text-primary" />
-    Tempo Medio por Membro
-  </CardTitle>
-  <Select value={selectedMember} onValueChange={setSelectedMember}>
-    <SelectTrigger className="w-[180px]">
-      <SelectValue placeholder="Filtrar membro" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="all">Todos</SelectItem>
-      {csMembers.map(member => (
-        <SelectItem key={member.id} value={member.id}>
-          {member.name}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-</CardHeader>
+<ResponsiveContainer width="100%" height={isMobile ? 250 : 300}>
+  {/* Grafico */}
+</ResponsiveContainer>
 ```
+
+## Arquivos a Modificar
+
+1. **src/pages/Index.tsx** - Reescrever com todo o conteudo unificado
+2. **src/pages/Reports.tsx** - Deletar
+3. **src/App.tsx** - Remover rota /reports
+4. **src/components/layout/AppSidebar.tsx** - Remover item Relatorios do menu
+
+## Resultado Final
+
+- Uma unica pagina "Dashboard" com todas as informacoes
+- Interface organizada por abas para facil navegacao
+- Filtros avancados acessiveis de qualquer aba
+- Layout totalmente responsivo
+- Menos cliques para acessar informacoes
+- Codigo mais limpo e sem duplicacao
