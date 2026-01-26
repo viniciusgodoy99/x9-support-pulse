@@ -27,7 +27,12 @@ export function usePendingDemands() {
       setLoading(true);
       setError(null);
 
-      // First get open demands with ticket info
+      // Calculate date 7 days ago
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+
+      // First get open demands with ticket info (excluding demands older than 7 days)
       const { data: demandsData, error: demandsError } = await supabase
         .from("ticket_demands")
         .select(`
@@ -50,6 +55,7 @@ export function usePendingDemands() {
           )
         `)
         .eq("status", "open")
+        .gte("created_at", sevenDaysAgoISO)
         .order("created_at", { ascending: true });
 
       if (demandsError) throw demandsError;
