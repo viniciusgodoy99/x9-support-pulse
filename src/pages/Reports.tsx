@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { BarChart3, TrendingUp, Clock, Users, Brain, Filter, MessageSquare, X, Tag } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,8 @@ const categoryConfig: Record<string, { label: string; className: string }> = {
   geral: { label: "Geral", className: "bg-muted text-muted-foreground border-muted-foreground/30" },
 };
 
+const ITEMS_PER_PAGE = 10;
+
 export default function Reports() {
   const { tickets, loading: ticketsLoading } = useTickets();
   const { members, loading: membersLoading } = useTeamMembers();
@@ -48,6 +51,7 @@ export default function Reports() {
   const [selectedCS, setSelectedCS] = useState<string>("all");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Filter only CS members
   const csMembers = useMemo(() => 
@@ -84,6 +88,23 @@ export default function Reports() {
     
     return result;
   }, [tickets, selectedGroup, selectedCS, selectedCategories]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCS, selectedGroup, selectedCategories]);
+
+  // Paginated resolved tickets
+  const resolvedTickets = useMemo(() => 
+    filteredTickets.filter((t) => t.status === "resolved"),
+    [filteredTickets]
+  );
+
+  const totalPages = Math.ceil(resolvedTickets.length / ITEMS_PER_PAGE);
+  const paginatedTickets = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return resolvedTickets.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [resolvedTickets, currentPage]);
 
   // SLA Distribution calculation
   useEffect(() => {
@@ -461,22 +482,49 @@ export default function Reports() {
                 <CardTitle className="flex items-center gap-2">
                   <Brain className="h-5 w-5 text-primary" />
                   Histórico de Atendimentos
+                  {resolvedTickets.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {resolvedTickets.length} total
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {filteredTickets
-                    .filter((t) => t.status === "resolved")
-                    .slice(0, 20)
-                    .map((ticket) => (
-                      <TicketHistoryCard key={ticket.id} ticket={ticket} />
-                    ))}
-                  {filteredTickets.filter((t) => t.status === "resolved").length === 0 && (
+                  {paginatedTickets.map((ticket) => (
+                    <TicketHistoryCard key={ticket.id} ticket={ticket} />
+                  ))}
+                  {resolvedTickets.length === 0 && (
                     <div className="text-center text-muted-foreground py-8">
                       Nenhum atendimento finalizado ainda
                     </div>
                   )}
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-border">
+                    <span className="text-sm text-muted-foreground mr-2">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>
