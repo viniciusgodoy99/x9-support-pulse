@@ -1,177 +1,143 @@
 
-
-# Plano: Corrigir Inconsistencia de Role entre Membros e Mensagens
+# Plano: Corrigir Demandas Duplicadas e Orphaned no Painel de Pendentes
 
 ## Problema Identificado
 
-O Gabriel Pereira esta marcado como "Cliente" na pagina de membros do grupo, porem:
-1. Na tabela `messages`, suas mensagens estao com `sender_role: cs`
-2. O resumo da IA usa o `sender_role` das mensagens para identificar quem e cliente vs atendente
-3. Como resultado, a IA identifica incorretamente Gabriel como "atendente"
+O sistema esta criando demandas duplicadas semanticamente identicas que nao sao detectadas pelo algoritmo de similaridade atual. Quando a IA analisa a mesma solicitacao com descricoes ligeiramente diferentes, ela cria uma nova demanda em vez de atualizar a existente.
 
-**Dados encontrados:**
-- `group_members`: Gabriel Pereira → role: `client`
-- `messages`: Gabriel Pereira → sender_role: `cs` (incorreto!)
+**Dados do caso:**
+- Ticket `cdd20787-f55d-437b-9d47-52f2316bf391` (status: resolved)
+- Demanda 1 (15:26): "Questionamento sobre se os criativos ja foram gravados." → **open** (orphaned!)
+- Demanda 2 (15:59): "Questionamento sobre o status de gravacao dos criativos." → resolved
+
+A IA reconheceu que a demanda foi resolvida, mas criou uma nova entrada em vez de atualizar a existente porque o algoritmo de similaridade nao identificou como a mesma demanda.
 
 ## Causa Raiz
 
-Quando o role de um membro e alterado na interface (de "cs" para "client", por exemplo), apenas o registro em `group_members` e atualizado. As mensagens ja salvas mantem o `sender_role` antigo.
+1. O algoritmo de similaridade (threshold >= 0.5) falha em detectar demandas semanticamente identicas com palavras diferentes
+2. Quando `all_resolved = true`, o codigo de "safety net" para fechar demandas orphaned esta no lugar certo mas a execucao pode nao estar acontecendo corretamente
 
 ## Solucao Proposta
 
-### Parte 1: Atualizar Mensagens ao Alterar Role do Membro
+### Parte 1: Melhorar Algoritmo de Similaridade
 
-**Arquivo: `src/hooks/useGroupMembers.tsx`**
+**Arquivo: `supabase/functions/analyze-tickets/index.ts`**
 
-Modificar a funcao `updateMemberRole` para sincronizar o `sender_role` nas mensagens existentes quando o role de um membro for alterado.
-
-```typescript
-const updateMemberRole = async (memberId: string, role: GroupMemberRole) => {
-  // 1. Buscar dados do membro (phone_number)
-  // 2. Atualizar role em group_members
-  // 3. Atualizar sender_role em TODAS as mensagens desse phone_number
-  // 4. Se role === "cs", adicionar a team_members e sincronizar em outros grupos
-};
-```
-
-**Logica de mapeamento de roles:**
-- `cs` → sender_role: `cs`
-- `client` → sender_role: `client`
-- `traffic_manager` → sender_role: `client` (nao e atendente)
-- `unknown` → sender_role: `client` (padrao seguro)
-
-### Parte 2: Corrigir Dados Historicos (Migracao)
-
-Criar uma query para corrigir os dados atuais do Gabriel e qualquer outro membro com inconsistencia.
-
-**Query de correcao:**
-```sql
--- Atualizar mensagens de Gabriel Pereira para sender_role correto
-UPDATE messages 
-SET sender_role = 'client'
-WHERE sender_phone = '558494397878'
-  AND sender_role = 'cs';
-```
-
-### Parte 3: Garantir Consistencia no Webhook
-
-**Arquivo: `supabase/functions/webhook-whatsapp/index.ts`**
-
-Revisar a logica de determinacao de `sender_role` no webhook. Atualmente:
-```typescript
-const isCS = senderMember?.role === "cs";
-const senderRole = (isCS || !!teamMember) ? "cs" : "client";
-```
-
-Esta logica esta correta, mas o problema e que se o membro foi "cs" no passado e depois virou "client", as mensagens antigas permanecem incorretas.
-
-### Alteracoes Detalhadas
-
-#### 1. src/hooks/useGroupMembers.tsx
-
-Na funcao `updateMemberRole`:
+Implementar um algoritmo de similaridade mais robusto que:
+1. Usa stemming simples para palavras em portugues
+2. Remove stopwords comuns
+3. Considera palavras-chave especificas do contexto
+4. Reduz threshold para 0.4 (mais sensivel a matches)
 
 ```typescript
-const updateMemberRole = async (memberId: string, role: GroupMemberRole) => {
-  try {
-    // Fetch current member data
-    const { data: member, error: fetchError } = await supabase
-      .from("group_members")
-      .select("phone_number, name")
-      .eq("id", memberId)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    // Update role in group_members
-    const { error: updateError } = await supabase
-      .from("group_members")
-      .update({ role })
-      .eq("id", memberId);
-
-    if (updateError) throw updateError;
-
-    // NOVO: Atualizar sender_role em mensagens existentes
-    const newSenderRole = role === "cs" ? "cs" : "client";
-    const { error: messagesError } = await supabase
-      .from("messages")
-      .update({ sender_role: newSenderRole })
-      .eq("sender_phone", member.phone_number);
-
-    if (messagesError) {
-      console.error("Error updating messages sender_role:", messagesError);
-    } else {
-      console.log(`Updated sender_role to '${newSenderRole}' for all messages from ${member.phone_number}`);
-    }
-
-    // Logica existente para CS: adicionar a team_members e sincronizar grupos
-    if (role === "cs" && member) {
-      // ... codigo existente ...
-    }
-
-    // NOVO: Se removido de CS, remover de team_members
-    if (role !== "cs" && member) {
-      const { error: deleteTeamError } = await supabase
-        .from("team_members")
-        .delete()
-        .eq("phone_number", member.phone_number);
-
-      if (!deleteTeamError) {
-        console.log(`Removed ${member.phone_number} from team_members`);
+const calculateSimilarity = (str1: string, str2: string): number => {
+  // Remove pontuacao e converte para minusculas
+  const clean = (s: string) => s.toLowerCase().replace(/[.,!?]/g, '');
+  
+  // Stopwords em portugues
+  const stopwords = new Set(['o', 'a', 'os', 'as', 'de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'e', 'se', 'que', 'para', 'por', 'com', 'sobre', 'ja', 'foram', 'foi', 'ser', 'esta', 'um', 'uma']);
+  
+  // Extrai palavras significativas (> 2 chars, nao stopwords)
+  const getWords = (s: string) => clean(s).split(/\s+/)
+    .filter(w => w.length > 2 && !stopwords.has(w));
+  
+  const words1 = getWords(str1);
+  const words2 = getWords(str2);
+  
+  if (words1.length === 0 || words2.length === 0) {
+    return str1.toLowerCase().includes(str2.toLowerCase().slice(0, 15)) ||
+           str2.toLowerCase().includes(str1.toLowerCase().slice(0, 15)) ? 0.6 : 0;
+  }
+  
+  // Conta palavras em comum (com match parcial)
+  let matches = 0;
+  for (const w1 of words1) {
+    for (const w2 of words2) {
+      if (w1 === w2 || w1.includes(w2) || w2.includes(w1)) {
+        matches++;
+        break;
       }
     }
-
-    await fetchMembers();
-  } catch (err) {
-    console.error("Error updating member role:", err);
-    throw err;
   }
+  
+  // Calcula similaridade baseada na menor lista
+  const minLen = Math.min(words1.length, words2.length);
+  return minLen > 0 ? matches / minLen : 0;
 };
 ```
 
-#### 2. Migracao para Corrigir Dados Existentes
+### Parte 2: Garantir Limpeza de Demandas Orphaned
 
-Executar via SQL para corrigir Gabriel especificamente e garantir consistencia geral:
+O codigo atual ja tem a logica de safety net (linhas 504-521), mas vamos garantir que ela seja executada corretamente e logar melhor para debug.
+
+Adicionar verificacao ANTES do update das demandas para confirmar quantas estao abertas:
+
+```typescript
+if (analysis.all_resolved) {
+  // Log demandas abertas ANTES da limpeza
+  const { data: openDemands } = await supabase
+    .from("ticket_demands")
+    .select("id, description")
+    .eq("ticket_id", ticket.id)
+    .eq("status", "open");
+  
+  console.log(`Found ${openDemands?.length || 0} open demands to close for ticket ${ticket.id}`);
+  
+  // ... resto do codigo de limpeza ...
+}
+```
+
+### Parte 3: Corrigir Dados Atuais (Migracao)
+
+Executar SQL para fechar demandas orphaned em tickets ja resolvidos:
 
 ```sql
--- Corrigir mensagens de membros que sao 'client' em group_members mas tem sender_role 'cs' em messages
-UPDATE messages m
-SET sender_role = 'client'
-WHERE m.sender_phone IN (
-  SELECT gm.phone_number 
-  FROM group_members gm 
-  WHERE gm.role = 'client'
-)
-AND m.sender_role = 'cs';
-
--- Garantir que mensagens de membros 'traffic_manager' tambem sejam 'client'
-UPDATE messages m
-SET sender_role = 'client'
-WHERE m.sender_phone IN (
-  SELECT gm.phone_number 
-  FROM group_members gm 
-  WHERE gm.role = 'traffic_manager'
-)
-AND m.sender_role = 'cs';
+-- Fechar demandas que estao 'open' mas cujo ticket ja foi resolvido
+UPDATE ticket_demands td
+SET 
+  status = 'resolved',
+  resolved_at = t.resolved_at
+FROM tickets t
+WHERE td.ticket_id = t.id
+  AND t.status = 'resolved'
+  AND td.status = 'open';
 ```
+
+## Detalhes das Alteracoes
+
+### Arquivo: supabase/functions/analyze-tickets/index.ts
+
+**Alteracao 1 - Melhorar calculateSimilarity (linhas 349-365)**
+
+Substituir a funcao atual por versao mais robusta com:
+- Remocao de stopwords em portugues
+- Threshold reduzido de 0.5 para 0.4
+- Match parcial de palavras mais flexivel
+
+**Alteracao 2 - Adicionar log de debug (apos linha 503)**
+
+Logar quantidade de demandas abertas antes da limpeza para facilitar debug futuro.
+
+### Migracao SQL
+
+Executar uma vez para corrigir dados historicos inconsistentes.
 
 ## Fluxo Apos Correcao
 
-1. Usuario altera role de um membro de "cs" para "client"
-2. `group_members.role` e atualizado
-3. **NOVO**: `messages.sender_role` e atualizado para todas as mensagens desse numero
-4. **NOVO**: Se era "cs" e virou outra coisa, remove de `team_members`
-5. Proxima analise de IA usara os roles corretos nas mensagens
+1. IA analisa conversa e identifica demandas
+2. Algoritmo de similaridade melhorado detecta demandas semanticamente identicas
+3. Atualiza demanda existente em vez de criar duplicata
+4. Se `all_resolved = true`, fecha TODAS as demandas abertas do ticket (safety net)
+5. Demandas orphaned sao automaticamente resolvidas
 
 ## Resultado Esperado
 
-- Resumos de IA identificarao corretamente quem e cliente vs atendente
-- Consistencia entre `group_members.role` e `messages.sender_role`
-- Alteracoes de role terao efeito imediato nas proximas analises
-- Dados historicos corrigidos via migracao
+- Menos demandas duplicadas criadas
+- Demandas resolvidas nao aparecem mais como pendentes
+- Consistencia entre status do ticket e status das demandas
+- Melhor logging para debug futuro
 
 ## Arquivos a Modificar
 
-1. `src/hooks/useGroupMembers.tsx` - Sincronizar sender_role em mensagens ao alterar role
-2. Migracao SQL - Corrigir dados inconsistentes existentes
-
+1. `supabase/functions/analyze-tickets/index.ts` - Melhorar algoritmo de similaridade e logging
+2. Migracao SQL - Corrigir dados historicos (fechar demandas orphaned)
