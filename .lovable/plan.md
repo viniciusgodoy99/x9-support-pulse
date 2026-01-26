@@ -1,170 +1,177 @@
 
-# Plano: Cards de Demanda Pendente Clicaveis com Modal de Detalhes
 
-## Objetivo
-Tornar os cards de demandas pendentes clicaveis, abrindo um modal com visualizacao detalhada da demanda especifica. A interface sera responsiva para todas as telas (desktop, tablet e mobile).
+# Plano: Corrigir Inconsistencia de Role entre Membros e Mensagens
 
-## Situacao Atual
+## Problema Identificado
 
-O componente `PendingDemandCard` exibe informacoes resumidas da demanda:
-- Descricao (truncada em 2 linhas)
-- Prioridade e categoria (badges)
-- Nome do grupo e cliente
-- Tempo de espera em tempo real
-- Status do SLA (OK, Warning, Critical)
+O Gabriel Pereira esta marcado como "Cliente" na pagina de membros do grupo, porem:
+1. Na tabela `messages`, suas mensagens estao com `sender_role: cs`
+2. O resumo da IA usa o `sender_role` das mensagens para identificar quem e cliente vs atendente
+3. Como resultado, a IA identifica incorretamente Gabriel como "atendente"
 
-Atualmente o card nao e clicavel e nao ha modal de detalhes.
+**Dados encontrados:**
+- `group_members`: Gabriel Pereira → role: `client`
+- `messages`: Gabriel Pereira → sender_role: `cs` (incorreto!)
+
+## Causa Raiz
+
+Quando o role de um membro e alterado na interface (de "cs" para "client", por exemplo), apenas o registro em `group_members` e atualizado. As mensagens ja salvas mantem o `sender_role` antigo.
 
 ## Solucao Proposta
 
-### Abordagem
-Seguir o padrao ja estabelecido no `TicketHistoryCard`, adicionando:
-1. Estado para controlar abertura do modal
-2. Card clicavel com cursor pointer e efeito hover
-3. Modal responsivo com detalhes completos da demanda
-4. Botao para reabrir demanda (marcar como pendente) caso necessario
+### Parte 1: Atualizar Mensagens ao Alterar Role do Membro
 
-### Estrutura do Modal de Detalhes
+**Arquivo: `src/hooks/useGroupMembers.tsx`**
 
-O modal exibira as seguintes secoes:
-
-```text
-+------------------------------------------+
-|  Detalhes da Demanda                [X]  |
-+------------------------------------------+
-|                                          |
-|  INFORMACOES GERAIS                      |
-|  ┌────────────────┬───────────────────┐  |
-|  │ Grupo: [nome]  │ Cliente: [nome]   │  |
-|  │ Telefone: [x]  │ Criado: [data]    │  |
-|  └────────────────┴───────────────────┘  |
-|                                          |
-|  ──────────────────────────────────────  |
-|                                          |
-|  CLASSIFICACAO                           |
-|  [Badge Prioridade] [Badge Categoria]    |
-|                                          |
-|  ──────────────────────────────────────  |
-|                                          |
-|  DESCRICAO                               |
-|  ┌────────────────────────────────────┐  |
-|  │ Texto completo da demanda          │  |
-|  │ sem truncamento                    │  |
-|  └────────────────────────────────────┘  |
-|                                          |
-|  ──────────────────────────────────────  |
-|                                          |
-|  STATUS DO SLA                           |
-|  Tempo aguardando: Xh Xm Xs              |
-|  Limite SLA: XX minutos                  |
-|  [Badge Status: OK/Alerta/Excedido]      |
-|                                          |
-+------------------------------------------+
-```
-
-## Alteracoes por Arquivo
-
-### 1. src/components/demands/PendingDemandCard.tsx
-
-Modificacoes:
-- Importar componentes de Dialog
-- Adicionar estado `isModalOpen`
-- Tornar o Card clicavel com `onClick` e `cursor-pointer`
-- Adicionar efeito de hover mais pronunciado (`hover:shadow-lg hover:scale-[1.02]`)
-- Criar modal de detalhes com todas as informacoes
+Modificar a funcao `updateMemberRole` para sincronizar o `sender_role` nas mensagens existentes quando o role de um membro for alterado.
 
 ```typescript
-// Novos imports
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { Calendar, Phone, FileText, Timer, CheckCircle2 } from "lucide-react";
-
-// Novo estado
-const [isModalOpen, setIsModalOpen] = useState(false);
-
-// Card clicavel
-<Card 
-  className={`border-l-4 ${slaStatusStyles[slaStatus]} transition-all hover:shadow-lg hover:scale-[1.02] cursor-pointer`}
-  onClick={() => setIsModalOpen(true)}
->
-
-// Modal de detalhes (apos o Card)
-<Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-  <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-    {/* Conteudo detalhado */}
-  </DialogContent>
-</Dialog>
+const updateMemberRole = async (memberId: string, role: GroupMemberRole) => {
+  // 1. Buscar dados do membro (phone_number)
+  // 2. Atualizar role em group_members
+  // 3. Atualizar sender_role em TODAS as mensagens desse phone_number
+  // 4. Se role === "cs", adicionar a team_members e sincronizar em outros grupos
+};
 ```
 
-### Conteudo do Modal
+**Logica de mapeamento de roles:**
+- `cs` → sender_role: `cs`
+- `client` → sender_role: `client`
+- `traffic_manager` → sender_role: `client` (nao e atendente)
+- `unknown` → sender_role: `client` (padrao seguro)
 
-O modal tera as seguintes secoes responsivas:
+### Parte 2: Corrigir Dados Historicos (Migracao)
 
-**Secao 1 - Informacoes Gerais (grid 1 coluna em mobile, 2 em desktop)**
-- Nome do grupo
-- Nome do cliente (se disponivel)
-- Telefone do cliente (se disponivel)
-- Data/hora de criacao
+Criar uma query para corrigir os dados atuais do Gabriel e qualquer outro membro com inconsistencia.
 
-**Secao 2 - Classificacao**
-- Badge de prioridade
-- Badge de categoria
+**Query de correcao:**
+```sql
+-- Atualizar mensagens de Gabriel Pereira para sender_role correto
+UPDATE messages 
+SET sender_role = 'client'
+WHERE sender_phone = '558494397878'
+  AND sender_role = 'cs';
+```
 
-**Secao 3 - Descricao Completa**
-- Texto completo da demanda em area destacada
+### Parte 3: Garantir Consistencia no Webhook
 
-**Secao 4 - Status do SLA**
-- Tempo de espera atualizado em tempo real
-- Limite de SLA do grupo
-- Badge de status (OK/Alerta/Excedido)
-- Barra de progresso visual do SLA
+**Arquivo: `supabase/functions/webhook-whatsapp/index.ts`**
 
-## Responsividade
+Revisar a logica de determinacao de `sender_role` no webhook. Atualmente:
+```typescript
+const isCS = senderMember?.role === "cs";
+const senderRole = (isCS || !!teamMember) ? "cs" : "client";
+```
 
-### Desktop (>640px)
-- Modal com largura `max-w-lg` (512px)
-- Grid de informacoes em 2 colunas
-- Cards com hover scale
+Esta logica esta correta, mas o problema e que se o membro foi "cs" no passado e depois virou "client", as mensagens antigas permanecem incorretas.
 
-### Tablet (640px - 768px)
-- Modal ocupa mais largura da tela
-- Grid adapta para 2 colunas
-- Hover effects mantidos
+### Alteracoes Detalhadas
 
-### Mobile (<640px)
-- Modal ocupa largura total (com margens)
-- Grid de informacoes em 1 coluna
-- Hover effects reduzidos (sem scale)
-- Textos ajustados para telas menores
+#### 1. src/hooks/useGroupMembers.tsx
 
-## Acessibilidade
+Na funcao `updateMemberRole`:
 
-- Card com `role="button"` e `tabIndex={0}` para navegacao por teclado
-- Modal fecha com ESC
-- Foco retorna ao card apos fechar modal
+```typescript
+const updateMemberRole = async (memberId: string, role: GroupMemberRole) => {
+  try {
+    // Fetch current member data
+    const { data: member, error: fetchError } = await supabase
+      .from("group_members")
+      .select("phone_number, name")
+      .eq("id", memberId)
+      .single();
 
-## Detalhes Tecnicos
+    if (fetchError) throw fetchError;
 
-Classes de responsividade a utilizar:
-- `grid grid-cols-1 sm:grid-cols-2` - Grid responsivo
-- `text-sm sm:text-base` - Textos adaptaveis
-- `p-4 sm:p-6` - Padding responsivo
-- `max-w-lg w-full mx-4 sm:mx-auto` - Largura do modal
+    // Update role in group_members
+    const { error: updateError } = await supabase
+      .from("group_members")
+      .update({ role })
+      .eq("id", memberId);
 
-Componentes do SLA visual:
-- Progress bar usando `div` com `width` dinamico baseado na porcentagem
-- Cores condicionais: verde (ok), amarelo (warning), vermelho (critical)
+    if (updateError) throw updateError;
+
+    // NOVO: Atualizar sender_role em mensagens existentes
+    const newSenderRole = role === "cs" ? "cs" : "client";
+    const { error: messagesError } = await supabase
+      .from("messages")
+      .update({ sender_role: newSenderRole })
+      .eq("sender_phone", member.phone_number);
+
+    if (messagesError) {
+      console.error("Error updating messages sender_role:", messagesError);
+    } else {
+      console.log(`Updated sender_role to '${newSenderRole}' for all messages from ${member.phone_number}`);
+    }
+
+    // Logica existente para CS: adicionar a team_members e sincronizar grupos
+    if (role === "cs" && member) {
+      // ... codigo existente ...
+    }
+
+    // NOVO: Se removido de CS, remover de team_members
+    if (role !== "cs" && member) {
+      const { error: deleteTeamError } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("phone_number", member.phone_number);
+
+      if (!deleteTeamError) {
+        console.log(`Removed ${member.phone_number} from team_members`);
+      }
+    }
+
+    await fetchMembers();
+  } catch (err) {
+    console.error("Error updating member role:", err);
+    throw err;
+  }
+};
+```
+
+#### 2. Migracao para Corrigir Dados Existentes
+
+Executar via SQL para corrigir Gabriel especificamente e garantir consistencia geral:
+
+```sql
+-- Corrigir mensagens de membros que sao 'client' em group_members mas tem sender_role 'cs' em messages
+UPDATE messages m
+SET sender_role = 'client'
+WHERE m.sender_phone IN (
+  SELECT gm.phone_number 
+  FROM group_members gm 
+  WHERE gm.role = 'client'
+)
+AND m.sender_role = 'cs';
+
+-- Garantir que mensagens de membros 'traffic_manager' tambem sejam 'client'
+UPDATE messages m
+SET sender_role = 'client'
+WHERE m.sender_phone IN (
+  SELECT gm.phone_number 
+  FROM group_members gm 
+  WHERE gm.role = 'traffic_manager'
+)
+AND m.sender_role = 'cs';
+```
+
+## Fluxo Apos Correcao
+
+1. Usuario altera role de um membro de "cs" para "client"
+2. `group_members.role` e atualizado
+3. **NOVO**: `messages.sender_role` e atualizado para todas as mensagens desse numero
+4. **NOVO**: Se era "cs" e virou outra coisa, remove de `team_members`
+5. Proxima analise de IA usara os roles corretos nas mensagens
 
 ## Resultado Esperado
 
-1. Cards de demanda pendente clicaveis com feedback visual
-2. Modal responsivo com informacoes detalhadas
-3. Tempo de espera atualizado em tempo real no modal
-4. Visualizacao clara do status do SLA
-5. Interface consistente com o padrao existente no `TicketHistoryCard`
-6. Experiencia fluida em todas as telas
+- Resumos de IA identificarao corretamente quem e cliente vs atendente
+- Consistencia entre `group_members.role` e `messages.sender_role`
+- Alteracoes de role terao efeito imediato nas proximas analises
+- Dados historicos corrigidos via migracao
+
+## Arquivos a Modificar
+
+1. `src/hooks/useGroupMembers.tsx` - Sincronizar sender_role em mensagens ao alterar role
+2. Migracao SQL - Corrigir dados inconsistentes existentes
+
