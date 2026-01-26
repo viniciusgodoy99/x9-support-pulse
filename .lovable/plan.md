@@ -1,102 +1,202 @@
 
-# Plano: Adicionar Tooltips aos Titulos Truncados e Botoes com Icones
+# Plano: Adicionar Tooltips em Todas as Paginas
 
-## Objetivo
+## Visao Geral
 
-Melhorar a experiencia do usuario adicionando tooltips que exibem informacoes completas ao passar o mouse sobre:
-1. Titulos de grupos que estao truncados
-2. Botoes que possuem apenas icones (sem texto)
+Este plano adiciona tooltips em todos os elementos que precisam de informacoes adicionais ao passar o mouse:
+- Titulos truncados
+- Botoes com apenas icones
+- Badges e indicadores de status
 
-## Alteracoes Propostas
+## Arquivos a Modificar
 
-### Arquivo: src/pages/settings/Groups.tsx
+### 1. src/pages/settings/Team.tsx (Pagina de Equipe)
 
-**1. Importar componentes de Tooltip**
-
-Adicionar na linha 1-6:
+**Imports a adicionar:**
 ```tsx
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 ```
 
-**2. Envolver o conteudo principal com TooltipProvider**
+**Tooltips a adicionar:**
 
-O `TooltipProvider` deve envolver todo o conteudo para que os tooltips funcionem corretamente.
+| Elemento | Linha | Tooltip Text |
+|----------|-------|--------------|
+| CardTitle (nome do membro) | 251 | `{member.name}` (nome completo) |
+| Botao Edit2 | 267-273 | "Editar membro" |
+| Botao Power | 274-280 | "Ativar/Desativar" |
+| Botao Trash2 (AlertDialog) | 281-303 | "Remover membro" |
 
-**3. Adicionar Tooltip aos titulos truncados (3 locais)**
+---
 
-Para cada `CardTitle` com texto truncado, envolver com Tooltip:
+### 2. src/pages/settings/GroupMembers.tsx (Membros do Grupo)
 
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Linha | Tooltip Text |
+|----------|-------|--------------|
+| Botao ArrowLeft (voltar) | 101-108 | "Voltar para grupos" |
+| Botao Edit2 (editar nome) | 263-272 | "Editar nome" |
+| Botao Check (salvar nome) | 241-247 | "Salvar" |
+| Botao X (cancelar edicao) | 248-255 | "Cancelar" |
+
+---
+
+### 3. src/pages/settings/WhatsAppConnect.tsx (Conexoes WhatsApp)
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Nota:** Os botoes nesta pagina ja tem texto, entao nao precisam de tooltips. Porem, o componente `InstanceCard` precisa.
+
+---
+
+### 4. src/components/whatsapp/InstanceCard.tsx
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Linha | Tooltip Text |
+|----------|-------|--------------|
+| CardTitle (nome da instancia) | 90 | `{instance.name}` (nome completo - caso truncado) |
+| Botao Trash2 (AlertDialog) | 170-175 | "Remover instancia" |
+
+---
+
+### 5. src/pages/Monitoring.tsx
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Linha | Tooltip Text |
+|----------|-------|--------------|
+| Botao RefreshCw | 49-56 | "Atualizar lista de tickets" |
+
+---
+
+### 6. src/components/monitoring/TicketCard.tsx
+
+Os botoes neste componente ja tem texto, nao precisam de tooltips adicionais.
+
+---
+
+### 7. src/pages/PendingDemands.tsx
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Linha | Tooltip Text |
+|----------|-------|--------------|
+| Botao RefreshCw | 231-240 | "Atualizar lista de demandas" |
+| Botao Filter | 152-163 | "Abrir filtros avancados" |
+
+---
+
+### 8. src/pages/Index.tsx (Dashboard)
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Linha | Tooltip Text |
+|----------|-------|--------------|
+| Botao Filter (Popover) | 275-285 | "Abrir filtros avancados" |
+| Botao ChevronLeft (paginacao) | ~615 | "Pagina anterior" |
+| Botao ChevronRight (paginacao) | ~622 | "Proxima pagina" |
+
+---
+
+### 9. src/components/reports/TicketHistoryCard.tsx
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Linha | Tooltip Text |
+|----------|-------|--------------|
+| Botao ChevronDown/Up (expandir) | 122-134 | "Expandir detalhes" / "Recolher detalhes" |
+| Botao Eye (ver detalhes) | 172-180 | "Ver detalhes completos" |
+| Botao RotateCcw (reabrir) | 408-417 | "Reabrir demanda" |
+
+---
+
+### 10. src/components/ThemeToggle.tsx
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Tooltip Text |
+|----------|--------------|
+| Botao de tema | "Alternar para tema claro" ou "Alternar para tema escuro" (dinamico baseado no tema atual) |
+
+---
+
+### 11. src/components/layout/AppSidebar.tsx
+
+O sidebar ja tem labels de texto, nao precisa de tooltips adicionais.
+
+---
+
+### 12. src/pages/settings/Settings.tsx (SLA)
+
+**Imports a adicionar:**
+```tsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+```
+
+**Tooltips a adicionar:**
+
+| Elemento | Tooltip Text |
+|----------|--------------|
+| Botao Save | "Salvar alteracoes de SLA" |
+
+---
+
+## Padrao de Implementacao
+
+Para cada botao com icone:
 ```tsx
 <Tooltip>
   <TooltipTrigger asChild>
-    <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">
-      {group.name}
-    </CardTitle>
-  </TooltipTrigger>
-  <TooltipContent>
-    <p>{group.name}</p>
-  </TooltipContent>
-</Tooltip>
-```
-
-**Locais:**
-- Linha 298 - Grupos de Clientes
-- Linha 411 - Aguardando Classificacao
-- Linha 530 - Grupos Internos
-
-**4. Adicionar Tooltip aos botoes com icones**
-
-Cada botao de icone sera envolvido com Tooltip:
-
-| Icone | Tooltip Text |
-|-------|-------------|
-| Users | "Gerenciar membros" |
-| Edit2 | "Editar grupo" |
-| Power | "Ativar/Desativar" |
-| Trash2 | "Remover grupo" |
-
-Exemplo de implementacao:
-```tsx
-<Tooltip>
-  <TooltipTrigger asChild>
-    <Button variant="outline" size="sm" onClick={() => handleEdit(group)}>
-      <Edit2 className="h-4 w-4" />
+    <Button variant="outline" size="sm" onClick={handleAction}>
+      <Icon className="h-4 w-4" />
     </Button>
   </TooltipTrigger>
   <TooltipContent>
-    <p>Editar grupo</p>
+    <p>Descricao da acao</p>
   </TooltipContent>
 </Tooltip>
 ```
 
-**Locais dos botoes:**
-
-**Grupos de Clientes (linhas 329-374):**
-- Users (linha 329) - "Gerenciar membros"
-- Edit2 (linha 337) - "Editar grupo"
-- Power (linha 344) - "Ativar/Desativar"
-- Trash2 (linha 353) - "Remover grupo"
-
-**Aguardando Classificacao (linhas 442-480):**
-- Users (linha 443) - "Ver membros"
-- Edit2 (linha 451) - "Editar grupo"
-- Trash2 (linha 460) - "Remover grupo"
-
-**Grupos Internos (linhas 553-599):**
-- Users (linha 554) - "Gerenciar membros"
-- Edit2 (linha 562) - "Editar grupo"
-- Power (linha 569) - "Ativar/Desativar"
-- Trash2 (linha 578) - "Remover grupo"
-
-## Observacao sobre AlertDialog
-
-O botao de Trash2 esta dentro de um `AlertDialogTrigger`. Para adicionar tooltip neste caso, o Tooltip deve envolver o AlertDialogTrigger:
-
+Para botoes dentro de AlertDialogTrigger:
 ```tsx
 <Tooltip>
   <TooltipTrigger asChild>
@@ -112,29 +212,34 @@ O botao de Trash2 esta dentro de um `AlertDialogTrigger`. Para adicionar tooltip
     </span>
   </TooltipTrigger>
   <TooltipContent>
-    <p>Remover grupo</p>
+    <p>Remover item</p>
   </TooltipContent>
 </Tooltip>
 ```
 
-Alternativamente, podemos usar a abordagem mais simples de adicionar o `title` attribute nos botoes dentro do AlertDialogTrigger, ja que o tooltip nativo do navegador funcionara.
+---
 
-## Resumo das Alteracoes
+## Resumo de Alteracoes por Arquivo
 
-| Tipo | Quantidade | Descricao |
-|------|------------|-----------|
-| Import | 1 | Adicionar componentes Tooltip |
-| TooltipProvider | 1 | Envolver conteudo principal |
-| Tooltip em titulos | 3 | CardTitle em cada secao |
-| Tooltip em botoes | 11 | Botoes de acao (Users, Edit, Power, Delete) |
+| Arquivo | Tooltips Adicionados |
+|---------|---------------------|
+| Team.tsx | 4 (Edit, Power, Trash, CardTitle) |
+| GroupMembers.tsx | 4 (ArrowLeft, Edit2, Check, X) |
+| InstanceCard.tsx | 2 (CardTitle, Trash) |
+| Monitoring.tsx | 1 (Refresh) |
+| PendingDemands.tsx | 2 (Refresh, Filter) |
+| Index.tsx | 3 (Filter, ChevronLeft, ChevronRight) |
+| TicketHistoryCard.tsx | 3 (Expand, Eye, Reabrir) |
+| ThemeToggle.tsx | 1 (Botao tema) |
+| Settings.tsx | 1 (Save) |
+| **Total** | **21 tooltips** |
+
+---
 
 ## Comportamento Esperado
 
-- Ao passar o mouse sobre um titulo truncado, o nome completo do grupo aparece
-- Ao passar o mouse sobre qualquer botao de icone, uma descricao da acao aparece
+- Ao passar o mouse sobre qualquer botao de icone, uma descricao clara da acao aparece
+- Ao passar o mouse sobre titulos truncados, o texto completo aparece
 - Os tooltips aparecem apos um breve delay (comportamento padrao do Radix)
-- Os tooltips sao acessiveis via teclado
-
-## Arquivo a Modificar
-
-1. `src/pages/settings/Groups.tsx`
+- Os tooltips sao acessiveis via teclado (suporte a foco)
+- Mantendo consistencia visual em toda a aplicacao
