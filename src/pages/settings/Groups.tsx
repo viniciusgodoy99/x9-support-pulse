@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle } from "lucide-react";
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ export default function GroupsSettings() {
     whatsapp_id: "",
     sla_limit_minutes: 30,
   });
+  const [pendingSearchQuery, setPendingSearchQuery] = useState("");
 
   const resetForm = () => {
     setFormData({ name: "", whatsapp_id: "", sla_limit_minutes: 30 });
@@ -137,6 +138,9 @@ export default function GroupsSettings() {
 
   const pendingGroups = groups.filter(g => g.pending_classification);
   const classifiedGroups = groups.filter(g => !g.pending_classification);
+  const filteredPendingGroups = pendingGroups.filter(g =>
+    g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase())
+  );
 
   const headerContent = (
     <div className="flex flex-1 items-center gap-3">
@@ -326,14 +330,25 @@ export default function GroupsSettings() {
             {/* Pending Classification Section */}
             {pendingGroups.length > 0 && (
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-amber-500" />
-                  <h2 className="text-xl font-semibold text-foreground">
-                    Aguardando Classificação ({pendingGroups.length})
-                  </h2>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-amber-500" />
+                    <h2 className="text-xl font-semibold text-foreground">
+                      Aguardando Classificação ({filteredPendingGroups.length})
+                    </h2>
+                  </div>
+                  <div className="relative w-64">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar grupo..."
+                      value={pendingSearchQuery}
+                      onChange={(e) => setPendingSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {pendingGroups.map((group) => (
+                  {filteredPendingGroups.map((group) => (
                     <Card
                       key={group.id}
                       className="border-amber-500/50 bg-amber-500/5"
