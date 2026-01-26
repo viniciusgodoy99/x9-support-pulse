@@ -257,15 +257,15 @@ export default function GroupsSettings() {
             {/* Client Groups Section */}
             {clientGroups.length > 0 && (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-primary" />
-                    <h2 className="text-xl font-semibold text-foreground">
+                    <h2 className="text-lg sm:text-xl font-semibold text-foreground">
                       Grupos de Clientes ({filteredClientGroups.length})
                     </h2>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-48">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-48">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Buscar..."
@@ -275,7 +275,7 @@ export default function GroupsSettings() {
                       />
                     </div>
                     <Select value={clientStatusFilter} onValueChange={(v) => setClientStatusFilter(v as "all" | "active" | "inactive")}>
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-full sm:w-32">
                         <Filter className="h-4 w-4 mr-2" />
                         <SelectValue />
                       </SelectTrigger>
@@ -287,7 +287,7 @@ export default function GroupsSettings() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredClientGroups.map((group) => (
                     <Card
                       key={group.id}
@@ -325,7 +325,7 @@ export default function GroupsSettings() {
                             onCheckedChange={() => handleToggleClientGroup(group)}
                           />
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -383,14 +383,14 @@ export default function GroupsSettings() {
             {/* Pending Classification Section */}
             {pendingGroups.length > 0 && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="h-5 w-5 text-amber-500" />
-                    <h2 className="text-xl font-semibold text-foreground">
+                    <h2 className="text-lg sm:text-xl font-semibold text-foreground">
                       Aguardando Classificação ({filteredPendingGroups.length})
                     </h2>
                   </div>
-                  <div className="relative w-64">
+                  <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Buscar grupo..."
@@ -400,7 +400,7 @@ export default function GroupsSettings() {
                     />
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredPendingGroups.map((group) => (
                     <Card
                       key={group.id}
@@ -439,7 +439,7 @@ export default function GroupsSettings() {
                             </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 pt-2 border-t border-border">
+                        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -489,15 +489,15 @@ export default function GroupsSettings() {
             {/* Internal Groups Section */}
             {internalGroups.length > 0 && (
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <UserCircle className="h-5 w-5 text-muted-foreground" />
-                    <h2 className="text-xl font-semibold text-foreground">
+                    <h2 className="text-lg sm:text-xl font-semibold text-foreground">
                       Grupos Internos ({filteredInternalGroups.length})
                     </h2>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-48">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-48">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Buscar..."
@@ -507,7 +507,7 @@ export default function GroupsSettings() {
                       />
                     </div>
                     <Select value={internalStatusFilter} onValueChange={(v) => setInternalStatusFilter(v as "all" | "active" | "inactive")}>
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-full sm:w-32">
                         <Filter className="h-4 w-4 mr-2" />
                         <SelectValue />
                       </SelectTrigger>
@@ -519,7 +519,7 @@ export default function GroupsSettings() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredInternalGroups.map((group) => (
                     <Card
                       key={group.id}
@@ -550,7 +550,7 @@ export default function GroupsSettings() {
                             onCheckedChange={() => handleToggleClientGroup(group)}
                           />
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button
                             variant="outline"
                             size="sm"
