@@ -248,134 +248,133 @@ export default function Dashboard() {
 
   const chartHeight = isMobile ? 250 : 300;
 
-  return (
-    <MainLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="frosted-glass rounded-lg p-4 sm:p-6 border border-border/50">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <Snowflake className="h-8 w-8 text-primary animate-pulse" />
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">Dashboard</h1>
-                <p className="text-muted-foreground text-sm">
-                  Visão geral do monitoramento de SLA
-                </p>
+  const headerContent = (
+    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+      <div className="flex items-center gap-3">
+        <Snowflake className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+            Visão geral do monitoramento de SLA
+          </p>
+        </div>
+      </div>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="gap-2 w-full sm:w-auto">
+            <Filter className="h-4 w-4" />
+            Filtros
+            {activeFiltersCount > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {activeFiltersCount}
+              </Badge>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80" align="end">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h4 className="font-medium leading-none">Filtros Avançados</h4>
+              <p className="text-sm text-muted-foreground">
+                Filtre os dados por CS, grupo ou categoria
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Filtrar por CS
+              </Label>
+              <Select value={selectedCS} onValueChange={setSelectedCS}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um CS" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os CS</SelectItem>
+                  {csMembers.map(member => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Filtrar por Grupo
+              </Label>
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os grupos</SelectItem>
+                  {clientGroups.map(group => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Filtrar por Categoria
+              </Label>
+              <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto p-1">
+                {Object.entries(categoryConfig).map(([key, config]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`cat-${key}`}
+                      checked={selectedCategories.includes(key)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedCategories([...selectedCategories, key]);
+                        } else {
+                          setSelectedCategories(selectedCategories.filter(c => c !== key));
+                        }
+                      }}
+                    />
+                    <label 
+                      htmlFor={`cat-${key}`} 
+                      className="text-sm cursor-pointer select-none"
+                    >
+                      {config.label}
+                    </label>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2 w-full sm:w-auto">
-                <Filter className="h-4 w-4" />
-                Filtros
-                {activeFiltersCount > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {activeFiltersCount}
-                  </Badge>
-                )}
+            {activeFiltersCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => {
+                  setSelectedCS("all");
+                  setSelectedGroup("all");
+                  setSelectedCategories([]);
+                }}
+              >
+                <X className="h-4 w-4" />
+                Limpar Filtros
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">Filtros Avançados</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Filtre os dados por CS, grupo ou categoria
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Filtrar por CS
-                  </Label>
-                  <Select value={selectedCS} onValueChange={setSelectedCS}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um CS" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os CS</SelectItem>
-                      {csMembers.map(member => (
-                        <SelectItem key={member.id} value={member.id}>
-                          {member.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Filtrar por Grupo
-                  </Label>
-                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um grupo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os grupos</SelectItem>
-                      {clientGroups.map(group => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Tag className="h-4 w-4" />
-                    Filtrar por Categoria
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto p-1">
-                    {Object.entries(categoryConfig).map(([key, config]) => (
-                      <div key={key} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`cat-${key}`}
-                          checked={selectedCategories.includes(key)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedCategories([...selectedCategories, key]);
-                            } else {
-                              setSelectedCategories(selectedCategories.filter(c => c !== key));
-                            }
-                          }}
-                        />
-                        <label 
-                          htmlFor={`cat-${key}`} 
-                          className="text-sm cursor-pointer select-none"
-                        >
-                          {config.label}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {activeFiltersCount > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full gap-2"
-                    onClick={() => {
-                      setSelectedCS("all");
-                      setSelectedGroup("all");
-                      setSelectedCategories([]);
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                    Limpar Filtros
-                  </Button>
-                )}
-              </div>
-            </PopoverContent>
-            </Popover>
+            )}
           </div>
-        </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 
+  return (
+    <MainLayout headerContent={headerContent}>
+      <div className="space-y-6">
         {/* Stats Cards */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <StatsCard
