@@ -317,18 +317,18 @@ export default function GroupsSettings() {
             setShowArchivedDialog(open);
             if (!open) setArchivedSearchQuery("");
           }}>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Archive className="h-5 w-5" />
                   Grupos Arquivados
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs sm:text-sm">
                   Grupos que ficaram mais de 7 dias sem classificação. Você pode restaurá-los para o painel de classificação.
                 </DialogDescription>
               </DialogHeader>
               
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar grupo..."
@@ -338,97 +338,99 @@ export default function GroupsSettings() {
                 />
               </div>
               
-              {(() => {
-                const filteredArchivedGroups = archivedGroups.filter(g =>
-                  g.name.toLowerCase().includes(archivedSearchQuery.toLowerCase())
-                );
-                
-                if (loadingArchived) {
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {(() => {
+                  const filteredArchivedGroups = archivedGroups.filter(g =>
+                    g.name.toLowerCase().includes(archivedSearchQuery.toLowerCase())
+                  );
+                  
+                  if (loadingArchived) {
+                    return (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    );
+                  }
+                  
+                  if (archivedGroups.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Archive className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum grupo arquivado</p>
+                      </div>
+                    );
+                  }
+                  
+                  if (filteredArchivedGroups.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm">Nenhum grupo encontrado para "{archivedSearchQuery}"</p>
+                      </div>
+                    );
+                  }
+                  
                   return (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="space-y-3 py-1">
+                      {filteredArchivedGroups.map((group) => (
+                        <Card key={group.id}>
+                          <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Arquivado em {group.archived_at ? format(new Date(group.archived_at), "dd/MM/yyyy 'às' HH:mm") : "Data desconhecida"}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 w-full sm:w-auto flex-shrink-0">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" onClick={() => handleRestore(group.id)} className="flex-1 sm:flex-none">
+                                    <RotateCcw className="h-4 w-4 mr-2 sm:mr-2" />
+                                    <span>Restaurar</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Restaurar grupo</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent className="w-[95vw] max-w-md">
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Remover grupo permanentemente?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. Todos os dados associados a este grupo serão removidos.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                          <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDelete(group.id)} className="w-full sm:w-auto">
+                                            Remover
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Remover permanentemente</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   );
-                }
-                
-                if (archivedGroups.length === 0) {
-                  return (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Archive className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>Nenhum grupo arquivado</p>
-                    </div>
-                  );
-                }
-                
-                if (filteredArchivedGroups.length === 0) {
-                  return (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>Nenhum grupo encontrado para "{archivedSearchQuery}"</p>
-                    </div>
-                  );
-                }
-                
-                return (
-                  <div className="space-y-3">
-                    {filteredArchivedGroups.map((group) => (
-                      <Card key={group.id}>
-                        <CardContent className="flex items-center justify-between p-4">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium truncate">{group.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Arquivado em {group.archived_at ? format(new Date(group.archived_at), "dd/MM/yyyy 'às' HH:mm") : "Data desconhecida"}
-                            </p>
-                          </div>
-                          <div className="flex gap-2 flex-shrink-0">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="sm" onClick={() => handleRestore(group.id)}>
-                                  <RotateCcw className="h-4 w-4 sm:mr-2" />
-                                  <span className="hidden sm:inline">Restaurar</span>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Restaurar grupo</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="destructive" size="sm">
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Remover grupo permanentemente?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Esta ação não pode ser desfeita. Todos os dados associados a este grupo serão removidos.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDelete(group.id)}>
-                                          Remover
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Remover permanentemente</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                );
-              })()}
+                })()}
+              </div>
             </DialogContent>
           </Dialog>
 
