@@ -97,38 +97,45 @@ export default function GroupMembers() {
   };
 
   const headerContent = (
-    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/settings/groups")}
-          className="shrink-0"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Membros do Grupo</h1>
-          {group && (
-            <p className="text-muted-foreground text-xs sm:text-sm">{group.name}</p>
-          )}
-        </div>
-      </div>
-      <Button onClick={handleSync} disabled={syncing}>
-        {syncing ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        ) : (
-          <RefreshCw className="mr-2 h-4 w-4" />
-        )}
-        Sincronizar
+    <div className="flex flex-1 items-center gap-3">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => navigate("/settings/groups")}
+        className="shrink-0"
+      >
+        <ArrowLeft className="h-5 w-5" />
       </Button>
+      <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Membros do Grupo</h1>
+        {group && (
+          <p className="text-muted-foreground text-xs sm:text-sm">{group.name}</p>
+        )}
+      </div>
     </div>
   );
 
   return (
     <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
+        {/* Action Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Users className="h-5 w-5" />
+            <span className="text-sm">
+              <span className="font-semibold text-foreground">{members.length}</span> membros
+            </span>
+          </div>
+          <Button onClick={handleSync} disabled={syncing}>
+            {syncing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Sincronizar
+          </Button>
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

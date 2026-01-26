@@ -25,31 +25,38 @@ export default function Monitoring() {
   };
 
   const headerContent = (
-    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-      <div className="flex items-center gap-3">
-        <Radio className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Monitoramento</h1>
-          <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
-            Acompanhe os tickets abertos e tempos de resposta
-          </p>
-        </div>
+    <div className="flex flex-1 items-center gap-3">
+      <Radio className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Monitoramento</h1>
+        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+          Acompanhe os tickets abertos e tempos de resposta
+        </p>
       </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => refetch()}
-        disabled={loading}
-      >
-        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-        Atualizar
-      </Button>
     </div>
   );
 
   return (
     <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
+        {/* Action Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Radio className="h-5 w-5" />
+            <span className="text-sm">
+              <span className="font-semibold text-foreground">{tickets.length}</span> tickets abertos
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
