@@ -404,7 +404,7 @@ export default function GroupsSettings() {
                   {filteredPendingGroups.map((group) => (
                     <Card
                       key={group.id}
-                      className="min-w-0 border-amber-500/50 bg-amber-500/5"
+                      className="min-w-0 overflow-hidden border-amber-500/50 bg-amber-500/5"
                     >
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
@@ -414,28 +414,28 @@ export default function GroupsSettings() {
                           </Badge>
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="space-y-4 overflow-hidden">
                         <div className="pt-2">
                           <p className="text-sm text-muted-foreground mb-3">
                             Este grupo é de cliente?
                           </p>
-                          <div className="flex gap-2">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <Button
                               size="sm"
                               onClick={() => handleClassify(group, true)}
-                              className="flex-1"
+                              className="w-full sm:flex-1 text-xs sm:text-sm"
                             >
-                              <Building2 className="h-4 w-4 mr-2" />
-                              Sim, é cliente
+                              <Building2 className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                              <span className="truncate">Sim, é cliente</span>
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleClassify(group, false)}
-                              className="flex-1"
+                              className="w-full sm:flex-1 text-xs sm:text-sm"
                             >
-                              <UserCircle className="h-4 w-4 mr-2" />
-                              Não
+                              <UserCircle className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                              <span className="truncate">Não</span>
                             </Button>
                           </div>
                         </div>
