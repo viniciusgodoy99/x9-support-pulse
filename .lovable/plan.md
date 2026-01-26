@@ -1,50 +1,92 @@
 
-
-# Plano: Arquivar Grupos de Teste (3+ dias)
+# Plano: Adicionar Campo de Busca no Modal de Grupos Arquivados
 
 ## Objetivo
-Arquivar grupos pendentes há 3 ou mais dias para testar a funcionalidade de arquivamento.
+Adicionar um campo de busca no dialog de grupos arquivados para filtrar grupos pelo nome.
 
-## Grupos que serão arquivados (19 grupos)
+---
 
-| Nome | Criado em | Dias |
-|------|-----------|------|
-| Gorilla's house | 22/01/2026 | 3+ |
-| PROMO PARA TENISTAS | 22/01/2026 | 3+ |
-| Gestão de Automação e IA - Silver | 22/01/2026 | 3+ |
-| Luiz Carpa a nova CHOQUEI | 22/01/2026 | 3+ |
-| Futebol Real | 22/01/2026 | 3+ |
-| Suporte matufast | 22/01/2026 | 3+ |
-| United @CuriosidadesPRL | 22/01/2026 | 3+ |
-| MENGÃO POTIGUAR | 22/01/2026 | 3+ |
-| Unitão da Massa - Time do SESKO | 22/01/2026 | 3+ |
-| Sócios CLIMB | 22/01/2026 | 3+ |
-| oi | 22/01/2026 | 3+ |
-| Hubspot Brasil | 22/01/2026 | 3+ |
-| New Vision <> Climb | 22/01/2026 | 3+ |
-| RN Automatizado | 22/01/2026 | 3+ |
-| Turma do Meio Dia | 22/01/2026 | 3+ |
-| Comunidade CRM Hub | 23/01/2026 | 3+ |
-| Devano <> Climb | 23/01/2026 | 3+ |
-| Carvalheira Na Ladeira 2026 | 23/01/2026 | 3+ |
-| Climb.ai <> Garimpei na Web | 23/01/2026 | 3+ |
+## Alteracoes em `src/pages/settings/Groups.tsx`
 
-## Comando SQL
+### 1. Adicionar novo estado para o filtro de busca
 
-```sql
-UPDATE monitored_groups
-SET 
-  is_archived = true,
-  archived_at = now()
-WHERE 
-  pending_classification = true
-  AND is_archived = false
-  AND created_at < now() - interval '3 days';
+```tsx
+const [archivedSearchQuery, setArchivedSearchQuery] = useState("");
 ```
 
-## Resultado esperado
+### 2. Limpar busca ao fechar o dialog
 
-- 19 grupos serao movidos para "Grupos Arquivados"
-- Eles aparecerao no dialog de arquivados ao clicar no botao
-- Poderao ser restaurados a qualquer momento
+Ao fechar o dialog, resetar o campo de busca:
 
+```tsx
+<Dialog 
+  open={showArchivedDialog} 
+  onOpenChange={(open) => {
+    setShowArchivedDialog(open);
+    if (!open) setArchivedSearchQuery("");
+  }}
+>
+```
+
+### 3. Adicionar campo de busca apos o DialogHeader
+
+Inserir o campo de busca logo apos o `DialogDescription`:
+
+```tsx
+<div className="relative mt-2">
+  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+  <Input
+    placeholder="Buscar grupo..."
+    value={archivedSearchQuery}
+    onChange={(e) => setArchivedSearchQuery(e.target.value)}
+    className="pl-9"
+  />
+</div>
+```
+
+### 4. Filtrar grupos arquivados pela busca
+
+Criar lista filtrada antes de renderizar:
+
+```tsx
+const filteredArchivedGroups = archivedGroups.filter(g =>
+  g.name.toLowerCase().includes(archivedSearchQuery.toLowerCase())
+);
+```
+
+### 5. Atualizar renderizacao para usar lista filtrada
+
+Substituir `archivedGroups.length` e `archivedGroups.map` por `filteredArchivedGroups`:
+
+- Verificar se ha grupos: `filteredArchivedGroups.length === 0`
+- Mostrar mensagem adequada quando nao ha resultados da busca vs nenhum grupo arquivado
+- Iterar sobre `filteredArchivedGroups.map(...)`
+
+---
+
+## Resultado Visual
+
+```
++------------------------------------------+
+| [X] Grupos Arquivados                    |
+|------------------------------------------|
+| Grupos que ficaram mais de 7 dias...     |
+|                                          |
+| [🔍 Buscar grupo...                    ] |
+|                                          |
+| +--------------------------------------+ |
+| | Gorilla's house                      | |
+| | Arquivado em 26/01/2026 às 14:12     | |
+| |                   [Restaurar] [🗑️]  | |
+| +--------------------------------------+ |
+| ...                                      |
++------------------------------------------+
+```
+
+---
+
+## Arquivo a Modificar
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| src/pages/settings/Groups.tsx | Adicionar estado, campo de busca e logica de filtro no dialog de arquivados |
