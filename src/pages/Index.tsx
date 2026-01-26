@@ -258,7 +258,7 @@ export default function Dashboard() {
 
   return (
     <MainLayout headerContent={headerContent}>
-      <div className="space-y-6 w-full max-w-full overflow-hidden">
+      <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
         {/* Action Bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -411,9 +411,9 @@ export default function Dashboard() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Tendência Semanal e Distribuição de SLA */}
-            <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
               <Card className="frosted-glass border-border/50">
                 <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -421,7 +421,7 @@ export default function Dashboard() {
                     Tendência Semanal
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-hidden">
+                <CardContent className="p-3 sm:p-4 overflow-hidden">
                   {weeklyTrend.every((d) => d.tickets === 0) ? (
                     <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
                       <TrendingUp className="h-12 w-12 mb-2 opacity-50" />
@@ -431,8 +431,8 @@ export default function Dashboard() {
                     <div className="w-full overflow-hidden"><ResponsiveContainer width="100%" height={chartHeight}>
                       <LineChart data={weeklyTrend}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis dataKey="day" className="text-xs" />
-                        <YAxis className="text-xs" />
+                        <XAxis dataKey="day" className="text-xs" tick={{ fontSize: 10 }} />
+                        <YAxis className="text-xs" width={isMobile ? 30 : 40} tick={{ fontSize: 10 }} />
                         <RechartsTooltip
                           contentStyle={{
                             backgroundColor: "hsl(var(--card))",
@@ -467,7 +467,7 @@ export default function Dashboard() {
                     Distribuição de SLA
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-hidden">
+                <CardContent className="p-3 sm:p-4 overflow-hidden">
                   {slaDistribution.length === 0 || slaDistribution.every((d) => d.value === 0) ? (
                     <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
                       <Clock className="h-12 w-12 mb-2 opacity-50" />
@@ -534,7 +534,7 @@ export default function Dashboard() {
                   </SelectContent>
                 </Select>
               </CardHeader>
-              <CardContent className="overflow-hidden">
+              <CardContent className="p-3 sm:p-4 overflow-hidden">
                 {teamPerformance.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
                     <Users className="h-12 w-12 mb-2 opacity-50" />
@@ -550,8 +550,8 @@ export default function Dashboard() {
                   <div className="w-full overflow-hidden"><ResponsiveContainer width="100%" height={chartHeight}>
                     <BarChart data={teamPerformance}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="name" className="text-xs" />
-                      <YAxis className="text-xs" />
+                      <XAxis dataKey="name" className="text-xs" tick={{ fontSize: 10 }} />
+                      <YAxis className="text-xs" width={isMobile ? 30 : 40} tick={{ fontSize: 10 }} />
                       <RechartsTooltip
                         contentStyle={{
                           backgroundColor: "hsl(var(--card))",
@@ -582,7 +582,7 @@ export default function Dashboard() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 sm:p-4">
                 <div className="space-y-3">
                   {paginatedTickets.map((ticket) => (
                     <TicketHistoryCard key={ticket.id} ticket={ticket} />
