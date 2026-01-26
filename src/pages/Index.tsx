@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Ticket, Clock, CheckCircle, AlertTriangle, TrendingUp, Snowflake, Users, Brain, Filter, MessageSquare, X, Tag, ChevronLeft, ChevronRight } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -272,17 +273,24 @@ export default function Dashboard() {
             </span>
           </div>
           <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Filter className="h-4 w-4" />
-                Filtros
-                {activeFiltersCount > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {activeFiltersCount}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filtros
+                    {activeFiltersCount > 0 && (
+                      <Badge variant="secondary" className="ml-1">
+                        {activeFiltersCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Abrir filtros avançados</p>
+              </TooltipContent>
+            </Tooltip>
             <PopoverContent className="w-80" align="end">
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -440,7 +448,7 @@ export default function Dashboard() {
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="day" className="text-xs" />
                         <YAxis className="text-xs" />
-                        <Tooltip
+                        <RechartsTooltip
                           contentStyle={{
                             backgroundColor: "hsl(var(--card))",
                             borderColor: "hsl(var(--border))",
@@ -508,7 +516,7 @@ export default function Dashboard() {
                             />
                           ))}
                         </Pie>
-                        <Tooltip
+                        <RechartsTooltip
                           contentStyle={{
                             backgroundColor: "hsl(var(--card))",
                             borderColor: "hsl(var(--border))",
@@ -561,7 +569,7 @@ export default function Dashboard() {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis dataKey="name" className="text-xs" />
                       <YAxis className="text-xs" />
-                      <Tooltip
+                      <RechartsTooltip
                         contentStyle={{
                           backgroundColor: "hsl(var(--card))",
                           borderColor: "hsl(var(--border))",
@@ -618,22 +626,36 @@ export default function Dashboard() {
                     <span className="text-sm text-muted-foreground mr-2">
                       Página {currentPage} de {totalPages}
                     </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Página anterior</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Próxima página</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 )}
               </CardContent>

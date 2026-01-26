@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Brain, ChevronDown, ChevronUp, Clock, CheckCircle2, AlertCircle, Tag, Eye, User, Phone, Calendar, Timer, FileText, MessageSquare, RotateCcw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -119,18 +120,25 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
             </Badge>
             
             {hasAiAnalysis && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setExpanded(!expanded)}
-                className="h-8 w-8 p-0"
-              >
-                {expanded ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setExpanded(!expanded)}
+                    className="h-8 w-8 p-0"
+                  >
+                    {expanded ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{expanded ? "Recolher detalhes" : "Expandir detalhes"}</p>
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
         </div>
@@ -169,15 +177,22 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
         )}
         
         <div className="flex justify-end mt-4 pt-3 border-t border-border">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsModalOpen(true)}
-            className="h-8 gap-1.5"
-          >
-            <Eye className="h-4 w-4" />
-            Ver Detalhes
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsModalOpen(true)}
+                className="h-8 gap-1.5"
+              >
+                <Eye className="h-4 w-4" />
+                Ver Detalhes
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Ver detalhes completos</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </CardContent>
     </Card>
@@ -405,16 +420,23 @@ function DemandRow({ demand }: { demand: TicketDemand }) {
             </Badge>
           )}
           {isResolved && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleMarkAsPending}
-              disabled={isLoading}
-              className="h-6 px-2 py-0 text-xs gap-1 text-sla-warning hover:text-sla-warning/80 hover:bg-sla-warning/10"
-            >
-              <RotateCcw className={cn("h-3 w-3", isLoading && "animate-spin")} />
-              Reabrir
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleMarkAsPending}
+                  disabled={isLoading}
+                  className="h-6 px-2 py-0 text-xs gap-1 text-sla-warning hover:text-sla-warning/80 hover:bg-sla-warning/10"
+                >
+                  <RotateCcw className={cn("h-3 w-3", isLoading && "animate-spin")} />
+                  Reabrir
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Reabrir demanda</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>

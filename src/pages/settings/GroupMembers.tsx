@@ -27,6 +27,7 @@ import {
   Check,
   X,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const roleLabels: Record<GroupMemberRole, string> = {
   cs: "CS (Atendimento)",
@@ -98,14 +99,21 @@ export default function GroupMembers() {
 
   const headerContent = (
     <div className="flex flex-1 items-center gap-3">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => navigate("/settings/groups")}
-        className="shrink-0"
-      >
-        <ArrowLeft className="h-5 w-5" />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/settings/groups")}
+            className="shrink-0"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Voltar para grupos</p>
+        </TooltipContent>
+      </Tooltip>
       <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Membros do Grupo</h1>
@@ -230,7 +238,7 @@ export default function GroupMembers() {
                         <User className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        {editingName === member.id ? (
+                      {editingName === member.id ? (
                           <div className="flex items-center gap-2">
                             <Input
                               value={tempName}
@@ -238,38 +246,59 @@ export default function GroupMembers() {
                               className="h-8 w-48"
                               placeholder="Nome do membro"
                             />
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={() => handleSaveName(member.id)}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              onClick={handleCancelEditName}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                  onClick={() => handleSaveName(member.id)}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Salvar</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8"
+                                  onClick={handleCancelEditName}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Cancelar</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <p className="font-medium text-foreground truncate">
                               {member.name || "Sem nome"}
                             </p>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6"
-                              onClick={() =>
-                                handleStartEditName(member.id, member.name)
-                              }
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() =>
+                                    handleStartEditName(member.id, member.name)
+                                  }
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Editar nome</p>
+                              </TooltipContent>
+                            </Tooltip>
                           </div>
                         )}
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
