@@ -1,5 +1,20 @@
 import { useEffect, useState, useMemo } from "react";
-import { Ticket, Clock, CheckCircle, AlertTriangle, TrendingUp, Snowflake, Users, Brain, Filter, MessageSquare, X, Tag, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Ticket,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  TrendingUp,
+  Snowflake,
+  Users,
+  Brain,
+  Filter,
+  MessageSquare,
+  X,
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
@@ -62,35 +77,27 @@ export default function Dashboard() {
   });
 
   // Filter only CS members
-  const csMembers = useMemo(() => 
-    members.filter(m => m.role === "CS" && m.is_active),
-    [members]
-  );
+  const csMembers = useMemo(() => members.filter((m) => m.role === "CS" && m.is_active), [members]);
 
   // Filter only client groups
-  const clientGroups = useMemo(() => 
-    groups.filter(g => g.is_client_group && g.is_active),
-    [groups]
-  );
+  const clientGroups = useMemo(() => groups.filter((g) => g.is_client_group && g.is_active), [groups]);
 
   // Filter tickets based on selected group, CS, and categories
   const filteredTickets = useMemo(() => {
     let result = tickets;
-    
+
     if (selectedGroup !== "all") {
-      result = result.filter(t => t.monitored_groups?.id === selectedGroup);
+      result = result.filter((t) => t.monitored_groups?.id === selectedGroup);
     }
-    
+
     if (selectedCS !== "all") {
-      result = result.filter(t => t.resolved_by === selectedCS);
+      result = result.filter((t) => t.resolved_by === selectedCS);
     }
-    
+
     if (selectedCategories.length > 0) {
-      result = result.filter(t => 
-        t.demands?.some(d => selectedCategories.includes(d.category))
-      );
+      result = result.filter((t) => t.demands?.some((d) => selectedCategories.includes(d.category)));
     }
-    
+
     return result;
   }, [tickets, selectedGroup, selectedCS, selectedCategories]);
 
@@ -109,15 +116,11 @@ export default function Dashboard() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const todayTickets = filteredTickets.filter(
-      (t) => new Date(t.created_at) >= today
-    );
+    const todayTickets = filteredTickets.filter((t) => new Date(t.created_at) >= today);
 
     const pendingTickets = filteredTickets.filter((t) => t.status === "open");
 
-    const resolvedToday = todayTickets.filter(
-      (t) => t.status === "resolved" && t.first_response_at
-    );
+    const resolvedToday = todayTickets.filter((t) => t.status === "resolved" && t.first_response_at);
 
     const avgSla =
       resolvedToday.length > 0
@@ -143,11 +146,11 @@ export default function Dashboard() {
       return;
     }
 
-    const resolvedTickets = filteredTickets.filter(
-      (t) => t.status === "resolved" && t.first_response_at
-    );
+    const resolvedTickets = filteredTickets.filter((t) => t.status === "resolved" && t.first_response_at);
 
-    let ok = 0, warning = 0, critical = 0;
+    let ok = 0,
+      warning = 0,
+      critical = 0;
 
     resolvedTickets.forEach((t) => {
       const created = new Date(t.created_at).getTime();
@@ -177,23 +180,22 @@ export default function Dashboard() {
       return date;
     });
 
-    return last7Days.map(date => {
-      const dayTickets = filteredTickets.filter(t => {
+    return last7Days.map((date) => {
+      const dayTickets = filteredTickets.filter((t) => {
         const ticketDate = new Date(t.created_at);
         return ticketDate.toDateString() === date.toDateString();
       });
 
-      const resolvedWithResponse = dayTickets.filter(
-        t => t.status === "resolved" && t.first_response_at
-      );
+      const resolvedWithResponse = dayTickets.filter((t) => t.status === "resolved" && t.first_response_at);
 
-      const avgSla = resolvedWithResponse.length > 0
-        ? resolvedWithResponse.reduce((acc, t) => {
-            const created = new Date(t.created_at).getTime();
-            const responded = new Date(t.first_response_at!).getTime();
-            return acc + (responded - created) / (1000 * 60);
-          }, 0) / resolvedWithResponse.length
-        : 0;
+      const avgSla =
+        resolvedWithResponse.length > 0
+          ? resolvedWithResponse.reduce((acc, t) => {
+              const created = new Date(t.created_at).getTime();
+              const responded = new Date(t.first_response_at!).getTime();
+              return acc + (responded - created) / (1000 * 60);
+            }, 0) / resolvedWithResponse.length
+          : 0;
 
       return {
         day: days[date.getDay()],
@@ -205,23 +207,20 @@ export default function Dashboard() {
 
   // Team performance
   const teamPerformance = useMemo(() => {
-    const membersToShow = selectedCS === "all" 
-      ? csMembers 
-      : csMembers.filter(m => m.id === selectedCS);
+    const membersToShow = selectedCS === "all" ? csMembers : csMembers.filter((m) => m.id === selectedCS);
 
-    return membersToShow.map(member => {
-      const memberTickets = filteredTickets.filter(
-        t => t.resolved_by === member.id && t.status === "resolved"
-      );
+    return membersToShow.map((member) => {
+      const memberTickets = filteredTickets.filter((t) => t.resolved_by === member.id && t.status === "resolved");
 
-      const ticketsWithResponse = memberTickets.filter(t => t.first_response_at);
-      const avgSla = ticketsWithResponse.length > 0
-        ? ticketsWithResponse.reduce((acc, t) => {
-            const created = new Date(t.created_at).getTime();
-            const responded = new Date(t.first_response_at!).getTime();
-            return acc + (responded - created) / (1000 * 60);
-          }, 0) / ticketsWithResponse.length
-        : 0;
+      const ticketsWithResponse = memberTickets.filter((t) => t.first_response_at);
+      const avgSla =
+        ticketsWithResponse.length > 0
+          ? ticketsWithResponse.reduce((acc, t) => {
+              const created = new Date(t.created_at).getTime();
+              const responded = new Date(t.first_response_at!).getTime();
+              return acc + (responded - created) / (1000 * 60);
+            }, 0) / ticketsWithResponse.length
+          : 0;
 
       return {
         name: member.name.split(" ")[0],
@@ -232,10 +231,7 @@ export default function Dashboard() {
   }, [csMembers, filteredTickets, selectedCS]);
 
   // Paginated resolved tickets
-  const resolvedTickets = useMemo(() => 
-    filteredTickets.filter((t) => t.status === "resolved"),
-    [filteredTickets]
-  );
+  const resolvedTickets = useMemo(() => filteredTickets.filter((t) => t.status === "resolved"), [filteredTickets]);
 
   const totalPages = Math.ceil(resolvedTickets.length / ITEMS_PER_PAGE);
   const paginatedTickets = useMemo(() => {
@@ -245,7 +241,8 @@ export default function Dashboard() {
 
   const loading = ticketsLoading || membersLoading || groupsLoading;
 
-  const activeFiltersCount = (selectedCS !== "all" ? 1 : 0) + (selectedGroup !== "all" ? 1 : 0) + selectedCategories.length;
+  const activeFiltersCount =
+    (selectedCS !== "all" ? 1 : 0) + (selectedGroup !== "all" ? 1 : 0) + selectedCategories.length;
 
   const chartHeight = isMobile ? 250 : 300;
 
@@ -254,9 +251,7 @@ export default function Dashboard() {
       <Snowflake className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
-          Visão geral do monitoramento de SLA
-        </p>
+        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">Visão geral do monitoramento de SLA</p>
       </div>
     </div>
   );
@@ -295,9 +290,7 @@ export default function Dashboard() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <h4 className="font-medium leading-none">Filtros Avançados</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Filtre os dados por CS, grupo ou categoria
-                  </p>
+                  <p className="text-sm text-muted-foreground">Filtre os dados por CS, grupo ou categoria</p>
                 </div>
 
                 <div className="space-y-2">
@@ -311,7 +304,7 @@ export default function Dashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os CS</SelectItem>
-                      {csMembers.map(member => (
+                      {csMembers.map((member) => (
                         <SelectItem key={member.id} value={member.id}>
                           {member.name}
                         </SelectItem>
@@ -330,8 +323,8 @@ export default function Dashboard() {
                       <SelectValue placeholder="Selecione um grupo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os grupos</SelectItem>
-                      {clientGroups.map(group => (
+                      <SelectItem value="all">Todos</SelectItem>
+                      {clientGroups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.name}
                         </SelectItem>
@@ -355,14 +348,11 @@ export default function Dashboard() {
                             if (checked) {
                               setSelectedCategories([...selectedCategories, key]);
                             } else {
-                              setSelectedCategories(selectedCategories.filter(c => c !== key));
+                              setSelectedCategories(selectedCategories.filter((c) => c !== key));
                             }
                           }}
                         />
-                        <label 
-                          htmlFor={`cat-${key}`} 
-                          className="text-sm cursor-pointer select-none"
-                        >
+                        <label htmlFor={`cat-${key}`} className="text-sm cursor-pointer select-none">
                           {config.label}
                         </label>
                       </div>
@@ -392,12 +382,7 @@ export default function Dashboard() {
 
         {/* Stats Cards */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            title="Tickets Hoje"
-            value={stats.todayTotal}
-            subtitle="Total de atendimentos"
-            icon={Ticket}
-          />
+          <StatsCard title="Tickets Hoje" value={stats.todayTotal} subtitle="Total de atendimentos" icon={Ticket} />
           <StatsCard
             title="Pendentes"
             value={stats.pending}
@@ -437,7 +422,7 @@ export default function Dashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {weeklyTrend.every(d => d.tickets === 0) ? (
+                  {weeklyTrend.every((d) => d.tickets === 0) ? (
                     <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
                       <TrendingUp className="h-12 w-12 mb-2 opacity-50" />
                       <p>Sem dados para o período</p>
@@ -483,7 +468,7 @@ export default function Dashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {slaDistribution.length === 0 || slaDistribution.every(d => d.value === 0) ? (
+                  {slaDistribution.length === 0 || slaDistribution.every((d) => d.value === 0) ? (
                     <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
                       <Clock className="h-12 w-12 mb-2 opacity-50" />
                       <p>Sem dados de SLA disponíveis</p>
@@ -496,9 +481,7 @@ export default function Dashboard() {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }) =>
-                            `${name}: ${(percent * 100).toFixed(0)}%`
-                          }
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                           outerRadius={isMobile ? 60 : 80}
                           fill="#8884d8"
                           dataKey="value"
@@ -510,8 +493,8 @@ export default function Dashboard() {
                                 index === 0
                                   ? "hsl(var(--sla-ok))"
                                   : index === 1
-                                  ? "hsl(var(--sla-warning))"
-                                  : "hsl(var(--sla-critical))"
+                                    ? "hsl(var(--sla-warning))"
+                                    : "hsl(var(--sla-critical))"
                               }
                             />
                           ))}
@@ -543,7 +526,7 @@ export default function Dashboard() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
-                    {csMembers.map(member => (
+                    {csMembers.map((member) => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.name}
                       </SelectItem>
@@ -557,7 +540,7 @@ export default function Dashboard() {
                     <Users className="h-12 w-12 mb-2 opacity-50" />
                     <p>Adicione membros da equipe para ver o desempenho</p>
                   </div>
-                ) : teamPerformance.every(m => m.tickets === 0) ? (
+                ) : teamPerformance.every((m) => m.tickets === 0) ? (
                   <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
                     <Users className="h-12 w-12 mb-2 opacity-50" />
                     <p>Nenhum ticket atribuído</p>
@@ -576,18 +559,8 @@ export default function Dashboard() {
                           borderRadius: "var(--radius)",
                         }}
                       />
-                      <Bar
-                        dataKey="tickets"
-                        fill="hsl(var(--primary))"
-                        radius={[4, 4, 0, 0]}
-                        name="Tickets"
-                      />
-                      <Bar
-                        dataKey="avgSla"
-                        fill="hsl(var(--chart-2))"
-                        radius={[4, 4, 0, 0]}
-                        name="SLA Médio (min)"
-                      />
+                      <Bar dataKey="tickets" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Tickets" />
+                      <Bar dataKey="avgSla" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} name="SLA Médio (min)" />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -631,7 +604,7 @@ export default function Dashboard() {
                         <Button
                           variant="outline"
                           size="icon"
-                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                           disabled={currentPage === 1}
                         >
                           <ChevronLeft className="h-4 w-4" />
@@ -646,7 +619,7 @@ export default function Dashboard() {
                         <Button
                           variant="outline"
                           size="icon"
-                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                           disabled={currentPage === totalPages}
                         >
                           <ChevronRight className="h-4 w-4" />
