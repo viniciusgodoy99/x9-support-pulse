@@ -1,66 +1,102 @@
 
-# Plano: Adicionar Filtro de Busca para Grupos Aguardando Classificação
+# Plano: Ajustar Responsividade dos Cards de Grupos
 
-## Objetivo
+## Problema Identificado
 
-Adicionar um campo de busca no canto direito da seção "Aguardando Classificação" para filtrar grupos por nome.
+Os cards de grupos utilizam um grid que começa com 1 coluna em mobile e salta para 2 em `md` e 3 em `lg`. No entanto, os filtros e headers das seções podem estar quebrando em telas menores, e faltam breakpoints intermediários para tablets.
 
-## Alterações
+## Alteracoes Propostas
 
 ### Arquivo: src/pages/settings/Groups.tsx
 
-**1. Adicionar estado para o filtro de busca (após linha 42)**
-```typescript
-const [pendingSearchQuery, setPendingSearchQuery] = useState("");
-```
+**1. Ajustar grid dos cards em todas as secoes**
 
-**2. Adicionar import do ícone Search (linha 3)**
-```typescript
-import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search } from "lucide-react";
-```
-
-**3. Criar lista filtrada de grupos pendentes (após linha 138)**
-```typescript
-const filteredPendingGroups = pendingGroups.filter(g =>
-  g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase())
-);
-```
-
-**4. Modificar o header da seção "Aguardando Classificação" (linhas 329-334)**
-
-Adicionar um layout flex com o título à esquerda e o campo de busca à direita:
+Alterar de:
 ```tsx
-<div className="flex items-center justify-between gap-4">
-  <div className="flex items-center gap-2">
-    <AlertCircle className="h-5 w-5 text-amber-500" />
-    <h2 className="text-xl font-semibold text-foreground">
-      Aguardando Classificação ({filteredPendingGroups.length})
-    </h2>
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+```
+
+Para:
+```tsx
+<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+```
+
+Isso adiciona:
+- `gap-3` em mobile, `sm:gap-4` em telas maiores
+- `sm:grid-cols-2` para tablets pequenos (a partir de 640px)
+- `xl:grid-cols-4` para telas extra grandes
+
+**2. Ajustar header dos filtros para mobile (Grupos de Clientes - linha 260)**
+
+Alterar de:
+```tsx
+<div className="flex flex-wrap items-center justify-between gap-4">
+```
+
+Para:
+```tsx
+<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+```
+
+Ajustar campos de busca para ocupar largura total em mobile:
+```tsx
+<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+  <div className="relative w-full sm:w-48">
+    ...
   </div>
-  <div className="relative w-64">
-    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-    <Input
-      placeholder="Buscar grupo..."
-      value={pendingSearchQuery}
-      onChange={(e) => setPendingSearchQuery(e.target.value)}
-      className="pl-9"
-    />
-  </div>
+  <Select ...>
+    <SelectTrigger className="w-full sm:w-32">
+      ...
+    </SelectTrigger>
+  </Select>
 </div>
 ```
 
-**5. Atualizar o map para usar a lista filtrada (linha 336)**
+**3. Ajustar header da secao Aguardando Classificacao (linha 386)**
+
+Alterar de:
 ```tsx
-{filteredPendingGroups.map((group) => (
+<div className="flex items-center justify-between gap-4">
 ```
 
-## Comportamento
+Para:
+```tsx
+<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+```
 
-- O filtro busca pelo nome do grupo (case-insensitive)
-- O contador no título mostra quantos grupos estão visíveis após o filtro
-- Campo de busca aparece apenas quando há grupos pendentes
-- Design consistente com outros filtros do sistema
+E o campo de busca:
+```tsx
+<div className="relative w-full sm:w-64">
+```
+
+**4. Ajustar header da secao Grupos Internos (similar ao item 2)**
+
+Aplicar as mesmas alteracoes de responsividade.
+
+**5. Ajustar botoes de acao nos cards para telas pequenas**
+
+Os botoes de acao (Users, Edit, Power, Delete) devem ter espacamento adequado:
+```tsx
+<div className="flex flex-wrap items-center gap-2">
+```
+
+## Resumo das Alteracoes
+
+| Elemento | Antes | Depois |
+|----------|-------|--------|
+| Grid dos cards | `md:grid-cols-2 lg:grid-cols-3` | `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4` |
+| Header filtros | `flex flex-wrap` | `flex flex-col sm:flex-row` |
+| Campo busca | `w-48` ou `w-64` fixo | `w-full sm:w-48/64` |
+| Select status | `w-32` fixo | `w-full sm:w-32` |
+| Gap do grid | `gap-4` | `gap-3 sm:gap-4` |
+
+## Comportamento Esperado
+
+- **Mobile (< 640px)**: Cards em coluna unica, filtros empilhados verticalmente
+- **Tablet (640-1023px)**: 2 colunas de cards, filtros em linha
+- **Desktop (1024-1279px)**: 3 colunas de cards
+- **Large (>= 1280px)**: 4 colunas de cards para aproveitar espaco
 
 ## Arquivos a Modificar
 
-1. `src/pages/settings/Groups.tsx` - Adicionar estado, filtro e campo de busca
+1. `src/pages/settings/Groups.tsx` - Ajustar grids e layouts dos headers em 3 secoes (linhas 260, 290, 386, 403, 446, 474)
