@@ -5,8 +5,18 @@ import { usePendingDemands } from "@/hooks/usePendingDemands";
 import { useGroups } from "@/hooks/useGroups";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshCw, Filter, ClipboardList, Inbox, Tag } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,7 +43,7 @@ const priorityConfig: Record<string, { label: string }> = {
 export default function PendingDemands() {
   const { demands, loading, refetch } = usePendingDemands();
   const { groups } = useGroups();
-
+  
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
@@ -56,7 +66,10 @@ export default function PendingDemands() {
     return result;
   }, [demands, selectedGroup, selectedCategories, selectedPriorities]);
 
-  const activeFiltersCount = (selectedGroup !== "all" ? 1 : 0) + selectedCategories.length + selectedPriorities.length;
+  const activeFiltersCount = 
+    (selectedGroup !== "all" ? 1 : 0) + 
+    selectedCategories.length + 
+    selectedPriorities.length;
 
   const handleClearFilters = () => {
     setSelectedGroup("all");
@@ -66,13 +79,17 @@ export default function PendingDemands() {
 
   const toggleCategory = (category: string) => {
     setSelectedCategories((prev) =>
-      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category],
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category]
     );
   };
 
   const togglePriority = (priority: string) => {
     setSelectedPriorities((prev) =>
-      prev.includes(priority) ? prev.filter((p) => p !== priority) : [...prev, priority],
+      prev.includes(priority)
+        ? prev.filter((p) => p !== priority)
+        : [...prev, priority]
     );
   };
 
@@ -105,8 +122,10 @@ export default function PendingDemands() {
                   "Carregando..."
                 ) : (
                   <>
-                    <span className="font-semibold text-foreground">{filteredDemands.length}</span> demanda
-                    {filteredDemands.length !== 1 ? "s" : ""} pendente
+                    <span className="font-semibold text-foreground">
+                      {filteredDemands.length}
+                    </span>{" "}
+                    demanda{filteredDemands.length !== 1 ? "s" : ""} pendente
                     {filteredDemands.length !== 1 ? "s" : ""}
                   </>
                 )}
@@ -121,7 +140,7 @@ export default function PendingDemands() {
                 <SelectValue placeholder="Todos os grupos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos os grupos</SelectItem>
                 {clientGroups.map((group) => (
                   <SelectItem key={group.id} value={group.id}>
                     {group.name}
@@ -177,7 +196,10 @@ export default function PendingDemands() {
                             checked={selectedPriorities.includes(key)}
                             onCheckedChange={() => togglePriority(key)}
                           />
-                          <label htmlFor={`priority-${key}`} className="text-sm cursor-pointer">
+                          <label
+                            htmlFor={`priority-${key}`}
+                            className="text-sm cursor-pointer"
+                          >
                             {label}
                           </label>
                         </div>
@@ -199,7 +221,10 @@ export default function PendingDemands() {
                             checked={selectedCategories.includes(key)}
                             onCheckedChange={() => toggleCategory(key)}
                           />
-                          <label htmlFor={`category-${key}`} className="text-sm cursor-pointer">
+                          <label
+                            htmlFor={`category-${key}`}
+                            className="text-sm cursor-pointer"
+                          >
                             {label}
                           </label>
                         </div>
@@ -213,7 +238,13 @@ export default function PendingDemands() {
             {/* Refresh Button */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading} className="gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={loading}
+                  className="gap-2"
+                >
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   Atualizar
                 </Button>
@@ -237,14 +268,21 @@ export default function PendingDemands() {
             <div className="rounded-full bg-muted p-4 mb-4">
               <Inbox className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-1">Nenhuma demanda pendente</h3>
+            <h3 className="text-lg font-semibold mb-1">
+              Nenhuma demanda pendente
+            </h3>
             <p className="text-sm text-muted-foreground max-w-sm">
               {activeFiltersCount > 0
                 ? "Nenhuma demanda encontrada com os filtros selecionados. Tente ajustar os filtros."
                 : "Todas as demandas foram resolvidas. Excelente trabalho! 🎉"}
             </p>
             {activeFiltersCount > 0 && (
-              <Button variant="outline" size="sm" onClick={handleClearFilters} className="mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="mt-4"
+              >
                 Limpar Filtros
               </Button>
             )}
