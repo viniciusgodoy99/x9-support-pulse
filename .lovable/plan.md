@@ -1,79 +1,88 @@
 
-# Plano: Corrigir Responsividade dos Cards para Tablet
+# Plano: Ajustar Botões de Classificação para Não Ultrapassar o Card
 
 ## Problema Identificado
 
-Na imagem, podemos ver que em telas de tablet (aproximadamente 768-1024px), os cards estão sendo cortados na lateral direita. O terceiro card ("Climb.ai <> Garimpei na Web") está parcialmente visível, indicando um problema de overflow. Isso ocorre porque:
+Os botões "Sim, é cliente" e "Não" na seção "Aguardando Classificação" estão ultrapassando os limites do card pai em telas menores. Isso acontece porque:
 
-1. O grid atual pula de `sm:grid-cols-2` (640px+) direto para `lg:grid-cols-3` (1024px+)
-2. Falta o breakpoint intermediario `md:grid-cols-2` para garantir 2 colunas em tablets
-3. Os cards nao tem largura minima definida, causando esmagamento
+1. Os botões usam `flex-1` que distribui o espaço igualmente, mas não respeita o limite do container
+2. O texto dos botões ("Sim, é cliente") é longo e não quebra
+3. Falta `overflow-hidden` no container pai para evitar vazamento
 
-## Alteracoes Propostas
+## Alterações Propostas
 
 ### Arquivo: src/pages/settings/Groups.tsx
 
-**1. Ajustar grid dos cards em todas as secoes**
+**1. Adicionar overflow-hidden no Card (linha 405-407)**
 
-Alterar o grid atual:
 ```tsx
-<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+<Card
+  key={group.id}
+  className="min-w-0 overflow-hidden border-amber-500/50 bg-amber-500/5"
+>
 ```
 
-Para incluir breakpoint `md` explicitamente e garantir que tablets usem 2 colunas:
+**2. Ajustar container dos botões de classificação (linha 422)**
+
+Alterar de:
 ```tsx
-<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+<div className="flex gap-2">
 ```
 
-**2. Adicionar largura minima aos cards**
-
-Adicionar `min-w-0` nos cards para evitar overflow horizontal:
+Para:
 ```tsx
-<Card className="min-w-0 ...">
+<div className="flex flex-col sm:flex-row gap-2">
 ```
 
-**3. Garantir que o container nao tenha overflow**
+Isso faz os botões empilharem em mobile e ficarem lado a lado em telas maiores.
 
-Verificar se o container principal tem `overflow-hidden` ou `overflow-x-auto` adequado.
+**3. Remover flex-1 e adicionar largura adaptativa (linhas 423-439)**
 
-**4. Ajustar o titulo dos cards para truncar em telas menores**
-
-Adicionar truncamento ao titulo para evitar quebra de layout:
+Alterar os botões para:
 ```tsx
-<CardTitle className="text-lg truncate">{group.name}</CardTitle>
+<Button
+  size="sm"
+  onClick={() => handleClassify(group, true)}
+  className="w-full sm:flex-1 text-xs sm:text-sm"
+>
+  <Building2 className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+  <span className="truncate">Sim, é cliente</span>
+</Button>
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => handleClassify(group, false)}
+  className="w-full sm:flex-1"
+>
+  <UserCircle className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+  Não
+</Button>
 ```
 
-**5. Ajustar badges para nao quebrarem o layout**
+**4. Garantir que o CardContent não ultrapasse (linha 417)**
 
-Usar `flex-shrink-0` nos badges e `flex-wrap` no container:
+Adicionar `overflow-hidden`:
 ```tsx
-<div className="flex items-start justify-between gap-2">
-  <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
-  <div className="flex gap-1 flex-shrink-0">
-    ...badges
-  </div>
-</div>
+<CardContent className="space-y-4 overflow-hidden">
 ```
 
-## Secoes a Modificar
+## Resumo das Alterações
 
-- **Linha 290**: Grid de Grupos de Clientes
-- **Linha 403**: Grid de Aguardando Classificacao
-- **Linha 489** (aprox): Grid de Grupos Internos
+| Elemento | Antes | Depois |
+|----------|-------|--------|
+| Card container | `min-w-0` | `min-w-0 overflow-hidden` |
+| Container botões | `flex gap-2` | `flex flex-col sm:flex-row gap-2` |
+| Botão "Sim" | `flex-1` | `w-full sm:flex-1 text-xs sm:text-sm` + texto truncado |
+| Botão "Não" | `flex-1` | `w-full sm:flex-1` |
+| CardContent | `space-y-4` | `space-y-4 overflow-hidden` |
 
 ## Comportamento Esperado
 
-| Tamanho da Tela | Breakpoint | Colunas |
-|-----------------|------------|---------|
-| Mobile (< 640px) | default | 1 coluna |
-| Tablet pequeno (640-767px) | sm | 2 colunas |
-| Tablet grande (768-1023px) | md | 2 colunas |
-| Desktop (1024-1279px) | lg | 3 colunas |
-| Desktop grande (>= 1280px) | xl | 4 colunas |
+- **Mobile**: Botões empilhados verticalmente, ocupando largura total
+- **Tablet/Desktop**: Botões lado a lado com distribuição igual
+- **Texto longo**: Truncado com reticências se necessário
+- **Sem overflow**: Conteúdo sempre dentro dos limites do card
 
-## Resumo Tecnico
+## Arquivo a Modificar
 
-1. Adicionar `min-w-0` em todos os cards para resetar a largura minima do flexbox/grid
-2. Adicionar `truncate` nos titulos dos grupos
-3. Reorganizar o header dos cards para acomodar titulos longos + badges
-4. Manter `md:grid-cols-2` explicito para garantir 2 colunas em tablets
+1. `src/pages/settings/Groups.tsx` - Linhas 405-440 (seção Aguardando Classificação)
