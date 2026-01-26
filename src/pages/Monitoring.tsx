@@ -1,4 +1,5 @@
 import { Radio, RefreshCw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { TicketCard } from "@/components/monitoring/TicketCard";
 import { useTickets } from "@/hooks/useTickets";
@@ -47,15 +48,22 @@ export default function Monitoring() {
               <span className="font-semibold text-foreground">{tickets.length}</span> tickets abertos
             </span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Atualizar lista de tickets</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {loading ? (

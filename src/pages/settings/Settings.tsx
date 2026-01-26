@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useSettings } from "@/hooks/useSettings";
 import { toast } from "@/hooks/use-toast";
 import { Clock, Save, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function Settings() {
   const { globalSla, loading, updateGlobalSla } = useSettings();
@@ -107,18 +108,25 @@ export default function Settings() {
                       className="text-lg"
                     />
                   </div>
-                  <Button
-                    onClick={handleSave}
-                    disabled={!hasChanges || saving}
-                    className="gap-2"
-                  >
-                    {saving ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    Salvar
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={handleSave}
+                        disabled={!hasChanges || saving}
+                        className="gap-2"
+                      >
+                        {saving ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        Salvar
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Salvar alterações de SLA</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
 
                 {/* Info Section */}

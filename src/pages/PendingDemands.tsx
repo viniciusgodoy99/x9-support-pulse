@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshCw, Filter, ClipboardList, Inbox, Tag } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const categoryConfig: Record<string, { label: string }> = {
@@ -150,17 +151,24 @@ export default function PendingDemands() {
 
             {/* Advanced Filters */}
             <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filtros
-                  {activeFiltersCount > 0 && (
-                    <Badge variant="secondary" className="ml-1">
-                      {activeFiltersCount}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Filter className="h-4 w-4" />
+                      Filtros
+                      {activeFiltersCount > 0 && (
+                        <Badge variant="secondary" className="ml-1">
+                          {activeFiltersCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Abrir filtros avançados</p>
+                </TooltipContent>
+              </Tooltip>
               <PopoverContent className="w-80" align="end">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
@@ -228,16 +236,23 @@ export default function PendingDemands() {
             </Popover>
 
             {/* Refresh Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={loading}
-              className="gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              Atualizar
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={loading}
+                  className="gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  Atualizar
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Atualizar lista de demandas</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
