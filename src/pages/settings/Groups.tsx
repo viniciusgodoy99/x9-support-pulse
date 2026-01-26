@@ -34,6 +34,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useGroups, type MonitoredGroup } from "@/hooks/useGroups";
 import { toast } from "@/hooks/use-toast";
 
@@ -295,7 +300,14 @@ export default function GroupsSettings() {
                     >
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{group.name}</p>
+                            </TooltipContent>
+                          </Tooltip>
                           <div className="flex gap-1 flex-shrink-0">
                             {group.is_client_group && (
                               <Badge variant="default" className="bg-primary/80">
@@ -326,52 +338,81 @@ export default function GroupsSettings() {
                           />
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
-                            title="Gerenciar membros"
-                          >
-                            <Users className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(group)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleActive(group)}
-                          >
-                            <Power className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                              >
+                                <Users className="h-4 w-4" />
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta ação não pode ser desfeita. Todos os tickets
-                                  associados a este grupo serão removidos.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(group.id)}
-                                >
-                                  Remover
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Gerenciar membros</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(group)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Editar grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleActive(group)}
+                              >
+                                <Power className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{group.is_active ? "Desativar" : "Ativar"}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita. Todos os tickets
+                                        associados a este grupo serão removidos.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDelete(group.id)}
+                                      >
+                                        Remover
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remover grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </CardContent>
                     </Card>
@@ -408,7 +449,14 @@ export default function GroupsSettings() {
                     >
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{group.name}</p>
+                            </TooltipContent>
+                          </Tooltip>
                           <Badge variant="outline" className="flex-shrink-0 bg-amber-500/10 text-amber-600 border-amber-500/30">
                             Novo
                           </Badge>
@@ -440,44 +488,66 @@ export default function GroupsSettings() {
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
-                            title="Ver membros"
-                          >
-                            <Users className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(group)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                              >
+                                <Users className="h-4 w-4" />
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta ação não pode ser desfeita.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(group.id)}
-                                >
-                                  Remover
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Ver membros</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEdit(group)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Editar grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDelete(group.id)}
+                                      >
+                                        Remover
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remover grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </CardContent>
                     </Card>
@@ -527,7 +597,14 @@ export default function GroupsSettings() {
                     >
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{group.name}</p>
+                            </TooltipContent>
+                          </Tooltip>
                           <Badge variant={group.is_active ? "secondary" : "outline"} className="flex-shrink-0">
                             {group.is_active ? "Ativo" : "Inativo"}
                           </Badge>
@@ -551,52 +628,81 @@ export default function GroupsSettings() {
                           />
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
-                            title="Gerenciar membros"
-                          >
-                            <Users className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(group)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleActive(group)}
-                          >
-                            <Power className="h-4 w-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                              >
+                                <Users className="h-4 w-4" />
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta ação não pode ser desfeita. Todos os tickets
-                                  associados a este grupo serão removidos.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDelete(group.id)}
-                                >
-                                  Remover
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Gerenciar membros</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(group)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Editar grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleActive(group)}
+                              >
+                                <Power className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{group.is_active ? "Desativar" : "Ativar"}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita. Todos os tickets
+                                        associados a este grupo serão removidos.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDelete(group.id)}
+                                      >
+                                        Remover
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remover grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </CardContent>
                     </Card>
