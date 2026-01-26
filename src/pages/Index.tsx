@@ -258,7 +258,7 @@ export default function Dashboard() {
 
   return (
     <MainLayout headerContent={headerContent}>
-      <div className="space-y-6">
+      <div className="space-y-6 w-full max-w-full overflow-hidden">
         {/* Action Bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -421,14 +421,14 @@ export default function Dashboard() {
                     Tendência Semanal
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-hidden">
                   {weeklyTrend.every((d) => d.tickets === 0) ? (
                     <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
                       <TrendingUp className="h-12 w-12 mb-2 opacity-50" />
                       <p>Sem dados para o período</p>
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={chartHeight}>
+                    <div className="w-full overflow-hidden"><ResponsiveContainer width="100%" height={chartHeight}>
                       <LineChart data={weeklyTrend}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="day" className="text-xs" />
@@ -455,7 +455,7 @@ export default function Dashboard() {
                           name="SLA Médio (min)"
                         />
                       </LineChart>
-                    </ResponsiveContainer>
+                    </ResponsiveContainer></div>
                   )}
                 </CardContent>
               </Card>
@@ -467,21 +467,21 @@ export default function Dashboard() {
                     Distribuição de SLA
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-hidden">
                   {slaDistribution.length === 0 || slaDistribution.every((d) => d.value === 0) ? (
                     <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
                       <Clock className="h-12 w-12 mb-2 opacity-50" />
                       <p>Sem dados de SLA disponíveis</p>
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={chartHeight}>
+                    <div className="w-full overflow-hidden"><ResponsiveContainer width="100%" height={chartHeight}>
                       <PieChart>
                         <Pie
                           data={slaDistribution}
                           cx="50%"
                           cy="50%"
-                          labelLine={false}
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          labelLine={!isMobile}
+                          label={isMobile ? false : ({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                           outerRadius={isMobile ? 60 : 80}
                           fill="#8884d8"
                           dataKey="value"
@@ -507,7 +507,7 @@ export default function Dashboard() {
                           }}
                         />
                       </PieChart>
-                    </ResponsiveContainer>
+                    </ResponsiveContainer></div>
                   )}
                 </CardContent>
               </Card>
@@ -534,7 +534,7 @@ export default function Dashboard() {
                   </SelectContent>
                 </Select>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-hidden">
                 {teamPerformance.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
                     <Users className="h-12 w-12 mb-2 opacity-50" />
@@ -547,7 +547,7 @@ export default function Dashboard() {
                     <p className="text-xs mt-1">Os tickets precisam ter o campo "Resolvido por" preenchido</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={chartHeight}>
+                  <div className="w-full overflow-hidden"><ResponsiveContainer width="100%" height={chartHeight}>
                     <BarChart data={teamPerformance}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis dataKey="name" className="text-xs" />
@@ -562,7 +562,7 @@ export default function Dashboard() {
                       <Bar dataKey="tickets" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Tickets" />
                       <Bar dataKey="avgSla" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} name="SLA Médio (min)" />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ResponsiveContainer></div>
                 )}
               </CardContent>
             </Card>
