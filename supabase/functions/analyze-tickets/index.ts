@@ -67,6 +67,25 @@ Analise a conversa entre Atendentes (CS) e Clientes e identifique:
 7. Gere um RESUMO ESTRUTURADO seguindo este formato:
    "O cliente [NOME DO CLIENTE] solicitou [DESCRIÇÃO DA DEMANDA PRINCIPAL]. O atendente [NOME DO CS] [resolveu/está atendendo] a solicitação."
 
+REGRAS CRÍTICAS PARA DETERMINAR STATUS (SIGA À RISCA):
+
+⚠️ DEMANDA É "open" (PENDENTE) SE:
+- O cliente fez uma pergunta e NÃO HÁ resposta do CS para essa pergunta ESPECÍFICA
+- A última mensagem do cliente contém uma pergunta/pedido sem resposta posterior do CS
+- O CS respondeu de forma vaga/genérica sem abordar o ponto específico do cliente
+- O cliente solicitou algo e o CS não confirmou entrega ou ação
+
+✅ DEMANDA É "resolved" (RESOLVIDA) SE:
+- O CS respondeu DIRETAMENTE e ESPECIFICAMENTE à pergunta do cliente
+- O CS confirmou EXPLICITAMENTE a entrega, ação ou resolução
+- O cliente demonstrou satisfação ou agradeceu APÓS receber resposta adequada
+
+🔴 REGRA DE OURO: Se não existe uma RESPOSTA DIRETA e ESPECÍFICA do CS para uma pergunta/pedido do cliente, a demanda é "open". 
+
+EM CASO DE DÚVIDA: Marque como "open". É preferível ter demandas falsamente pendentes do que falsamente resolvidas.
+
+IMPORTANTE: Analise CADA pergunta/pedido INDIVIDUALMENTE. Uma conversa pode ter demandas resolvidas E demandas pendentes simultaneamente.
+
 REGRAS DE CATEGORIZAÇÃO:
 - SEMPRE escolha a categoria mais específica possível
 - "geral" deve ser usado APENAS como último recurso
@@ -78,14 +97,8 @@ REGRAS DO RESUMO:
 - Identifique o atendente (CS) que tratou/resolveu a solicitação (quem tem role = "cs")
 - Use "O cliente [NOME]" para quem faz a solicitação
 - Use "O atendente [NOME]" para quem resolve
-- Se houver múltiplas demandas, foque na principal ou mais urgente
+- Se houver demandas pendentes, MENCIONE NO RESUMO
 - Máximo de 2-3 frases
-
-Considere que:
-- Uma demanda é considerada RESOLVIDA quando o CS deu uma resposta satisfatória ou confirmou a resolução
-- Perguntas simples que foram respondidas também contam como demandas resolvidas
-- Reclamações que foram tratadas e reconhecidas contam como resolvidas
-- Se o cliente agradeceu ou demonstrou satisfação, as demandas anteriores provavelmente foram resolvidas
 
 Use a função analyze_conversation para estruturar sua resposta.`;
 
