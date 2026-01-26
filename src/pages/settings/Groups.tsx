@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter, Archive, RotateCcw } from "lucide-react";
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter, Archive, RotateCcw, Clock } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -631,31 +631,49 @@ export default function GroupsSettings() {
                   </div>
                 </div>
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredPendingGroups.map((group) => (
-                    <Card
-                      key={group.id}
-                      className="min-w-0 overflow-hidden border-amber-500/50 bg-amber-500/5"
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{group.name}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
-                              Novo
-                            </Badge>
-                            <span className="text-xs text-amber-600">
-                              Arquiva em {getDaysUntilArchive(group.created_at)} {getDaysUntilArchive(group.created_at) === 1 ? "dia" : "dias"}
-                            </span>
+                  {filteredPendingGroups.map((group) => {
+                    const daysLeft = getDaysUntilArchive(group.created_at);
+                    const isUrgent = daysLeft <= 1;
+                    
+                    return (
+                      <Card
+                        key={group.id}
+                        className={`min-w-0 overflow-hidden transition-all ${
+                          isUrgent 
+                            ? "border-destructive/70 bg-destructive/5 animate-pulse" 
+                            : "border-amber-500/50 bg-amber-500/5"
+                        }`}
+                      >
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{group.name}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              {isUrgent ? (
+                                <Badge variant="destructive" className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  Urgente
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                  Novo
+                                </Badge>
+                              )}
+                              <span className={`text-xs ${isUrgent ? "text-destructive font-medium" : "text-amber-600"}`}>
+                                {isUrgent 
+                                  ? "Arquiva em menos de 24h!" 
+                                  : `Arquiva em ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`
+                                }
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </CardHeader>
+                        </CardHeader>
                       <CardContent className="space-y-4 overflow-hidden">
                         <div className="pt-2">
                           <p className="text-sm text-muted-foreground mb-3">
@@ -745,7 +763,8 @@ export default function GroupsSettings() {
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
