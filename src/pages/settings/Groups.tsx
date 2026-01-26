@@ -1,20 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  MessageSquare,
-  Trash2,
-  Edit2,
-  Power,
-  Users,
-  AlertCircle,
-  Building2,
-  UserCircle,
-  Search,
-  Filter,
-  Archive,
-  RotateCcw,
-  Clock,
-} from "lucide-react";
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter, Archive, RotateCcw, Clock } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -44,24 +36,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useGroups, type MonitoredGroup } from "@/hooks/useGroups";
 import { toast } from "@/hooks/use-toast";
 
 export default function GroupsSettings() {
   const navigate = useNavigate();
-  const {
-    groups,
+  const { 
+    groups, 
     archivedGroups,
-    loading,
+    loading, 
     loadingArchived,
-    addGroup,
-    updateGroup,
-    classifyGroup,
+    addGroup, 
+    updateGroup, 
+    classifyGroup, 
     archiveGroup,
     restoreGroup,
     deleteGroup,
-    fetchArchivedGroups,
+    fetchArchivedGroups 
   } = useGroups();
   const [isOpen, setIsOpen] = useState(false);
   const [showArchivedDialog, setShowArchivedDialog] = useState(false);
@@ -72,12 +68,12 @@ export default function GroupsSettings() {
     sla_limit_minutes: 30,
   });
   const [pendingSearchQuery, setPendingSearchQuery] = useState("");
+  const [pendingDaysFilter, setPendingDaysFilter] = useState<"all" | "urgent" | "1-3" | "4-7">("all");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [clientStatusFilter, setClientStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [internalStatusFilter, setInternalStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("");
-
   const resetForm = () => {
     setFormData({ name: "", whatsapp_id: "", sla_limit_minutes: 30 });
     setEditingGroup(null);
@@ -172,27 +168,41 @@ export default function GroupsSettings() {
     }
   };
 
-  const pendingGroups = groups.filter((g) => g.pending_classification);
-  const clientGroups = groups.filter((g) => !g.pending_classification && g.is_client_group);
-  const internalGroups = groups.filter((g) => !g.pending_classification && !g.is_client_group);
-
-  const filteredPendingGroups = pendingGroups.filter((g) =>
-    g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase()),
-  );
-
-  const filteredClientGroups = clientGroups.filter((g) => {
+  const pendingGroups = groups.filter(g => g.pending_classification);
+  const clientGroups = groups.filter(g => !g.pending_classification && g.is_client_group);
+  const internalGroups = groups.filter(g => !g.pending_classification && !g.is_client_group);
+  
+  const filteredPendingGroups = pendingGroups.filter(g => {
+    const matchesSearch = g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
+    if (pendingDaysFilter === "all") return true;
+    
+    const daysLeft = getDaysUntilArchive(g.created_at);
+    
+    switch (pendingDaysFilter) {
+      case "urgent":
+        return daysLeft <= 1;
+      case "1-3":
+        return daysLeft >= 1 && daysLeft <= 3;
+      case "4-7":
+        return daysLeft >= 4 && daysLeft <= 7;
+      default:
+        return true;
+    }
+  });
+  const filteredClientGroups = clientGroups.filter(g => {
     const matchesSearch = g.name.toLowerCase().includes(clientSearchQuery.toLowerCase());
-    const matchesStatus =
-      clientStatusFilter === "all" ||
+    const matchesStatus = clientStatusFilter === "all" || 
       (clientStatusFilter === "active" && g.is_active) ||
       (clientStatusFilter === "inactive" && !g.is_active);
     return matchesSearch && matchesStatus;
   });
-
-  const filteredInternalGroups = internalGroups.filter((g) => {
+  
+  const filteredInternalGroups = internalGroups.filter(g => {
     const matchesSearch = g.name.toLowerCase().includes(internalSearchQuery.toLowerCase());
-    const matchesStatus =
-      internalStatusFilter === "all" ||
+    const matchesStatus = internalStatusFilter === "all" || 
       (internalStatusFilter === "active" && g.is_active) ||
       (internalStatusFilter === "inactive" && !g.is_active);
     return matchesSearch && matchesStatus;
@@ -264,192 +274,181 @@ export default function GroupsSettings() {
   return (
     <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
-        <Dialog
-          open={isOpen}
-          onOpenChange={(open) => {
+
+          <Dialog open={isOpen} onOpenChange={(open) => {
             setIsOpen(open);
             if (!open) resetForm();
-          }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Editar Grupo</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome do Cliente/Grupo</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Ex: Cliente ABC"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sla_limit">Limite de SLA (minutos)</Label>
-                <Input
-                  id="sla_limit"
-                  type="number"
-                  min={1}
-                  value={formData.sla_limit_minutes}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      sla_limit_minutes: parseInt(e.target.value) || 30,
-                    })
-                  }
-                  placeholder="30"
-                />
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancelar
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  Editar Grupo
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nome do Cliente/Grupo</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    placeholder="Ex: Cliente ABC"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sla_limit">Limite de SLA (minutos)</Label>
+                  <Input
+                    id="sla_limit"
+                    type="number"
+                    min={1}
+                    value={formData.sla_limit_minutes}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        sla_limit_minutes: parseInt(e.target.value) || 30,
+                      })
+                    }
+                    placeholder="30"
+                  />
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      Cancelar
+                    </Button>
+                  </DialogClose>
+                  <Button type="submit">
+                    Salvar
                   </Button>
-                </DialogClose>
-                <Button type="submit">Salvar</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
 
-        {/* Archived Groups Dialog */}
-        <Dialog
-          open={showArchivedDialog}
-          onOpenChange={(open) => {
+          {/* Archived Groups Dialog */}
+          <Dialog open={showArchivedDialog} onOpenChange={(open) => {
             setShowArchivedDialog(open);
             if (!open) setArchivedSearchQuery("");
-          }}
-        >
-          <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-4 sm:p-6">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Archive className="h-5 w-5" />
-                Grupos Arquivados
-              </DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm">
-                Grupos que ficaram mais de 7 dias sem classificação. Você pode restaurá-los para o painel de
-                classificação.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="relative flex-shrink-0">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar grupo..."
-                value={archivedSearchQuery}
-                onChange={(e) => setArchivedSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            <div className="flex-1 overflow-y-auto min-h-0">
-              {(() => {
-                const filteredArchivedGroups = archivedGroups.filter((g) =>
-                  g.name.toLowerCase().includes(archivedSearchQuery.toLowerCase()),
-                );
-
-                if (loadingArchived) {
+          }}>
+            <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-4 sm:p-6">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Archive className="h-5 w-5" />
+                  Grupos Arquivados
+                </DialogTitle>
+                <DialogDescription className="text-xs sm:text-sm">
+                  Grupos que ficaram mais de 7 dias sem classificação. Você pode restaurá-los para o painel de classificação.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="relative flex-shrink-0">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar grupo..."
+                  value={archivedSearchQuery}
+                  onChange={(e) => setArchivedSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              
+              <div className="flex-1 overflow-y-auto min-h-0">
+                {(() => {
+                  const filteredArchivedGroups = archivedGroups.filter(g =>
+                    g.name.toLowerCase().includes(archivedSearchQuery.toLowerCase())
+                  );
+                  
+                  if (loadingArchived) {
+                    return (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    );
+                  }
+                  
+                  if (archivedGroups.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Archive className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>Nenhum grupo arquivado</p>
+                      </div>
+                    );
+                  }
+                  
+                  if (filteredArchivedGroups.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm">Nenhum grupo encontrado para "{archivedSearchQuery}"</p>
+                      </div>
+                    );
+                  }
+                  
                   return (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="space-y-3 py-1">
+                      {filteredArchivedGroups.map((group) => (
+                        <Card key={group.id}>
+                          <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Arquivado em {group.archived_at ? format(new Date(group.archived_at), "dd/MM/yyyy 'às' HH:mm") : "Data desconhecida"}
+                              </p>
+                            </div>
+                            <div className="flex gap-2 w-full sm:w-auto flex-shrink-0">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button size="sm" onClick={() => handleRestore(group.id)} className="flex-1 sm:flex-none">
+                                    <RotateCcw className="h-4 w-4 mr-2 sm:mr-2" />
+                                    <span>Restaurar</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Restaurar grupo</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent className="w-[95vw] max-w-md">
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Remover grupo permanentemente?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Esta ação não pode ser desfeita. Todos os dados associados a este grupo serão removidos.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                          <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDelete(group.id)} className="w-full sm:w-auto">
+                                            Remover
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Remover permanentemente</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   );
-                }
-
-                if (archivedGroups.length === 0) {
-                  return (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Archive className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>Nenhum grupo arquivado</p>
-                    </div>
-                  );
-                }
-
-                if (filteredArchivedGroups.length === 0) {
-                  return (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Search className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm">Nenhum grupo encontrado para "{archivedSearchQuery}"</p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="space-y-3 py-1">
-                    {filteredArchivedGroups.map((group) => (
-                      <Card key={group.id}>
-                        <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4">
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Arquivado em{" "}
-                              {group.archived_at
-                                ? format(new Date(group.archived_at), "dd/MM/yyyy 'às' HH:mm")
-                                : "Data desconhecida"}
-                            </p>
-                          </div>
-                          <div className="flex gap-2 w-full sm:w-auto flex-shrink-0">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleRestore(group.id)}
-                                  className="flex-1 sm:flex-none"
-                                >
-                                  <RotateCcw className="h-4 w-4 mr-2 sm:mr-2" />
-                                  <span>Restaurar</span>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Restaurar grupo</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="destructive" size="sm">
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent className="w-[95vw] max-w-md">
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Remover grupo permanentemente?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Esta ação não pode ser desfeita. Todos os dados associados a este grupo serão
-                                          removidos.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                                        <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() => handleDelete(group.id)}
-                                          className="w-full sm:w-auto"
-                                        >
-                                          Remover
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Remover permanentemente</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          </DialogContent>
-        </Dialog>
+                })()}
+              </div>
+            </DialogContent>
+          </Dialog>
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -485,10 +484,7 @@ export default function GroupsSettings() {
                         className="pl-9"
                       />
                     </div>
-                    <Select
-                      value={clientStatusFilter}
-                      onValueChange={(v) => setClientStatusFilter(v as "all" | "active" | "inactive")}
-                    >
+                    <Select value={clientStatusFilter} onValueChange={(v) => setClientStatusFilter(v as "all" | "active" | "inactive")}>
                       <SelectTrigger className="w-full sm:w-32">
                         <Filter className="h-4 w-4 mr-2" />
                         <SelectValue />
@@ -503,14 +499,15 @@ export default function GroupsSettings() {
                 </div>
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredClientGroups.map((group) => (
-                    <Card key={group.id} className={`min-w-0 ${!group.is_active ? "opacity-60" : ""}`}>
+                    <Card
+                      key={group.id}
+                      className={`min-w-0 ${!group.is_active ? "opacity-60" : ""}`}
+                    >
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">
-                                {group.name}
-                              </CardTitle>
+                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>{group.name}</p>
@@ -531,7 +528,9 @@ export default function GroupsSettings() {
                       <CardContent className="space-y-4">
                         <div>
                           <p className="text-xs text-muted-foreground">Limite de SLA</p>
-                          <p className="text-sm font-semibold">{group.sla_limit_minutes} minutos</p>
+                          <p className="text-sm font-semibold">
+                            {group.sla_limit_minutes} minutos
+                          </p>
                         </div>
                         <div className="flex items-center justify-between py-2 border-t border-border">
                           <Label htmlFor={`client-${group.id}`} className="text-sm">
@@ -560,7 +559,11 @@ export default function GroupsSettings() {
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="outline" size="sm" onClick={() => handleEdit(group)}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(group)}
+                              >
                                 <Edit2 className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
@@ -570,7 +573,11 @@ export default function GroupsSettings() {
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="outline" size="sm" onClick={() => handleToggleActive(group)}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleActive(group)}
+                              >
                                 <Power className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
@@ -591,13 +598,15 @@ export default function GroupsSettings() {
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        Esta ação não pode ser desfeita. Todos os tickets associados a este grupo serão
-                                        removidos.
+                                        Esta ação não pode ser desfeita. Todos os tickets
+                                        associados a este grupo serão removidos.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                       <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => handleDelete(group.id)}>
+                                      <AlertDialogAction
+                                        onClick={() => handleDelete(group.id)}
+                                      >
                                         Remover
                                       </AlertDialogAction>
                                     </AlertDialogFooter>
@@ -627,27 +636,41 @@ export default function GroupsSettings() {
                       Aguardando Classificação ({filteredPendingGroups.length})
                     </h2>
                   </div>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar grupo..."
-                      value={pendingSearchQuery}
-                      onChange={(e) => setPendingSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-48">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar grupo..."
+                        value={pendingSearchQuery}
+                        onChange={(e) => setPendingSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select value={pendingDaysFilter} onValueChange={(value: "all" | "urgent" | "1-3" | "4-7") => setPendingDaysFilter(value)}>
+                      <SelectTrigger className="w-full sm:w-44">
+                        <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <SelectValue placeholder="Dias para arquivar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os grupos</SelectItem>
+                        <SelectItem value="urgent">Urgente (menos de 24h)</SelectItem>
+                        <SelectItem value="1-3">1 a 3 dias</SelectItem>
+                        <SelectItem value="4-7">4 a 7 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredPendingGroups.map((group) => {
                     const daysLeft = getDaysUntilArchive(group.created_at);
                     const isUrgent = daysLeft <= 1;
-
+                    
                     return (
                       <Card
                         key={group.id}
                         className={`min-w-0 overflow-hidden transition-all ${
-                          isUrgent
-                            ? "border-destructive/70 bg-destructive/5 animate-pulse"
+                          isUrgent 
+                            ? "border-destructive/70 bg-destructive/5 animate-pulse" 
                             : "border-amber-500/50 bg-amber-500/5"
                         }`}
                       >
@@ -655,9 +678,7 @@ export default function GroupsSettings() {
                           <div className="flex items-start justify-between gap-2">
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">
-                                  {group.name}
-                                </CardTitle>
+                                <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
                               </TooltipTrigger>
                               <TooltipContent>
                                 <p>{group.name}</p>
@@ -674,97 +695,104 @@ export default function GroupsSettings() {
                                   Novo
                                 </Badge>
                               )}
-                              <span
-                                className={`text-xs ${isUrgent ? "text-destructive font-medium" : "text-amber-600"}`}
-                              >
-                                {isUrgent
-                                  ? "Arquiva em menos de 24h!"
-                                  : `Arquiva em ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`}
+                              <span className={`text-xs ${isUrgent ? "text-destructive font-medium" : "text-amber-600"}`}>
+                                {isUrgent 
+                                  ? "Arquiva em menos de 24h!" 
+                                  : `Arquiva em ${daysLeft} ${daysLeft === 1 ? "dia" : "dias"}`
+                                }
                               </span>
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-4 overflow-hidden">
-                          <div className="pt-2">
-                            <p className="text-sm text-muted-foreground mb-3">Este grupo é de cliente?</p>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleClassify(group, true)}
-                                className="w-full sm:flex-1 text-xs sm:text-sm"
-                              >
-                                <Building2 className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                                <span className="truncate">Sim, é cliente</span>
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleClassify(group, false)}
-                                className="w-full sm:flex-1 text-xs sm:text-sm"
-                              >
-                                <UserCircle className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                                <span className="truncate">Não</span>
-                              </Button>
-                            </div>
+                      <CardContent className="space-y-4 overflow-hidden">
+                        <div className="pt-2">
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Este grupo é de cliente?
+                          </p>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleClassify(group, true)}
+                              className="w-full sm:flex-1 text-xs sm:text-sm"
+                            >
+                              <Building2 className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                              <span className="truncate">Sim, é cliente</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleClassify(group, false)}
+                              className="w-full sm:flex-1 text-xs sm:text-sm"
+                            >
+                              <UserCircle className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                              <span className="truncate">Não</span>
+                            </Button>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => navigate(`/settings/groups/${group.id}/members`)}
-                                >
-                                  <Users className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Ver membros</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => handleEdit(group)}>
-                                  <Edit2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Editar grupo</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="sm">
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Esta ação não pode ser desfeita.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDelete(group.id)}>
-                                          Remover
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Remover grupo</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                              >
+                                <Users className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Ver membros</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEdit(group)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Editar grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="sm">
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Esta ação não pode ser desfeita.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDelete(group.id)}
+                                      >
+                                        Remover
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Remover grupo</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </CardContent>
+                    </Card>
                     );
                   })}
                 </div>
@@ -778,7 +806,7 @@ export default function GroupsSettings() {
                   <div className="flex items-center gap-2">
                     <UserCircle className="h-5 w-5 text-muted-foreground" />
                     <h2 className="text-lg sm:text-xl font-semibold text-foreground">
-                      Grupos Classificados ({filteredInternalGroups.length})
+                      Grupos Internos ({filteredInternalGroups.length})
                     </h2>
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -791,10 +819,7 @@ export default function GroupsSettings() {
                         className="pl-9"
                       />
                     </div>
-                    <Select
-                      value={internalStatusFilter}
-                      onValueChange={(v) => setInternalStatusFilter(v as "all" | "active" | "inactive")}
-                    >
+                    <Select value={internalStatusFilter} onValueChange={(v) => setInternalStatusFilter(v as "all" | "active" | "inactive")}>
                       <SelectTrigger className="w-full sm:w-32">
                         <Filter className="h-4 w-4 mr-2" />
                         <SelectValue />
@@ -809,14 +834,15 @@ export default function GroupsSettings() {
                 </div>
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredInternalGroups.map((group) => (
-                    <Card key={group.id} className={`min-w-0 ${!group.is_active ? "opacity-60" : ""}`}>
+                    <Card
+                      key={group.id}
+                      className={`min-w-0 ${!group.is_active ? "opacity-60" : ""}`}
+                    >
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between gap-2">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">
-                                {group.name}
-                              </CardTitle>
+                              <CardTitle className="text-lg truncate flex-1 min-w-0 cursor-default">{group.name}</CardTitle>
                             </TooltipTrigger>
                             <TooltipContent>
                               <p>{group.name}</p>
@@ -830,7 +856,9 @@ export default function GroupsSettings() {
                       <CardContent className="space-y-4">
                         <div>
                           <p className="text-xs text-muted-foreground">Limite de SLA</p>
-                          <p className="text-sm font-semibold">{group.sla_limit_minutes} minutos</p>
+                          <p className="text-sm font-semibold">
+                            {group.sla_limit_minutes} minutos
+                          </p>
                         </div>
                         <div className="flex items-center justify-between py-2 border-t border-border">
                           <Label htmlFor={`client-${group.id}`} className="text-sm">
@@ -859,7 +887,11 @@ export default function GroupsSettings() {
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="outline" size="sm" onClick={() => handleEdit(group)}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(group)}
+                              >
                                 <Edit2 className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
@@ -869,7 +901,11 @@ export default function GroupsSettings() {
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="outline" size="sm" onClick={() => handleToggleActive(group)}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleToggleActive(group)}
+                              >
                                 <Power className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
@@ -890,13 +926,15 @@ export default function GroupsSettings() {
                                     <AlertDialogHeader>
                                       <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        Esta ação não pode ser desfeita. Todos os tickets associados a este grupo serão
-                                        removidos.
+                                        Esta ação não pode ser desfeita. Todos os tickets
+                                        associados a este grupo serão removidos.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                       <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => handleDelete(group.id)}>
+                                      <AlertDialogAction
+                                        onClick={() => handleDelete(group.id)}
+                                      >
                                         Remover
                                       </AlertDialogAction>
                                     </AlertDialogFooter>
