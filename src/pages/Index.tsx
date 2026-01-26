@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -411,157 +410,27 @@ export default function Dashboard() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         ) : (
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-              <TabsTrigger value="performance">Desempenho</TabsTrigger>
-              <TabsTrigger value="history">Histórico</TabsTrigger>
-            </TabsList>
-
-            {/* Overview Tab */}
-            <TabsContent value="overview" className="mt-6">
-              <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-                <Card className="frosted-glass border-border/50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-primary" />
-                      Tendência Semanal
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {weeklyTrend.every(d => d.tickets === 0) ? (
-                      <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
-                        <TrendingUp className="h-12 w-12 mb-2 opacity-50" />
-                        <p>Sem dados para o período</p>
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={chartHeight}>
-                        <LineChart data={weeklyTrend}>
-                          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                          <XAxis dataKey="day" className="text-xs" />
-                          <YAxis className="text-xs" />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              borderColor: "hsl(var(--border))",
-                              borderRadius: "var(--radius)",
-                            }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="tickets"
-                            stroke="hsl(var(--primary))"
-                            strokeWidth={2}
-                            name="Tickets"
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="slaAvg"
-                            stroke="hsl(var(--chart-2))"
-                            strokeWidth={2}
-                            name="SLA Médio (min)"
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="frosted-glass border-border/50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5 text-primary" />
-                      Distribuição de SLA
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {slaDistribution.length === 0 || slaDistribution.every(d => d.value === 0) ? (
-                      <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
-                        <Clock className="h-12 w-12 mb-2 opacity-50" />
-                        <p>Sem dados de SLA disponíveis</p>
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={chartHeight}>
-                        <PieChart>
-                          <Pie
-                            data={slaDistribution}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) =>
-                              `${name}: ${(percent * 100).toFixed(0)}%`
-                            }
-                            outerRadius={isMobile ? 60 : 80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {slaDistribution.map((_, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={
-                                  index === 0
-                                    ? "hsl(var(--sla-ok))"
-                                    : index === 1
-                                    ? "hsl(var(--sla-warning))"
-                                    : "hsl(var(--sla-critical))"
-                                }
-                              />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              borderColor: "hsl(var(--border))",
-                              borderRadius: "var(--radius)",
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            {/* Performance Tab */}
-            <TabsContent value="performance" className="mt-6">
+          <div className="space-y-6">
+            {/* Tendência Semanal e Distribuição de SLA */}
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
               <Card className="frosted-glass border-border/50">
-                <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5 text-primary" />
-                    Desempenho por Membro
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Tendência Semanal
                   </CardTitle>
-                  <Select value={selectedCS} onValueChange={setSelectedCS}>
-                    <SelectTrigger className="w-full sm:w-[180px]">
-                      <SelectValue placeholder="Filtrar membro" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {csMembers.map(member => (
-                        <SelectItem key={member.id} value={member.id}>
-                          {member.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </CardHeader>
                 <CardContent>
-                  {teamPerformance.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
-                      <Users className="h-12 w-12 mb-2 opacity-50" />
-                      <p>Adicione membros da equipe para ver o desempenho</p>
-                    </div>
-                  ) : teamPerformance.every(m => m.tickets === 0) ? (
-                    <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
-                      <Users className="h-12 w-12 mb-2 opacity-50" />
-                      <p>Nenhum ticket atribuído</p>
-                      <p className="text-xs mt-1">Os tickets precisam ter o campo "Resolvido por" preenchido</p>
+                  {weeklyTrend.every(d => d.tickets === 0) ? (
+                    <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
+                      <TrendingUp className="h-12 w-12 mb-2 opacity-50" />
+                      <p>Sem dados para o período</p>
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={chartHeight}>
-                      <BarChart data={teamPerformance}>
+                      <LineChart data={weeklyTrend}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis dataKey="name" className="text-xs" />
+                        <XAxis dataKey="day" className="text-xs" />
                         <YAxis className="text-xs" />
                         <Tooltip
                           contentStyle={{
@@ -570,80 +439,198 @@ export default function Dashboard() {
                             borderRadius: "var(--radius)",
                           }}
                         />
-                        <Bar
+                        <Line
+                          type="monotone"
                           dataKey="tickets"
-                          fill="hsl(var(--primary))"
-                          radius={[4, 4, 0, 0]}
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
                           name="Tickets"
                         />
-                        <Bar
-                          dataKey="avgSla"
-                          fill="hsl(var(--chart-2))"
-                          radius={[4, 4, 0, 0]}
+                        <Line
+                          type="monotone"
+                          dataKey="slaAvg"
+                          stroke="hsl(var(--chart-2))"
+                          strokeWidth={2}
                           name="SLA Médio (min)"
                         />
-                      </BarChart>
+                      </LineChart>
                     </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            {/* History Tab */}
-            <TabsContent value="history" className="mt-6">
               <Card className="frosted-glass border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-primary" />
-                    Histórico de Atendimentos
-                    {resolvedTickets.length > 0 && (
-                      <Badge variant="secondary" className="ml-2">
-                        {resolvedTickets.length} total
-                      </Badge>
-                    )}
+                    <Clock className="h-5 w-5 text-primary" />
+                    Distribuição de SLA
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {paginatedTickets.map((ticket) => (
-                      <TicketHistoryCard key={ticket.id} ticket={ticket} />
-                    ))}
-                    {resolvedTickets.length === 0 && (
-                      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                        <Ticket className="h-12 w-12 mb-2 opacity-50" />
-                        <p>Nenhum atendimento finalizado</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-border">
-                      <span className="text-sm text-muted-foreground mr-2">
-                        Página {currentPage} de {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
+                  {slaDistribution.length === 0 || slaDistribution.every(d => d.value === 0) ? (
+                    <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
+                      <Clock className="h-12 w-12 mb-2 opacity-50" />
+                      <p>Sem dados de SLA disponíveis</p>
                     </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={chartHeight}>
+                      <PieChart>
+                        <Pie
+                          data={slaDistribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) =>
+                            `${name}: ${(percent * 100).toFixed(0)}%`
+                          }
+                          outerRadius={isMobile ? 60 : 80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {slaDistribution.map((_, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={
+                                index === 0
+                                  ? "hsl(var(--sla-ok))"
+                                  : index === 1
+                                  ? "hsl(var(--sla-warning))"
+                                  : "hsl(var(--sla-critical))"
+                              }
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            borderColor: "hsl(var(--border))",
+                            borderRadius: "var(--radius)",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+            </div>
+
+            {/* Desempenho por Membro */}
+            <Card className="frosted-glass border-border/50">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Desempenho por Membro
+                </CardTitle>
+                <Select value={selectedCS} onValueChange={setSelectedCS}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filtrar membro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {csMembers.map(member => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardHeader>
+              <CardContent>
+                {teamPerformance.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+                    <Users className="h-12 w-12 mb-2 opacity-50" />
+                    <p>Adicione membros da equipe para ver o desempenho</p>
+                  </div>
+                ) : teamPerformance.every(m => m.tickets === 0) ? (
+                  <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+                    <Users className="h-12 w-12 mb-2 opacity-50" />
+                    <p>Nenhum ticket atribuído</p>
+                    <p className="text-xs mt-1">Os tickets precisam ter o campo "Resolvido por" preenchido</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={chartHeight}>
+                    <BarChart data={teamPerformance}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="name" className="text-xs" />
+                      <YAxis className="text-xs" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          borderColor: "hsl(var(--border))",
+                          borderRadius: "var(--radius)",
+                        }}
+                      />
+                      <Bar
+                        dataKey="tickets"
+                        fill="hsl(var(--primary))"
+                        radius={[4, 4, 0, 0]}
+                        name="Tickets"
+                      />
+                      <Bar
+                        dataKey="avgSla"
+                        fill="hsl(var(--chart-2))"
+                        radius={[4, 4, 0, 0]}
+                        name="SLA Médio (min)"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Histórico de Atendimentos */}
+            <Card className="frosted-glass border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-primary" />
+                  Histórico de Atendimentos
+                  {resolvedTickets.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {resolvedTickets.length} total
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {paginatedTickets.map((ticket) => (
+                    <TicketHistoryCard key={ticket.id} ticket={ticket} />
+                  ))}
+                  {resolvedTickets.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                      <Ticket className="h-12 w-12 mb-2 opacity-50" />
+                      <p>Nenhum atendimento finalizado</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-border">
+                    <span className="text-sm text-muted-foreground mr-2">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </MainLayout>
