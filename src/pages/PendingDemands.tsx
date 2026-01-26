@@ -114,10 +114,10 @@ export default function PendingDemands() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             {/* Group Filter */}
             <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
@@ -150,7 +150,7 @@ export default function PendingDemands() {
                   <p>Abrir filtros avançados</p>
                 </TooltipContent>
               </Tooltip>
-              <PopoverContent className="w-80" align="end">
+              <PopoverContent className="w-[90vw] sm:w-80" align="end">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium">Filtros Avançados</h4>
@@ -227,7 +227,7 @@ export default function PendingDemands() {
 
         {/* Content */}
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
               <Skeleton key={i} className="h-[180px] rounded-lg" />
             ))}
@@ -250,7 +250,7 @@ export default function PendingDemands() {
             )}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {filteredDemands.map((demand) => (
               <PendingDemandCard key={demand.id} demand={demand} />
             ))}

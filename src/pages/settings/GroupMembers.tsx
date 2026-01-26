@@ -128,7 +128,7 @@ export default function GroupMembers() {
     <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
         {/* Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Users className="h-5 w-5" />
             <span className="text-sm">
@@ -146,7 +146,7 @@ export default function GroupMembers() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
           <Card className="bg-card/50 backdrop-blur border-border/50">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -232,8 +232,8 @@ export default function GroupMembers() {
                 className="bg-card/50 backdrop-blur border-border/50 hover:bg-card/70 transition-colors"
               >
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
                       <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
                         <User className="h-5 w-5 text-primary" />
                       </div>
@@ -318,7 +318,7 @@ export default function GroupMembers() {
                         handleRoleChange(member.id, value)
                       }
                     >
-                      <SelectTrigger className="w-44">
+                      <SelectTrigger className="w-full sm:w-44">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
