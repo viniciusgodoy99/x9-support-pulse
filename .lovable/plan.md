@@ -1,245 +1,290 @@
 
-# Plano: Adicionar Tooltips em Todas as Paginas
+
+# Plano: Sistema de Arquivamento Automatico de Grupos
 
 ## Visao Geral
 
-Este plano adiciona tooltips em todos os elementos que precisam de informacoes adicionais ao passar o mouse:
-- Titulos truncados
-- Botoes com apenas icones
-- Badges e indicadores de status
+Implementar logica de arquivamento automatico para grupos que ficam "Aguardando Classificacao" por mais de 7 dias, com opcao de recuperacao.
 
-## Arquivos a Modificar
+---
 
-### 1. src/pages/settings/Team.tsx (Pagina de Equipe)
+## 1. Alteracao no Banco de Dados
 
-**Imports a adicionar:**
-```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+### Adicionar coluna `is_archived` na tabela `monitored_groups`
+
+```sql
+ALTER TABLE monitored_groups 
+ADD COLUMN is_archived boolean NOT NULL DEFAULT false;
+
+ALTER TABLE monitored_groups 
+ADD COLUMN archived_at timestamp with time zone;
 ```
 
-**Tooltips a adicionar:**
-
-| Elemento | Linha | Tooltip Text |
-|----------|-------|--------------|
-| CardTitle (nome do membro) | 251 | `{member.name}` (nome completo) |
-| Botao Edit2 | 267-273 | "Editar membro" |
-| Botao Power | 274-280 | "Ativar/Desativar" |
-| Botao Trash2 (AlertDialog) | 281-303 | "Remover membro" |
+| Coluna | Tipo | Descricao |
+|--------|------|-----------|
+| is_archived | boolean | Indica se o grupo esta arquivado |
+| archived_at | timestamp | Data/hora do arquivamento |
 
 ---
 
-### 2. src/pages/settings/GroupMembers.tsx (Membros do Grupo)
+## 2. Logica de Arquivamento Automatico
 
-**Imports a adicionar:**
-```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+### Opcao A: Arquivamento no Frontend (simples)
+Ao carregar os grupos, verificar se algum grupo pendente tem `created_at` maior que 7 dias e marcar como arquivado automaticamente.
+
+### Opcao B: Arquivamento via Cron Job (recomendado)
+Criar uma funcao no banco que roda periodicamente via `pg_cron`:
+
+```sql
+-- Funcao para arquivar grupos pendentes antigos
+CREATE OR REPLACE FUNCTION archive_old_pending_groups()
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  UPDATE monitored_groups
+  SET 
+    is_archived = true,
+    archived_at = now()
+  WHERE 
+    pending_classification = true
+    AND is_archived = false
+    AND created_at < now() - interval '7 days';
+END;
+$$;
+
+-- Agendar execucao diaria
+SELECT cron.schedule(
+  'archive-old-pending-groups',
+  '0 3 * * *', -- Executa as 3h da manha
+  'SELECT archive_old_pending_groups()'
+);
 ```
 
-**Tooltips a adicionar:**
-
-| Elemento | Linha | Tooltip Text |
-|----------|-------|--------------|
-| Botao ArrowLeft (voltar) | 101-108 | "Voltar para grupos" |
-| Botao Edit2 (editar nome) | 263-272 | "Editar nome" |
-| Botao Check (salvar nome) | 241-247 | "Salvar" |
-| Botao X (cancelar edicao) | 248-255 | "Cancelar" |
+**Recomendo a Opcao B** pois mantem a logica no backend e nao depende do usuario acessar a pagina.
 
 ---
 
-### 3. src/pages/settings/WhatsAppConnect.tsx (Conexoes WhatsApp)
+## 3. Alteracoes no Hook `useGroups.tsx`
 
-**Imports a adicionar:**
+### 3.1 Atualizar interface `MonitoredGroup`
+
 ```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+export interface MonitoredGroup {
+  // ... campos existentes
+  is_archived: boolean;
+  archived_at: string | null;
+}
 ```
 
-**Nota:** Os botoes nesta pagina ja tem texto, entao nao precisam de tooltips. Porem, o componente `InstanceCard` precisa.
+### 3.2 Atualizar query para excluir arquivados por padrao
 
----
-
-### 4. src/components/whatsapp/InstanceCard.tsx
-
-**Imports a adicionar:**
 ```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+const fetchGroups = async () => {
+  const { data, error } = await supabase
+    .from("monitored_groups")
+    .select("*")
+    .eq("is_archived", false) // Excluir arquivados
+    .order("pending_classification", { ascending: false })
+    .order("name");
+};
 ```
 
-**Tooltips a adicionar:**
+### 3.3 Adicionar funcao para buscar grupos arquivados
 
-| Elemento | Linha | Tooltip Text |
-|----------|-------|--------------|
-| CardTitle (nome da instancia) | 90 | `{instance.name}` (nome completo - caso truncado) |
-| Botao Trash2 (AlertDialog) | 170-175 | "Remover instancia" |
-
----
-
-### 5. src/pages/Monitoring.tsx
-
-**Imports a adicionar:**
 ```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+const fetchArchivedGroups = async () => {
+  const { data, error } = await supabase
+    .from("monitored_groups")
+    .select("*")
+    .eq("is_archived", true)
+    .order("archived_at", { ascending: false });
+  
+  return data;
+};
 ```
 
-**Tooltips a adicionar:**
+### 3.4 Adicionar funcao para restaurar grupo
 
-| Elemento | Linha | Tooltip Text |
-|----------|-------|--------------|
-| Botao RefreshCw | 49-56 | "Atualizar lista de tickets" |
-
----
-
-### 6. src/components/monitoring/TicketCard.tsx
-
-Os botoes neste componente ja tem texto, nao precisam de tooltips adicionais.
-
----
-
-### 7. src/pages/PendingDemands.tsx
-
-**Imports a adicionar:**
 ```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+const restoreGroup = async (id: string) => {
+  await supabase
+    .from("monitored_groups")
+    .update({
+      is_archived: false,
+      archived_at: null,
+      created_at: new Date().toISOString() // Reset timer
+    })
+    .eq("id", id);
+  
+  await fetchGroups();
+};
 ```
 
-**Tooltips a adicionar:**
+### 3.5 Adicionar funcao para arquivar manualmente
 
-| Elemento | Linha | Tooltip Text |
-|----------|-------|--------------|
-| Botao RefreshCw | 231-240 | "Atualizar lista de demandas" |
-| Botao Filter | 152-163 | "Abrir filtros avancados" |
-
----
-
-### 8. src/pages/Index.tsx (Dashboard)
-
-**Imports a adicionar:**
 ```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-```
-
-**Tooltips a adicionar:**
-
-| Elemento | Linha | Tooltip Text |
-|----------|-------|--------------|
-| Botao Filter (Popover) | 275-285 | "Abrir filtros avancados" |
-| Botao ChevronLeft (paginacao) | ~615 | "Pagina anterior" |
-| Botao ChevronRight (paginacao) | ~622 | "Proxima pagina" |
-
----
-
-### 9. src/components/reports/TicketHistoryCard.tsx
-
-**Imports a adicionar:**
-```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-```
-
-**Tooltips a adicionar:**
-
-| Elemento | Linha | Tooltip Text |
-|----------|-------|--------------|
-| Botao ChevronDown/Up (expandir) | 122-134 | "Expandir detalhes" / "Recolher detalhes" |
-| Botao Eye (ver detalhes) | 172-180 | "Ver detalhes completos" |
-| Botao RotateCcw (reabrir) | 408-417 | "Reabrir demanda" |
-
----
-
-### 10. src/components/ThemeToggle.tsx
-
-**Imports a adicionar:**
-```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-```
-
-**Tooltips a adicionar:**
-
-| Elemento | Tooltip Text |
-|----------|--------------|
-| Botao de tema | "Alternar para tema claro" ou "Alternar para tema escuro" (dinamico baseado no tema atual) |
-
----
-
-### 11. src/components/layout/AppSidebar.tsx
-
-O sidebar ja tem labels de texto, nao precisa de tooltips adicionais.
-
----
-
-### 12. src/pages/settings/Settings.tsx (SLA)
-
-**Imports a adicionar:**
-```tsx
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-```
-
-**Tooltips a adicionar:**
-
-| Elemento | Tooltip Text |
-|----------|--------------|
-| Botao Save | "Salvar alteracoes de SLA" |
-
----
-
-## Padrao de Implementacao
-
-Para cada botao com icone:
-```tsx
-<Tooltip>
-  <TooltipTrigger asChild>
-    <Button variant="outline" size="sm" onClick={handleAction}>
-      <Icon className="h-4 w-4" />
-    </Button>
-  </TooltipTrigger>
-  <TooltipContent>
-    <p>Descricao da acao</p>
-  </TooltipContent>
-</Tooltip>
-```
-
-Para botoes dentro de AlertDialogTrigger:
-```tsx
-<Tooltip>
-  <TooltipTrigger asChild>
-    <span>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </AlertDialogTrigger>
-        ...
-      </AlertDialog>
-    </span>
-  </TooltipTrigger>
-  <TooltipContent>
-    <p>Remover item</p>
-  </TooltipContent>
-</Tooltip>
+const archiveGroup = async (id: string) => {
+  await supabase
+    .from("monitored_groups")
+    .update({
+      is_archived: true,
+      archived_at: new Date().toISOString()
+    })
+    .eq("id", id);
+  
+  await fetchGroups();
+};
 ```
 
 ---
 
-## Resumo de Alteracoes por Arquivo
+## 4. Alteracoes na Pagina `Groups.tsx`
 
-| Arquivo | Tooltips Adicionados |
-|---------|---------------------|
-| Team.tsx | 4 (Edit, Power, Trash, CardTitle) |
-| GroupMembers.tsx | 4 (ArrowLeft, Edit2, Check, X) |
-| InstanceCard.tsx | 2 (CardTitle, Trash) |
-| Monitoring.tsx | 1 (Refresh) |
-| PendingDemands.tsx | 2 (Refresh, Filter) |
-| Index.tsx | 3 (Filter, ChevronLeft, ChevronRight) |
-| TicketHistoryCard.tsx | 3 (Expand, Eye, Reabrir) |
-| ThemeToggle.tsx | 1 (Botao tema) |
-| Settings.tsx | 1 (Save) |
-| **Total** | **21 tooltips** |
+### 4.1 Adicionar estados para grupos arquivados
+
+```tsx
+const [showArchivedDialog, setShowArchivedDialog] = useState(false);
+const [archivedGroups, setArchivedGroups] = useState<MonitoredGroup[]>([]);
+const [loadingArchived, setLoadingArchived] = useState(false);
+```
+
+### 4.2 Adicionar botao "Grupos Arquivados" no header
+
+```tsx
+<Button
+  variant="outline"
+  onClick={() => {
+    fetchArchivedGroups();
+    setShowArchivedDialog(true);
+  }}
+>
+  <Archive className="h-4 w-4 mr-2" />
+  Grupos Arquivados
+</Button>
+```
+
+### 4.3 Criar Dialog/Sheet para exibir grupos arquivados
+
+```tsx
+<Dialog open={showArchivedDialog} onOpenChange={setShowArchivedDialog}>
+  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2">
+        <Archive className="h-5 w-5" />
+        Grupos Arquivados
+      </DialogTitle>
+      <DialogDescription>
+        Grupos que ficaram mais de 7 dias sem classificacao.
+        Voce pode restaura-los para o painel de classificacao.
+      </DialogDescription>
+    </DialogHeader>
+    
+    {archivedGroups.length === 0 ? (
+      <div className="text-center py-8 text-muted-foreground">
+        Nenhum grupo arquivado
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {archivedGroups.map((group) => (
+          <Card key={group.id}>
+            <CardContent className="flex items-center justify-between p-4">
+              <div>
+                <p className="font-medium">{group.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Arquivado em {format(new Date(group.archived_at), "dd/MM/yyyy")}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => handleRestore(group.id)}>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Restaurar
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={() => handleDelete(group.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
+```
+
+### 4.4 Adicionar indicador visual de tempo restante nos grupos pendentes
+
+Mostrar quantos dias restam antes do arquivamento automatico:
+
+```tsx
+const getDaysUntilArchive = (createdAt: string) => {
+  const created = new Date(createdAt);
+  const archiveDate = addDays(created, 7);
+  const daysLeft = differenceInDays(archiveDate, new Date());
+  return Math.max(0, daysLeft);
+};
+
+// No card de grupo pendente:
+<p className="text-xs text-amber-600">
+  Arquiva em {getDaysUntilArchive(group.created_at)} dias
+</p>
+```
+
+---
+
+## 5. Imports Adicionais
+
+```tsx
+// Groups.tsx
+import { Archive, RotateCcw } from "lucide-react";
+import { format, addDays, differenceInDays } from "date-fns";
+```
+
+---
+
+## 6. Fluxo de Usuario
+
+```
+[Novo Grupo Detectado]
+        |
+        v
+[Aguardando Classificacao]
+        |
+   7 dias sem acao
+        |
+        v
+[Arquivado Automaticamente]
+        |
+   Usuario clica "Restaurar"
+        |
+        v
+[Volta para Aguardando Classificacao]
+   (timer resetado)
+```
+
+---
+
+## Resumo de Arquivos a Modificar
+
+| Arquivo | Alteracao |
+|---------|-----------|
+| Migracao SQL | Adicionar colunas `is_archived` e `archived_at` |
+| Migracao SQL | Criar funcao e cron job para arquivamento automatico |
+| src/hooks/useGroups.tsx | Adicionar funcoes `fetchArchivedGroups`, `restoreGroup`, `archiveGroup` |
+| src/pages/settings/Groups.tsx | Adicionar botao, dialog e logica de grupos arquivados |
 
 ---
 
 ## Comportamento Esperado
 
-- Ao passar o mouse sobre qualquer botao de icone, uma descricao clara da acao aparece
-- Ao passar o mouse sobre titulos truncados, o texto completo aparece
-- Os tooltips aparecem apos um breve delay (comportamento padrao do Radix)
-- Os tooltips sao acessiveis via teclado (suporte a foco)
-- Mantendo consistencia visual em toda a aplicacao
+1. Grupos pendentes por mais de 7 dias sao arquivados automaticamente (via cron diario)
+2. Botao "Grupos Arquivados" aparece no header da pagina de grupos
+3. Ao clicar, abre dialog listando todos os grupos arquivados
+4. Usuario pode restaurar (volta para pendentes com timer resetado) ou deletar permanentemente
+5. Cards de grupos pendentes mostram contador de "Arquiva em X dias"
+
