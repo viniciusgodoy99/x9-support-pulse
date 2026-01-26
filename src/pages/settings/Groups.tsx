@@ -68,12 +68,12 @@ export default function GroupsSettings() {
     sla_limit_minutes: 30,
   });
   const [pendingSearchQuery, setPendingSearchQuery] = useState("");
+  const [pendingDaysFilter, setPendingDaysFilter] = useState<"all" | "urgent" | "1-3" | "4-7">("all");
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [clientStatusFilter, setClientStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [internalStatusFilter, setInternalStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("");
-
   const resetForm = () => {
     setFormData({ name: "", whatsapp_id: "", sla_limit_minutes: 30 });
     setEditingGroup(null);
@@ -172,10 +172,26 @@ export default function GroupsSettings() {
   const clientGroups = groups.filter(g => !g.pending_classification && g.is_client_group);
   const internalGroups = groups.filter(g => !g.pending_classification && !g.is_client_group);
   
-  const filteredPendingGroups = pendingGroups.filter(g =>
-    g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase())
-  );
-  
+  const filteredPendingGroups = pendingGroups.filter(g => {
+    const matchesSearch = g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
+    if (pendingDaysFilter === "all") return true;
+    
+    const daysLeft = getDaysUntilArchive(g.created_at);
+    
+    switch (pendingDaysFilter) {
+      case "urgent":
+        return daysLeft <= 1;
+      case "1-3":
+        return daysLeft >= 1 && daysLeft <= 3;
+      case "4-7":
+        return daysLeft >= 4 && daysLeft <= 7;
+      default:
+        return true;
+    }
+  });
   const filteredClientGroups = clientGroups.filter(g => {
     const matchesSearch = g.name.toLowerCase().includes(clientSearchQuery.toLowerCase());
     const matchesStatus = clientStatusFilter === "all" || 
@@ -620,14 +636,28 @@ export default function GroupsSettings() {
                       Aguardando Classificação ({filteredPendingGroups.length})
                     </h2>
                   </div>
-                  <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar grupo..."
-                      value={pendingSearchQuery}
-                      onChange={(e) => setPendingSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-48">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar grupo..."
+                        value={pendingSearchQuery}
+                        onChange={(e) => setPendingSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select value={pendingDaysFilter} onValueChange={(value: "all" | "urgent" | "1-3" | "4-7") => setPendingDaysFilter(value)}>
+                      <SelectTrigger className="w-full sm:w-44">
+                        <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <SelectValue placeholder="Dias para arquivar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os grupos</SelectItem>
+                        <SelectItem value="urgent">Urgente (menos de 24h)</SelectItem>
+                        <SelectItem value="1-3">1 a 3 dias</SelectItem>
+                        <SelectItem value="4-7">4 a 7 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
