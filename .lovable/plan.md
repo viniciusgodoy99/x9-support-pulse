@@ -1,162 +1,132 @@
 
-
-# Plano: Transformar Header do Dashboard em Header da Pagina
+# Plano: Mover Botoes do Header para Abaixo em Mobile/Tablet
 
 ## Objetivo
-Mover o header estilizado do Dashboard (com titulo, subtitulo e botao de filtros) para o header fixo da pagina no MainLayout, mantendo a responsividade.
+Retirar os botoes de acao do header nas versoes tablet e mobile, posicionando-os abaixo do header para manter a responsividade e uma interface limpa.
 
-## Situacao Atual
+## Paginas Afetadas
 
-### MainLayout (header atual):
-```typescript
-<header className="h-14 border-b border-border/50 flex items-center px-4 frosted-glass sticky top-0 z-20">
-  <SidebarTrigger className="mr-4" />
-  <Snowflake className="h-5 w-5 text-primary animate-pulse" />
-</header>
-```
+As seguintes paginas possuem botoes no `headerContent` que precisam ser movidos:
 
-### Index.tsx (header do Dashboard):
-- Container frosted-glass com padding
-- Icone Snowflake + Titulo "Dashboard" + Subtitulo
-- Botao "Filtros" com Popover de filtros avancados
+| Pagina | Botao no Header |
+|--------|----------------|
+| Index.tsx (Dashboard) | Botao "Filtros" com Popover |
+| Monitoring.tsx | Botao "Atualizar" |
+| Team.tsx | Botao "Novo Membro" (DialogTrigger) |
+| WhatsAppConnect.tsx | Botao "Nova Instancia" |
+| GroupMembers.tsx | Botao "Sincronizar" |
 
-## Desafio
-O header do Dashboard contem logica especifica da pagina (filtros, estados, dados). Precisamos manter essa logica na pagina Index.tsx mas posicionar visualmente como header da pagina.
+**Paginas SEM botoes no header** (nao precisam alteracao):
+- Groups.tsx - apenas titulo
+- Settings.tsx - apenas titulo
+- PendingDemands.tsx - botoes ja estao abaixo do header
 
-## Solucao Proposta
+## Estrategia de Implementacao
 
-### Abordagem: Manter header no Index.tsx mas estilizar como header fixo
+Para cada pagina afetada, aplicar o seguinte padrao:
 
-1. **Arquivo: `src/components/layout/MainLayout.tsx`**
-   - Simplificar o header para conter apenas o SidebarTrigger
-   - Ou remover padding do conteudo para permitir header customizado por pagina
-
-2. **Arquivo: `src/pages/Index.tsx`**
-   - Transformar o header do dashboard em um elemento sticky/fixed
-   - Aplicar estilos para funcionar como header da pagina
-   - Integrar o SidebarTrigger no lado esquerdo
-
-### Alteracoes em MainLayout.tsx:
-```typescript
-export function MainLayout({ children }: MainLayoutProps) {
-  return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full relative">
-        <SnowEffect />
-        <AppSidebar />
-        <main className="flex-1 flex flex-col relative z-10">
-          {/* Header simplificado - apenas controle da sidebar */}
-          <header className="h-14 border-b border-border/50 flex items-center px-4 frosted-glass sticky top-0 z-20">
-            <SidebarTrigger className="mr-4" />
-            {/* Titulo e acoes serao injetados por cada pagina */}
-          </header>
-          <div className="flex-1 p-6 overflow-auto">
-            {children}
-          </div>
-        </main>
-      </div>
-    </SidebarProvider>
-  );
-}
-```
-
-### Alteracao Alternativa (Recomendada):
-Modificar MainLayout para aceitar um "headerContent" como prop:
+### 1. Simplificar o headerContent
+Manter apenas o titulo, icone e subtitulo no header. Remover os botoes.
 
 ```typescript
-interface MainLayoutProps {
-  children: React.ReactNode;
-  headerContent?: React.ReactNode;
-}
-
-export function MainLayout({ children, headerContent }: MainLayoutProps) {
-  return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full relative">
-        <SnowEffect />
-        <AppSidebar />
-        <main className="flex-1 flex flex-col relative z-10">
-          <header className="border-b border-border/50 frosted-glass sticky top-0 z-20 px-4 py-3">
-            <div className="flex items-center gap-4">
-              <SidebarTrigger />
-              {headerContent || (
-                <Snowflake className="h-5 w-5 text-primary animate-pulse" />
-              )}
-            </div>
-          </header>
-          <div className="flex-1 p-6 overflow-auto">
-            {children}
-          </div>
-        </main>
-      </div>
-    </SidebarProvider>
-  );
-}
-```
-
-### Alteracoes em Index.tsx:
-```typescript
-return (
-  <MainLayout 
-    headerContent={
-      <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-        <div className="flex items-center gap-3">
-          <Snowflake className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
-              Visao geral do monitoramento de SLA
-            </p>
-          </div>
-        </div>
-        
-        <Popover>
-          {/* Botao Filtros e conteudo do popover */}
-        </Popover>
-      </div>
-    }
-  >
-    <div className="space-y-6">
-      {/* Conteudo do dashboard sem o header */}
+const headerContent = (
+  <div className="flex flex-1 items-center gap-3">
+    <Icon className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+    <div>
+      <h1>Titulo</h1>
+      <p className="hidden sm:block">Subtitulo</p>
     </div>
-  </MainLayout>
+  </div>
 );
 ```
 
-## Responsividade
+### 2. Criar uma barra de acoes abaixo do header
+Adicionar uma div no inicio do conteudo da pagina contendo os botoes de acao:
 
-### Desktop (>1024px):
-- Header com altura automatica baseada no conteudo
-- Titulo, subtitulo e botao filtros em linha
-- SidebarTrigger a esquerda
+```typescript
+<MainLayout headerContent={headerContent}>
+  <div className="space-y-6">
+    {/* Barra de Acoes */}
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        {/* Info contextual opcional */}
+      </div>
+      <div className="flex items-center gap-2">
+        {/* Botoes de acao */}
+      </div>
+    </div>
+    
+    {/* Conteudo da pagina */}
+  </div>
+</MainLayout>
+```
 
-### Tablet (768px-1024px):
-- Layout similar ao desktop
-- Icone e texto podem ficar menores
+## Alteracoes por Arquivo
 
-### Mobile (<768px):
-- Subtitulo oculto para economizar espaco
-- Botao Filtros ocupa largura menor
-- Elementos empilhados se necessario
+### 1. src/pages/Index.tsx
+**Antes:** Popover de Filtros no header
+**Depois:** 
+- Header simplificado com icone + titulo + subtitulo
+- Barra de acoes no topo do conteudo com o Popover de Filtros
 
-## Arquivos a Modificar
+### 2. src/pages/Monitoring.tsx
+**Antes:** Botao "Atualizar" no header
+**Depois:**
+- Header simplificado
+- Barra de acoes com botao "Atualizar" + contador de tickets
 
-1. **src/components/layout/MainLayout.tsx**
-   - Adicionar prop `headerContent`
-   - Ajustar altura do header para flexivel
-   - Manter SidebarTrigger
+### 3. src/pages/settings/Team.tsx
+**Antes:** DialogTrigger "Novo Membro" no header
+**Depois:**
+- Header simplificado
+- Barra de acoes com botao "Novo Membro" + contador de membros
 
-2. **src/pages/Index.tsx**
-   - Mover conteudo do header para prop `headerContent`
-   - Remover div do header do conteudo principal
+### 4. src/pages/settings/WhatsAppConnect.tsx
+**Antes:** Botao "Nova Instancia" no header
+**Depois:**
+- Header simplificado
+- Barra de acoes com botao "Nova Instancia" + contador de instancias
 
-3. **Outras paginas** (opcional)
-   - Podem passar seu proprio headerContent ou usar o padrao
+### 5. src/pages/settings/GroupMembers.tsx
+**Antes:** Botao "Sincronizar" no header (alem do botao de voltar)
+**Depois:**
+- Header com botao voltar + icone + titulo + nome do grupo
+- Barra de acoes com botao "Sincronizar"
 
-## Resultado Esperado
-- Header integrado com SidebarTrigger + Dashboard info + Filtros
-- Layout responsivo em todas as telas
-- Efeito frosted-glass mantido
-- Header fixo no topo durante scroll
-- Consistencia visual com o design mostrado na imagem
+## Padrao Visual da Barra de Acoes
 
+A barra de acoes seguira o padrao ja existente em `PendingDemands.tsx`:
+
+```typescript
+<div className="flex flex-wrap items-center justify-between gap-4">
+  {/* Lado esquerdo: informacao contextual */}
+  <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2 text-muted-foreground">
+      <Icon className="h-5 w-5" />
+      <span className="text-sm">
+        <span className="font-semibold text-foreground">{count}</span> itens
+      </span>
+    </div>
+  </div>
+
+  {/* Lado direito: botoes de acao */}
+  <div className="flex items-center gap-2">
+    <Button>Acao</Button>
+  </div>
+</div>
+```
+
+## Beneficios
+
+1. **Header mais limpo**: Apenas informacoes de identificacao da pagina
+2. **Melhor usabilidade mobile**: Botoes com mais espaco e mais faceis de tocar
+3. **Consistencia**: Mesmo padrao de `PendingDemands.tsx` aplicado em todas as paginas
+4. **Responsividade**: Barra de acoes usa `flex-wrap` para adaptar-se a telas menores
+
+## Resumo de Arquivos a Modificar
+
+1. `src/pages/Index.tsx` - Mover Popover de filtros
+2. `src/pages/Monitoring.tsx` - Mover botao Atualizar
+3. `src/pages/settings/Team.tsx` - Mover botao Novo Membro
+4. `src/pages/settings/WhatsAppConnect.tsx` - Mover botao Nova Instancia
+5. `src/pages/settings/GroupMembers.tsx` - Mover botao Sincronizar
