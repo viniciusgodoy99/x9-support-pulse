@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search } from "lucide-react";
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +48,10 @@ export default function GroupsSettings() {
     sla_limit_minutes: 30,
   });
   const [pendingSearchQuery, setPendingSearchQuery] = useState("");
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [clientStatusFilter, setClientStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [internalSearchQuery, setInternalSearchQuery] = useState("");
+  const [internalStatusFilter, setInternalStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
   const resetForm = () => {
     setFormData({ name: "", whatsapp_id: "", sla_limit_minutes: 30 });
@@ -137,10 +148,28 @@ export default function GroupsSettings() {
   };
 
   const pendingGroups = groups.filter(g => g.pending_classification);
-  const classifiedGroups = groups.filter(g => !g.pending_classification);
+  const clientGroups = groups.filter(g => !g.pending_classification && g.is_client_group);
+  const internalGroups = groups.filter(g => !g.pending_classification && !g.is_client_group);
+  
   const filteredPendingGroups = pendingGroups.filter(g =>
     g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase())
   );
+  
+  const filteredClientGroups = clientGroups.filter(g => {
+    const matchesSearch = g.name.toLowerCase().includes(clientSearchQuery.toLowerCase());
+    const matchesStatus = clientStatusFilter === "all" || 
+      (clientStatusFilter === "active" && g.is_active) ||
+      (clientStatusFilter === "inactive" && !g.is_active);
+    return matchesSearch && matchesStatus;
+  });
+  
+  const filteredInternalGroups = internalGroups.filter(g => {
+    const matchesSearch = g.name.toLowerCase().includes(internalSearchQuery.toLowerCase());
+    const matchesStatus = internalStatusFilter === "all" || 
+      (internalStatusFilter === "active" && g.is_active) ||
+      (internalStatusFilter === "inactive" && !g.is_active);
+    return matchesSearch && matchesStatus;
+  });
 
   const headerContent = (
     <div className="flex flex-1 items-center gap-3">
@@ -225,17 +254,41 @@ export default function GroupsSettings() {
           </Card>
         ) : (
           <>
-            {/* Classified Groups Section */}
-            {classifiedGroups.length > 0 && (
+            {/* Client Groups Section */}
+            {clientGroups.length > 0 && (
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold text-foreground">
-                    Grupos Classificados ({classifiedGroups.length})
-                  </h2>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    <h2 className="text-xl font-semibold text-foreground">
+                      Grupos de Clientes ({filteredClientGroups.length})
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-48">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar..."
+                        value={clientSearchQuery}
+                        onChange={(e) => setClientSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select value={clientStatusFilter} onValueChange={(v) => setClientStatusFilter(v as "all" | "active" | "inactive")}>
+                      <SelectTrigger className="w-32">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="active">Ativos</SelectItem>
+                        <SelectItem value="inactive">Inativos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {classifiedGroups.map((group) => (
+                  {filteredClientGroups.map((group) => (
                     <Card
                       key={group.id}
                       className={!group.is_active ? "opacity-60" : ""}
@@ -413,6 +466,125 @@ export default function GroupsSettings() {
                                 <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                   Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(group.id)}
+                                >
+                                  Remover
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Internal Groups Section */}
+            {internalGroups.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <UserCircle className="h-5 w-5 text-muted-foreground" />
+                    <h2 className="text-xl font-semibold text-foreground">
+                      Grupos Internos ({filteredInternalGroups.length})
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-48">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar..."
+                        value={internalSearchQuery}
+                        onChange={(e) => setInternalSearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+                    <Select value={internalStatusFilter} onValueChange={(v) => setInternalStatusFilter(v as "all" | "active" | "inactive")}>
+                      <SelectTrigger className="w-32">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="active">Ativos</SelectItem>
+                        <SelectItem value="inactive">Inativos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredInternalGroups.map((group) => (
+                    <Card
+                      key={group.id}
+                      className={!group.is_active ? "opacity-60" : ""}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-lg">{group.name}</CardTitle>
+                          <Badge variant={group.is_active ? "secondary" : "outline"}>
+                            {group.is_active ? "Ativo" : "Inativo"}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Limite de SLA</p>
+                          <p className="text-sm font-semibold">
+                            {group.sla_limit_minutes} minutos
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-t border-border">
+                          <Label htmlFor={`client-${group.id}`} className="text-sm">
+                            Grupo de Cliente
+                          </Label>
+                          <Switch
+                            id={`client-${group.id}`}
+                            checked={group.is_client_group}
+                            onCheckedChange={() => handleToggleClientGroup(group)}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/settings/groups/${group.id}/members`)}
+                            title="Gerenciar membros"
+                          >
+                            <Users className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(group)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleActive(group)}
+                          >
+                            <Power className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remover grupo?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta ação não pode ser desfeita. Todos os tickets
+                                  associados a este grupo serão removidos.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
