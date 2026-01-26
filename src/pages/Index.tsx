@@ -4,8 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTickets } from "@/hooks/useTickets";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { TicketHistoryCard } from "@/components/reports/TicketHistoryCard";
 import {
   BarChart,
   Bar,
@@ -165,42 +164,9 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recentResolved.map((ticket) => {
-                    const created = new Date(ticket.created_at);
-                    const resolved = ticket.resolved_at
-                      ? new Date(ticket.resolved_at)
-                      : new Date();
-                    const duration = Math.round(
-                      (resolved.getTime() - created.getTime()) / (1000 * 60)
-                    );
-
-                    return (
-                      <div
-                        key={ticket.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                      >
-                        <div>
-                          <p className="font-medium text-sm">
-                            {ticket.monitored_groups?.name || "Grupo"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {created.toLocaleString("pt-BR")}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "font-mono",
-                            duration <= 15 && "border-sla-ok text-sla-ok",
-                            duration > 15 && duration <= 30 && "border-sla-warning text-sla-warning",
-                            duration > 30 && "border-sla-critical text-sla-critical"
-                          )}
-                        >
-                          {duration}min
-                        </Badge>
-                      </div>
-                    );
-                  })}
+                  {recentResolved.map((ticket) => (
+                    <TicketHistoryCard key={ticket.id} ticket={ticket} />
+                  ))}
                 </div>
               )}
             </CardContent>
