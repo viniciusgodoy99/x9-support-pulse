@@ -138,19 +138,21 @@ export default function GroupsSettings() {
   const pendingGroups = groups.filter(g => g.pending_classification);
   const classifiedGroups = groups.filter(g => !g.pending_classification);
 
+  const headerContent = (
+    <div className="flex flex-1 items-center gap-3">
+      <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Grupos Monitorados</h1>
+        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+          Gerencie os grupos de WhatsApp monitorados
+        </p>
+      </div>
+    </div>
+  );
+
   return (
-    <MainLayout>
+    <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <MessageSquare className="h-8 w-8 text-primary" />
-              Grupos Monitorados
-            </h1>
-            <p className="text-muted-foreground">
-              Gerencie os grupos de WhatsApp monitorados
-            </p>
-          </div>
 
           <Dialog open={isOpen} onOpenChange={(open) => {
             setIsOpen(open);
@@ -204,7 +206,6 @@ export default function GroupsSettings() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-64">

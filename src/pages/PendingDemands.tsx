@@ -94,16 +94,23 @@ export default function PendingDemands() {
 
   const clientGroups = groups.filter((g) => g.is_client_group && g.is_active);
 
-  return (
-    <MainLayout>
-      <div className="space-y-6">
-        {/* Page Header */}
+  const headerContent = (
+    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+      <div className="flex items-center gap-3">
+        <ClipboardList className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Demandas Pendentes</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Demandas Pendentes</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
             Visualize e acompanhe todas as demandas aguardando resolução
           </p>
         </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <MainLayout headerContent={headerContent}>
+      <div className="space-y-6">
         {/* Header with actions */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">

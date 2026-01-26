@@ -51,21 +51,21 @@ export default function Settings() {
     }
   };
 
+  const headerContent = (
+    <div className="flex flex-1 items-center gap-3">
+      <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Configurações de SLA</h1>
+        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+          Configure o tempo máximo de resposta para atendimentos
+        </p>
+      </div>
+    </div>
+  );
+
   return (
-    <MainLayout>
+    <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Clock className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">Configurações de SLA</h1>
-            <p className="text-muted-foreground">
-              Configure o tempo máximo de resposta para atendimentos
-            </p>
-          </div>
-        </div>
 
         {/* Global SLA Configuration */}
         <Card>

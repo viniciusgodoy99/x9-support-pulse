@@ -117,30 +117,38 @@ export default function TeamSettings() {
     }
   };
 
-  return (
-    <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Users className="h-8 w-8 text-primary" />
-              Equipe
-            </h1>
-            <p className="text-muted-foreground">
-              Gerencie os membros da equipe de atendimento
-            </p>
-          </div>
+  const headerContent = (
+    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+      <div className="flex items-center gap-3">
+        <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Equipe</h1>
+          <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+            Gerencie os membros da equipe de atendimento
+          </p>
+        </div>
+      </div>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        setIsOpen(open);
+        if (!open) resetForm();
+      }}>
+        <DialogTrigger asChild>
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Membro
+          </Button>
+        </DialogTrigger>
+      </Dialog>
+    </div>
+  );
 
-          <Dialog open={isOpen} onOpenChange={(open) => {
-            setIsOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Membro
-              </Button>
-            </DialogTrigger>
+  return (
+    <MainLayout headerContent={headerContent}>
+      <div className="space-y-6">
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) resetForm();
+        }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>
@@ -210,7 +218,6 @@ export default function TeamSettings() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
