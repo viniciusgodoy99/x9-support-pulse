@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Plus, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle } from "lucide-react";
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -157,16 +156,10 @@ export default function GroupsSettings() {
             setIsOpen(open);
             if (!open) resetForm();
           }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Grupo
-              </Button>
-            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>
-                  {editingGroup ? "Editar Grupo" : "Adicionar Novo Grupo"}
+                  Editar Grupo
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -181,21 +174,6 @@ export default function GroupsSettings() {
                     placeholder="Ex: Cliente ABC"
                     required
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="whatsapp_id">WhatsApp ID (JID)</Label>
-                  <Input
-                    id="whatsapp_id"
-                    value={formData.whatsapp_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, whatsapp_id: e.target.value })
-                    }
-                    placeholder="Ex: 5511999999999@g.us"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    ID do grupo no formato do WhatsApp (ex: 123456789@g.us)
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sla_limit">Limite de SLA (minutos)</Label>
@@ -220,7 +198,7 @@ export default function GroupsSettings() {
                     </Button>
                   </DialogClose>
                   <Button type="submit">
-                    {editingGroup ? "Salvar" : "Adicionar"}
+                    Salvar
                   </Button>
                 </DialogFooter>
               </form>
