@@ -1,106 +1,66 @@
 
-# Plano: Priorizar Role do Grupo sobre Team Members
+# Plano: Adicionar Filtro de Busca para Grupos Aguardando Classificação
 
-## Problema Identificado
+## Objetivo
 
-Gabriel Pereira está:
-1. Na tabela `team_members` (por ser CS em algum grupo)
-2. No grupo `[TESTES INTERNOS] Climb.ai` com role: `client`
-3. No grupo `[INTERNO] Climb.ai` com role: `cs`
+Adicionar um campo de busca no canto direito da seção "Aguardando Classificação" para filtrar grupos por nome.
 
-A lógica atual do webhook (linha 515):
+## Alterações
+
+### Arquivo: src/pages/settings/Groups.tsx
+
+**1. Adicionar estado para o filtro de busca (após linha 42)**
 ```typescript
-const senderRole = (isCS || !!teamMember) ? "cs" : "client";
+const [pendingSearchQuery, setPendingSearchQuery] = useState("");
 ```
 
-Como Gabriel está em `team_members`, a condição `!!teamMember` é sempre `true`, resultando em `sender_role: "cs"` **mesmo em grupos onde ele é cliente**.
-
-## Causa Raiz
-
-A tabela `team_members` representa pessoas que são CS "globalmente", mas um mesmo telefone pode ter papéis diferentes em grupos distintos. A lógica atual não respeita essa diferenciação.
-
-## Solucao Proposta
-
-### Alterar a Logica de sender_role no Webhook
-
-**Arquivo: `supabase/functions/webhook-whatsapp/index.ts`**
-
-A prioridade deve ser:
-1. **PRIMEIRO**: Verificar o role do membro no grupo específico (`senderMember.role`)
-2. **SEGUNDO**: Verificar se está em `team_members` (fallback para casos sem role definido)
-
-**Logica Corrigida:**
+**2. Adicionar import do ícone Search (linha 3)**
 ```typescript
-// Determinar sender_role com base no role ESPECÍFICO DO GRUPO
-let senderRole: "cs" | "client" = "client";
-
-if (senderMember?.role) {
-  // Se tem role definido no grupo, usar esse role
-  senderRole = senderMember.role === "cs" ? "cs" : "client";
-} else if (teamMember) {
-  // Fallback: se nao tem role no grupo mas esta em team_members, assume CS
-  senderRole = "cs";
-}
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search } from "lucide-react";
 ```
 
-### Correcao de Dados Historicos
-
-Executar SQL para corrigir mensagens de Gabriel no grupo de testes:
-
-```sql
--- Corrigir sender_role das mensagens de Gabriel no grupo [TESTES INTERNOS]
-UPDATE messages m
-SET sender_role = 'client'
-WHERE m.sender_phone = '558494397878'
-  AND m.sender_role = 'cs'
-  AND m.group_id = 'e0794e32-3eb1-4541-9e2b-0dac9cc7b252';
-```
-
-## Detalhes das Alteracoes
-
-### Arquivo: supabase/functions/webhook-whatsapp/index.ts
-
-**Alteracao na linha 515-516:**
-
-Substituir:
+**3. Criar lista filtrada de grupos pendentes (após linha 138)**
 ```typescript
-const senderRole = (isCS || !!teamMember) ? "cs" : "client";
+const filteredPendingGroups = pendingGroups.filter(g =>
+  g.name.toLowerCase().includes(pendingSearchQuery.toLowerCase())
+);
 ```
 
-Por:
-```typescript
-// Determinar sender_role: role do grupo tem PRIORIDADE sobre team_members
-// Isso permite que uma pessoa seja CS em um grupo e Cliente em outro
-let senderRole: "cs" | "client" = "client";
-if (senderMember?.role) {
-  // Role definido no grupo especifico tem prioridade
-  senderRole = senderMember.role === "cs" ? "cs" : "client";
-  console.log("Using group-specific role:", senderMember.role, "->", senderRole);
-} else if (teamMember) {
-  // Fallback para team_members quando nao ha role no grupo
-  senderRole = "cs";
-  console.log("Using team_members fallback -> cs");
-}
+**4. Modificar o header da seção "Aguardando Classificação" (linhas 329-334)**
+
+Adicionar um layout flex com o título à esquerda e o campo de busca à direita:
+```tsx
+<div className="flex items-center justify-between gap-4">
+  <div className="flex items-center gap-2">
+    <AlertCircle className="h-5 w-5 text-amber-500" />
+    <h2 className="text-xl font-semibold text-foreground">
+      Aguardando Classificação ({filteredPendingGroups.length})
+    </h2>
+  </div>
+  <div className="relative w-64">
+    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <Input
+      placeholder="Buscar grupo..."
+      value={pendingSearchQuery}
+      onChange={(e) => setPendingSearchQuery(e.target.value)}
+      className="pl-9"
+    />
+  </div>
+</div>
 ```
 
-## Fluxo Apos Correcao
+**5. Atualizar o map para usar a lista filtrada (linha 336)**
+```tsx
+{filteredPendingGroups.map((group) => (
+```
 
-1. Mensagem chega no webhook
-2. Busca `senderMember` no grupo específico
-3. **SE** senderMember.role existe → usa esse role para determinar sender_role
-4. **SENAO SE** está em team_members → assume "cs" (fallback)
-5. **SENAO** → assume "client"
-6. Mensagem é salva com sender_role correto para aquele grupo
-7. IA analisa e identifica Gabriel como cliente no grupo de testes
+## Comportamento
 
-## Resultado Esperado
-
-- Mensagens de Gabriel em `[TESTES INTERNOS] Climb.ai` → sender_role: `client`
-- Mensagens de Gabriel em `[INTERNO] Climb.ai` → sender_role: `cs`
-- IA identificará corretamente quem é cliente e quem é atendente em cada grupo
-- Demandas de cliente serão criadas quando Gabriel perguntar algo no grupo de testes
+- O filtro busca pelo nome do grupo (case-insensitive)
+- O contador no título mostra quantos grupos estão visíveis após o filtro
+- Campo de busca aparece apenas quando há grupos pendentes
+- Design consistente com outros filtros do sistema
 
 ## Arquivos a Modificar
 
-1. `supabase/functions/webhook-whatsapp/index.ts` - Alterar logica de sender_role (linhas 513-516)
-2. Migracao SQL - Corrigir mensagens historicas de Gabriel no grupo de testes
+1. `src/pages/settings/Groups.tsx` - Adicionar estado, filtro e campo de busca
