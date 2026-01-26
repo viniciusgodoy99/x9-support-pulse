@@ -345,23 +345,46 @@ serve(async (req) => {
           .select("id, description, status")
           .eq("ticket_id", ticket.id);
 
-        // Helper function to calculate similarity between two strings
+        // Helper function to calculate similarity between two strings (improved for Portuguese)
         const calculateSimilarity = (str1: string, str2: string): number => {
-          const words1 = str1.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-          const words2 = str2.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          // Remove punctuation and convert to lowercase
+          const clean = (s: string) => s.toLowerCase().replace(/[.,!?'"()]/g, '');
+          
+          // Portuguese stopwords
+          const stopwords = new Set([
+            'o', 'a', 'os', 'as', 'de', 'do', 'da', 'dos', 'das', 
+            'em', 'no', 'na', 'nos', 'nas', 'e', 'se', 'que', 'para', 
+            'por', 'com', 'sobre', 'ja', 'foram', 'foi', 'ser', 'esta', 
+            'um', 'uma', 'uns', 'umas', 'ao', 'aos', 'pelo', 'pela'
+          ]);
+          
+          // Extract significant words (> 2 chars, not stopwords)
+          const getWords = (s: string) => clean(s).split(/\s+/)
+            .filter(w => w.length > 2 && !stopwords.has(w));
+          
+          const words1 = getWords(str1);
+          const words2 = getWords(str2);
           
           if (words1.length === 0 || words2.length === 0) {
             // Fallback to substring check for very short descriptions
-            return str1.toLowerCase().includes(str2.toLowerCase().slice(0, 20)) ||
-                   str2.toLowerCase().includes(str1.toLowerCase().slice(0, 20)) ? 0.6 : 0;
+            return str1.toLowerCase().includes(str2.toLowerCase().slice(0, 15)) ||
+                   str2.toLowerCase().includes(str1.toLowerCase().slice(0, 15)) ? 0.6 : 0;
           }
           
-          const commonWords = words1.filter(w => 
-            words2.some(w2 => w2.includes(w) || w.includes(w2))
-          );
-          const totalUniqueWords = new Set([...words1, ...words2]).size;
+          // Count matching words (with partial matching)
+          let matches = 0;
+          for (const w1 of words1) {
+            for (const w2 of words2) {
+              if (w1 === w2 || w1.includes(w2) || w2.includes(w1)) {
+                matches++;
+                break;
+              }
+            }
+          }
           
-          return totalUniqueWords > 0 ? commonWords.length / totalUniqueWords : 0;
+          // Calculate similarity based on the smaller list
+          const minLen = Math.min(words1.length, words2.length);
+          return minLen > 0 ? matches / minLen : 0;
         };
 
         // Process each demand from analysis
@@ -370,8 +393,13 @@ serve(async (req) => {
           const existingDemand = existingDemands?.find(ed => {
             // Exact match
             if (ed.description.toLowerCase() === demand.description.toLowerCase()) return true;
-            // Similarity >= 50%
-            return calculateSimilarity(ed.description, demand.description) >= 0.5;
+            // Similarity >= 40% (lowered threshold for better matching)
+            const similarity = calculateSimilarity(ed.description, demand.description);
+            if (similarity >= 0.4) {
+              console.log(`Similarity match: "${ed.description.slice(0, 50)}..." ↔ "${demand.description.slice(0, 50)}..." = ${(similarity * 100).toFixed(0)}%`);
+              return true;
+            }
+            return false;
           });
 
           if (existingDemand) {
@@ -499,7 +527,17 @@ serve(async (req) => {
             }
           }
           
-          console.log(`All demands resolved - closing ticket ${ticket.id}`);
+          // Log open demands BEFORE cleanup (debug)
+          const { data: openDemandsBeforeCleanup } = await supabase
+            .from("ticket_demands")
+            .select("id, description")
+            .eq("ticket_id", ticket.id)
+            .eq("status", "open");
+          
+          console.log(`All demands resolved - closing ticket ${ticket.id}. Found ${openDemandsBeforeCleanup?.length || 0} orphaned open demands to close.`);
+          if (openDemandsBeforeCleanup && openDemandsBeforeCleanup.length > 0) {
+            console.log(`Orphaned demands: ${openDemandsBeforeCleanup.map(d => d.description.slice(0, 40)).join('; ')}`);
+          }
           
           // Close ALL remaining open demands (safety net for any orphaned demands)
           const lastCsMessageForDemands = [...messages as Message[]].reverse().find(m => m.sender_role === "cs");
