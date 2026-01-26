@@ -64,8 +64,8 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
   return (
     <>
     <Card className="overflow-hidden">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <p className="font-medium truncate">
@@ -105,7 +105,7 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
             )}
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between sm:justify-end gap-2">
             <Badge
               variant="outline"
               className={cn(
@@ -199,7 +199,7 @@ export function TicketHistoryCard({ ticket }: TicketHistoryCardProps) {
     
     {/* Modal de Detalhes */}
     <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
