@@ -1,71 +1,165 @@
 
-# Plano: Corrigir Scroll Horizontal no Dashboard Mobile
+# Plano: Corrigir Responsividade Mobile em Todos os Paineis
 
-## Problema
-O dashboard apresenta scroll horizontal em dispositivos moveis, prejudicando a experiencia do usuario conforme mostrado na imagem. Isso ocorre porque alguns elementos estao ultrapassando a largura da viewport.
+## Objetivo
+Padronizar a responsividade em todas as paginas do aplicativo, utilizando como base os padroes ja implementados nas paginas de configuracoes (Groups.tsx) e no Dashboard (Index.tsx).
 
 ---
 
-## Causas Identificadas
+## Problemas Identificados
 
-1. **MainLayout.tsx**: O container principal usa `overflow-auto` sem restricao horizontal
-2. **Graficos Recharts**: O `ResponsiveContainer` pode expandir alem do container pai
-3. **Cards de estatisticas**: Podem ter conteudo que ultrapassa em telas muito pequenas
-4. **Padding excessivo**: O `p-6` (24px) em ambos os lados pode ser demais para mobile
+1. **Monitoring.tsx**: Grid usa `md:grid-cols-2` em vez de `sm:grid-cols-2`, fazendo com que os cards fiquem em coluna unica ate 768px
+2. **PendingDemands.tsx**: 
+   - Grid usa `md:grid-cols-2` em vez de `sm:grid-cols-2`
+   - `SelectTrigger` com largura fixa `w-[180px]` pode causar overflow em mobile
+   - Popover de filtros tem largura fixa `w-80` que pode nao caber em telas pequenas
+3. **GroupMembers.tsx**: 
+   - `SelectTrigger` com largura fixa `w-44` causa overflow horizontal em mobile
+   - Layout do card de membro nao empilha corretamente em mobile
+4. **Team.tsx**: Grid usa `md:grid-cols-2` em vez de padrao responsivo completo
 
 ---
 
 ## Solucao
 
-### 1. Ajustar MainLayout.tsx
+### 1. Ajustar Monitoring.tsx
 
-Adicionar `overflow-x-hidden` ao container principal e reduzir padding em mobile:
-
+**Linha 80 - Grid de Tickets:**
 ```tsx
-<div className="flex-1 p-4 sm:p-6 overflow-x-hidden overflow-y-auto">
-  {children}
-</div>
+// De:
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+// Para:
+<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
 ```
 
-### 2. Ajustar Index.tsx - Container Principal
+---
 
-Adicionar `overflow-hidden` ao wrapper principal do dashboard:
+### 2. Ajustar PendingDemands.tsx
 
+**Linha 117-131 - Filtros na barra de acao:**
 ```tsx
-<div className="space-y-6 w-full max-w-full overflow-hidden">
+// De:
+<div className="flex items-center gap-2">
+  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+    <SelectTrigger className="w-[180px]">
+      ...
+
+// Para:
+<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+    <SelectTrigger className="w-full sm:w-[180px]">
+      ...
 ```
 
-### 3. Ajustar Cards de Graficos
-
-Adicionar restricao de largura nos CardContent dos graficos:
-
+**Linha 153 - PopoverContent:**
 ```tsx
-<CardContent className="overflow-hidden">
+// De:
+<PopoverContent className="w-80" align="end">
+
+// Para:
+<PopoverContent className="w-[90vw] sm:w-80" align="end">
 ```
 
-### 4. Limitar Largura do ResponsiveContainer
-
-Envolver cada `ResponsiveContainer` em um div com restricao:
-
+**Linha 253 - Grid de Demandas:**
 ```tsx
-<div className="w-full overflow-hidden">
-  <ResponsiveContainer width="100%" height={chartHeight}>
+// De:
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+// Para:
+<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+```
+
+---
+
+### 3. Ajustar GroupMembers.tsx
+
+**Linha 131-145 - Barra de acao:**
+```tsx
+// De:
+<div className="flex flex-wrap items-center justify-between gap-4">
+
+// Para:
+<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+```
+
+**Linha 149 - Grid de stats:**
+```tsx
+// De:
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+// Para:
+<div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-4">
+```
+
+**Linha 235 - Layout do card de membro:**
+```tsx
+// De:
+<div className="flex items-center justify-between">
+  <div className="flex items-center gap-4 flex-1">
     ...
-  </ResponsiveContainer>
-</div>
+  </div>
+  <Select ...>
+    <SelectTrigger className="w-44">
+      ...
+
+// Para:
+<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+  <div className="flex items-center gap-4 flex-1 min-w-0">
+    ...
+  </div>
+  <Select ...>
+    <SelectTrigger className="w-full sm:w-44">
+      ...
 ```
 
-### 5. Ajustar Labels do PieChart
+---
 
-Desabilitar labels em mobile para o PieChart, pois os labels longos causam overflow:
+### 4. Ajustar Team.tsx
 
+**Linha 244 - Grid de membros:**
 ```tsx
-<Pie
-  ...
-  label={isMobile ? false : ({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-  labelLine={!isMobile}
-  ...
-/>
+// De:
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+
+// Para:
+<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+```
+
+---
+
+## Resultado Visual Esperado (Mobile)
+
+### Monitoring (antes e depois)
+```
+ANTES:                    DEPOIS:
++------------------+      +------------------+
+| Ticket A         |      | Ticket A         |
++------------------+      +------------------+
+| Ticket B         |      | Ticket B         |
++------------------+      +------------------+
+(coluna unica ate 768px)  (coluna unica, sem overflow)
+```
+
+### PendingDemands (antes e depois)
+```
+ANTES:                         DEPOIS:
++------------------------+     +------------------+
+| [Grupo ▼] [Filtros] [R]|     | [Grupo        ▼] |
++------------------------+     | [Filtros] [Atual]|
+(overflow horizontal)          +------------------+
+                               (empilhado, sem overflow)
+```
+
+### GroupMembers (antes e depois)
+```
+ANTES:                              DEPOIS:
++---------------------------+       +------------------+
+| 👤 Nome [CS (Atendiment..]|       | 👤 Nome          |
++---------------------------+       | 📞 5511999...    |
+(select truncado)                   | [CS (Atendi.. ▼] |
+                                    +------------------+
+                                    (empilhado, sem corte)
 ```
 
 ---
@@ -74,25 +168,18 @@ Desabilitar labels em mobile para o PieChart, pois os labels longos causam overf
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| src/components/layout/MainLayout.tsx | Adicionar `overflow-x-hidden` e padding responsivo |
-| src/pages/Index.tsx | Adicionar restricoes de overflow nos containers de graficos e ajustar labels do PieChart |
+| src/pages/Monitoring.tsx | Ajustar grid responsivo |
+| src/pages/PendingDemands.tsx | Ajustar barra de filtros, popover e grid |
+| src/pages/settings/GroupMembers.tsx | Ajustar barra de acao, stats e cards de membros |
+| src/pages/settings/Team.tsx | Ajustar grid responsivo |
 
 ---
 
-## Detalhes Tecnicos
+## Padroes de Responsividade Utilizados
 
-- `overflow-x-hidden`: Impede scroll horizontal cortando conteudo que excede
-- `max-w-full`: Garante que o elemento nao exceda a largura do pai
-- `w-full`: Define largura 100% do container pai
-- Padding responsivo `p-4 sm:p-6`: 16px em mobile, 24px em desktop
-- Labels condicionais no PieChart evitam texto longo quebrando o layout
-
----
-
-## Resultado Esperado
-
-Apos as alteracoes, o dashboard devera:
-- Nao apresentar mais scroll horizontal em nenhum dispositivo
-- Manter todos os graficos visiveis e funcionais
-- Ter espacamento adequado para mobile
-- O PieChart mostrara apenas as cores/segmentos em mobile (tooltip ainda disponivel ao tocar)
+1. **Grids adaptativos**: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
+2. **Gaps responsivos**: `gap-3 sm:gap-4`
+3. **Larguras responsivas**: `w-full sm:w-[180px]`, `w-full sm:w-44`
+4. **Layouts que empilham**: `flex-col sm:flex-row`
+5. **Popover responsivo**: `w-[90vw] sm:w-80`
+6. **Overflow controlado**: `overflow-hidden`, `min-w-0`, `truncate`
