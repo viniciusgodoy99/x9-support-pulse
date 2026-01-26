@@ -162,26 +162,33 @@ export default function WhatsAppConnect() {
   };
 
   const headerContent = (
-    <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-      <div className="flex items-center gap-3">
-        <Smartphone className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Conexões WhatsApp</h1>
-          <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
-            Gerencie suas instâncias do WhatsApp para monitorar grupos
-          </p>
-        </div>
+    <div className="flex flex-1 items-center gap-3">
+      <Smartphone className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Conexões WhatsApp</h1>
+        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+          Gerencie suas instâncias do WhatsApp para monitorar grupos
+        </p>
       </div>
-      <Button onClick={() => setShowAddDialog(true)}>
-        <Plus className="h-4 w-4 mr-2" />
-        Nova Instância
-      </Button>
     </div>
   );
 
   return (
     <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
+        {/* Action Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Smartphone className="h-5 w-5" />
+            <span className="text-sm">
+              <span className="font-semibold text-foreground">{instances.length}</span> instâncias
+            </span>
+          </div>
+          <Button onClick={() => setShowAddDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Instância
+          </Button>
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
