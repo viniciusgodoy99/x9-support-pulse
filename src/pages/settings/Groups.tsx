@@ -287,16 +287,16 @@ export default function GroupsSettings() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredClientGroups.map((group) => (
                     <Card
                       key={group.id}
-                      className={!group.is_active ? "opacity-60" : ""}
+                      className={`min-w-0 ${!group.is_active ? "opacity-60" : ""}`}
                     >
                       <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-lg">{group.name}</CardTitle>
-                          <div className="flex gap-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
+                          <div className="flex gap-1 flex-shrink-0">
                             {group.is_client_group && (
                               <Badge variant="default" className="bg-primary/80">
                                 Cliente
@@ -400,16 +400,16 @@ export default function GroupsSettings() {
                     />
                   </div>
                 </div>
-                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredPendingGroups.map((group) => (
                     <Card
                       key={group.id}
-                      className="border-amber-500/50 bg-amber-500/5"
+                      className="min-w-0 border-amber-500/50 bg-amber-500/5"
                     >
                       <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-lg">{group.name}</CardTitle>
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
+                          <Badge variant="outline" className="flex-shrink-0 bg-amber-500/10 text-amber-600 border-amber-500/30">
                             Novo
                           </Badge>
                         </div>
@@ -519,16 +519,16 @@ export default function GroupsSettings() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {filteredInternalGroups.map((group) => (
                     <Card
                       key={group.id}
-                      className={!group.is_active ? "opacity-60" : ""}
+                      className={`min-w-0 ${!group.is_active ? "opacity-60" : ""}`}
                     >
                       <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-lg">{group.name}</CardTitle>
-                          <Badge variant={group.is_active ? "secondary" : "outline"}>
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
+                          <Badge variant={group.is_active ? "secondary" : "outline"} className="flex-shrink-0">
                             {group.is_active ? "Ativo" : "Inativo"}
                           </Badge>
                         </div>
