@@ -1,9 +1,13 @@
 
-# Plano: Ajustar Responsividade dos Cards de Grupos
+# Plano: Corrigir Responsividade dos Cards para Tablet
 
 ## Problema Identificado
 
-Os cards de grupos utilizam um grid que começa com 1 coluna em mobile e salta para 2 em `md` e 3 em `lg`. No entanto, os filtros e headers das seções podem estar quebrando em telas menores, e faltam breakpoints intermediários para tablets.
+Na imagem, podemos ver que em telas de tablet (aproximadamente 768-1024px), os cards estão sendo cortados na lateral direita. O terceiro card ("Climb.ai <> Garimpei na Web") está parcialmente visível, indicando um problema de overflow. Isso ocorre porque:
+
+1. O grid atual pula de `sm:grid-cols-2` (640px+) direto para `lg:grid-cols-3` (1024px+)
+2. Falta o breakpoint intermediario `md:grid-cols-2` para garantir 2 colunas em tablets
+3. Os cards nao tem largura minima definida, causando esmagamento
 
 ## Alteracoes Propostas
 
@@ -11,92 +15,65 @@ Os cards de grupos utilizam um grid que começa com 1 coluna em mobile e salta p
 
 **1. Ajustar grid dos cards em todas as secoes**
 
-Alterar de:
-```tsx
-<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-```
-
-Para:
+Alterar o grid atual:
 ```tsx
 <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 ```
 
-Isso adiciona:
-- `gap-3` em mobile, `sm:gap-4` em telas maiores
-- `sm:grid-cols-2` para tablets pequenos (a partir de 640px)
-- `xl:grid-cols-4` para telas extra grandes
-
-**2. Ajustar header dos filtros para mobile (Grupos de Clientes - linha 260)**
-
-Alterar de:
+Para incluir breakpoint `md` explicitamente e garantir que tablets usem 2 colunas:
 ```tsx
-<div className="flex flex-wrap items-center justify-between gap-4">
+<div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 ```
 
-Para:
+**2. Adicionar largura minima aos cards**
+
+Adicionar `min-w-0` nos cards para evitar overflow horizontal:
 ```tsx
-<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+<Card className="min-w-0 ...">
 ```
 
-Ajustar campos de busca para ocupar largura total em mobile:
+**3. Garantir que o container nao tenha overflow**
+
+Verificar se o container principal tem `overflow-hidden` ou `overflow-x-auto` adequado.
+
+**4. Ajustar o titulo dos cards para truncar em telas menores**
+
+Adicionar truncamento ao titulo para evitar quebra de layout:
 ```tsx
-<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-  <div className="relative w-full sm:w-48">
-    ...
+<CardTitle className="text-lg truncate">{group.name}</CardTitle>
+```
+
+**5. Ajustar badges para nao quebrarem o layout**
+
+Usar `flex-shrink-0` nos badges e `flex-wrap` no container:
+```tsx
+<div className="flex items-start justify-between gap-2">
+  <CardTitle className="text-lg truncate flex-1 min-w-0">{group.name}</CardTitle>
+  <div className="flex gap-1 flex-shrink-0">
+    ...badges
   </div>
-  <Select ...>
-    <SelectTrigger className="w-full sm:w-32">
-      ...
-    </SelectTrigger>
-  </Select>
 </div>
 ```
 
-**3. Ajustar header da secao Aguardando Classificacao (linha 386)**
+## Secoes a Modificar
 
-Alterar de:
-```tsx
-<div className="flex items-center justify-between gap-4">
-```
-
-Para:
-```tsx
-<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-```
-
-E o campo de busca:
-```tsx
-<div className="relative w-full sm:w-64">
-```
-
-**4. Ajustar header da secao Grupos Internos (similar ao item 2)**
-
-Aplicar as mesmas alteracoes de responsividade.
-
-**5. Ajustar botoes de acao nos cards para telas pequenas**
-
-Os botoes de acao (Users, Edit, Power, Delete) devem ter espacamento adequado:
-```tsx
-<div className="flex flex-wrap items-center gap-2">
-```
-
-## Resumo das Alteracoes
-
-| Elemento | Antes | Depois |
-|----------|-------|--------|
-| Grid dos cards | `md:grid-cols-2 lg:grid-cols-3` | `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4` |
-| Header filtros | `flex flex-wrap` | `flex flex-col sm:flex-row` |
-| Campo busca | `w-48` ou `w-64` fixo | `w-full sm:w-48/64` |
-| Select status | `w-32` fixo | `w-full sm:w-32` |
-| Gap do grid | `gap-4` | `gap-3 sm:gap-4` |
+- **Linha 290**: Grid de Grupos de Clientes
+- **Linha 403**: Grid de Aguardando Classificacao
+- **Linha 489** (aprox): Grid de Grupos Internos
 
 ## Comportamento Esperado
 
-- **Mobile (< 640px)**: Cards em coluna unica, filtros empilhados verticalmente
-- **Tablet (640-1023px)**: 2 colunas de cards, filtros em linha
-- **Desktop (1024-1279px)**: 3 colunas de cards
-- **Large (>= 1280px)**: 4 colunas de cards para aproveitar espaco
+| Tamanho da Tela | Breakpoint | Colunas |
+|-----------------|------------|---------|
+| Mobile (< 640px) | default | 1 coluna |
+| Tablet pequeno (640-767px) | sm | 2 colunas |
+| Tablet grande (768-1023px) | md | 2 colunas |
+| Desktop (1024-1279px) | lg | 3 colunas |
+| Desktop grande (>= 1280px) | xl | 4 colunas |
 
-## Arquivos a Modificar
+## Resumo Tecnico
 
-1. `src/pages/settings/Groups.tsx` - Ajustar grids e layouts dos headers em 3 secoes (linhas 260, 290, 386, 403, 446, 474)
+1. Adicionar `min-w-0` em todos os cards para resetar a largura minima do flexbox/grid
+2. Adicionar `truncate` nos titulos dos grupos
+3. Reorganizar o header dos cards para acomodar titulos longos + badges
+4. Manter `md:grid-cols-2` explicito para garantir 2 colunas em tablets
