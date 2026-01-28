@@ -321,7 +321,7 @@ serve(async (req) => {
           await supabase
             .from("tickets")
             .update({
-              next_analysis_at: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2 minutes for testing
+              next_analysis_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
             })
             .eq("id", ticket.id);
           continue;
@@ -558,8 +558,8 @@ serve(async (req) => {
             console.log(`Closed ${closedDemandsCount} remaining open demands for ticket ${ticket.id}`);
           }
         } else {
-          // Still has open demands - schedule next analysis in 2 minutes (for testing)
-          ticketUpdates.next_analysis_at = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+          // Still has open demands - schedule next analysis in 1 hour
+          ticketUpdates.next_analysis_at = new Date(Date.now() + 60 * 60 * 1000).toISOString();
           console.log(`Ticket ${ticket.id} has open demands - next analysis at ${ticketUpdates.next_analysis_at}`);
         }
 
