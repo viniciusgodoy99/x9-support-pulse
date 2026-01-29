@@ -1,96 +1,97 @@
 
+# Plano: Corrigir Identificacao do Solicitante nas Notificacoes de SLA
 
-# Plano: Adicionar Nome do Solicitante nas Notificacoes de SLA
+## Problema Identificado
 
-## Objetivo
+A mensagem de SLA mostra "Cliente desconhecido" mesmo que o cliente tenha sido identificado. A investigacao revelou:
 
-Incluir o nome do usuario/cliente que fez a solicitacao na mensagem de alerta de SLA enviada ao grupo "X9 de Atendimento".
+| Campo | Valor | Origem |
+|-------|-------|--------|
+| `tickets.customer_name` | "Cliente" (generico) | Webhook no momento da criacao |
+| `messages.sender_name` | "Gabriel Pereira" (real) | Mensagem original do cliente |
+| `group_members.name` | "Gabriel Pereira" | Sincronizado posteriormente |
 
-## Analise do Codigo Atual
+O problema e que o webhook criou o ticket com `customer_name: "Cliente"` (valor padrao), e as atualizacoes posteriores de nome aconteceram apenas na tabela `messages` e `group_members`, nao no ticket.
 
-A query atual busca demandas com SLA estourado mas NAO inclui os dados do cliente:
+## Solucao
 
-```typescript
-const { data: demandsToNotify } = await supabase
-  .from("ticket_demands")
-  .select(`
-    id,
-    description,
-    priority,
-    created_at,
-    ticket_id,
-    tickets (
-      id,
-      group_id,
-      monitored_groups (name)
-    )
-  `)
-```
+Modificar a funcao `sendSlaBreachNotifications` no `analyze-tickets` para buscar o nome correto do solicitante quando o `customer_name` do ticket estiver vazio ou generico:
 
-Os campos `customer_name` e `customer_phone` existem na tabela `tickets` mas nao estao sendo buscados.
+1. Primeiro tentar `tickets.customer_name`
+2. Se vazio/generico, buscar na primeira mensagem do ticket com `sender_role = 'client'`
+3. Se ainda vazio, buscar em `group_members` pelo `customer_phone`
 
 ## Alteracoes Necessarias
 
 ### Arquivo: `supabase/functions/analyze-tickets/index.ts`
 
-#### 1. Modificar a Query (linhas 116-128)
+#### Modificar a secao de notificacoes SLA (linhas 146-189)
 
-Adicionar `customer_name` e `customer_phone` na selecao do ticket:
-
-```typescript
-tickets (
-  id,
-  group_id,
-  customer_name,
-  customer_phone,
-  monitored_groups (name)
-)
-```
-
-#### 2. Modificar a Mensagem de Alerta (linhas 176-183)
-
-Extrair o nome do cliente e incluir na mensagem:
+Adicionar uma subconsulta para buscar o nome real quando necessario:
 
 ```typescript
-// Get customer info
-const customerName = (demand.tickets as any)?.customer_name || "Cliente desconhecido";
+for (const demand of demandsToNotify) {
+  // ... existing notification check ...
 
-// Build alert message
-const alertMessage = `⚠️ *ALERTA DE SLA*\n\n` +
-  `📋 *Grupo:* ${groupName}\n` +
-  `👤 *Solicitante:* ${customerName}\n` +
-  `📝 *Demanda:* ${demand.description}\n` +
-  `⏱️ *Tempo aberto:* ${timeOpenMinutes} minutos\n` +
-  `🎯 *Limite SLA:* ${slaLimitMinutes} minutos\n` +
-  `${priorityDisplay}\n\n` +
-  `Por favor, verifique o atendimento!`;
+  // Get customer info - FALLBACK logic
+  let customerName = (demand.tickets as any)?.customer_name;
+  
+  // If name is empty, generic, or null - try to get from first client message
+  if (!customerName || customerName === "Cliente" || customerName === "Cliente desconhecido") {
+    const ticketId = (demand.tickets as any)?.id;
+    if (ticketId) {
+      // Fetch first client message to get real name
+      const { data: firstClientMessage } = await supabase
+        .from("messages")
+        .select("sender_name")
+        .eq("ticket_id", ticketId)
+        .eq("sender_role", "client")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      
+      if (firstClientMessage?.sender_name && firstClientMessage.sender_name !== "Cliente") {
+        customerName = firstClientMessage.sender_name;
+        console.log(`Found customer name from first message: ${customerName}`);
+      }
+    }
+  }
+  
+  // Final fallback
+  customerName = customerName || "Cliente desconhecido";
+  
+  // Build alert message with correct name
+  const alertMessage = `...`
+}
 ```
 
-## Novo Formato da Mensagem
+## Fluxo de Resolucao de Nome
 
 ```text
-⚠️ *ALERTA DE SLA*
+1. tickets.customer_name existe e != "Cliente"?
+   └─ SIM → Usar esse nome
+   └─ NAO ↓
 
-📋 *Grupo:* [Nome do Grupo do Cliente]
-👤 *Solicitante:* [Nome do Cliente]
-📝 *Demanda:* [Descricao gerada pela IA]
-⏱️ *Tempo aberto:* X minutos
-🎯 *Limite SLA:* 30 minutos
-🟡 Normal
+2. Buscar primeira mensagem do cliente no ticket
+   └─ Encontrou sender_name != "Cliente"?
+      └─ SIM → Usar esse nome
+      └─ NAO ↓
 
-Por favor, verifique o atendimento!
+3. Usar "Cliente desconhecido" (fallback final)
 ```
 
-## Exemplo com Dados Reais
+## Resultado Esperado
+
+A mensagem sera enviada com o nome real:
 
 ```text
 ⚠️ *ALERTA DE SLA*
 
 📋 *Grupo:* X9 de Atendimento
-👤 *Solicitante:* João Silva
-📝 *Demanda:* Solicitação de relatório/resultado das campanhas executadas.
-⏱️ *Tempo aberto:* 45 minutos
-🎯 *Limite SLA:* 30 minutos
+👤 *Solicitante:* Gabriel Pereira
+📝 *Demanda:* Resultado das campanhas de marketing/anúncios
+⏱️ *Tempo aberto:* 5 minutos
+🎯 *Limite SLA:* 3 minutos
 🟡 Normal
 
 Por favor, verifique o atendimento!
@@ -98,8 +99,7 @@ Por favor, verifique o atendimento!
 
 ## Acoes
 
-1. Atualizar query para incluir `customer_name` e `customer_phone`
-2. Adicionar linha com nome do solicitante na mensagem
+1. Modificar funcao `sendSlaBreachNotifications` no `analyze-tickets`
+2. Adicionar logica de fallback para buscar nome da primeira mensagem
 3. Deploy da edge function
-4. Testar para confirmar envio com dados do cliente
-
+4. Testar com ticket existente para confirmar nome correto
