@@ -45,14 +45,14 @@ async function sendWhatsAppMessage(groupJid: string, message: string): Promise<b
     // Normalizar URL - adicionar https:// se necessário
     const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
     
-    const response = await fetch(`${baseUrl}/message/text`, {
+    const response = await fetch(`${baseUrl}/send/text`, {
       method: "POST",
       headers: {
         "token": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        chatid: groupJid,
+        number: groupJid,
         text: message,
       }),
     });
