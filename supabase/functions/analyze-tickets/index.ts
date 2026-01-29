@@ -41,9 +41,11 @@ async function sendWhatsAppMessage(groupJid: string, message: string): Promise<b
     console.error("UAZAPI credentials not configured");
     return false;
   }
-
   try {
-    const response = await fetch(`${apiUrl}/message/text`, {
+    // Normalizar URL - adicionar https:// se necessário
+    const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
+    
+    const response = await fetch(`${baseUrl}/message/text`, {
       method: "POST",
       headers: {
         "token": apiKey,
