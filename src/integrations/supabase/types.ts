@@ -192,6 +192,35 @@ export type Database = {
         }
         Relationships: []
       }
+      sla_notifications: {
+        Row: {
+          demand_id: string
+          id: string
+          notification_type: string
+          notified_at: string
+        }
+        Insert: {
+          demand_id: string
+          id?: string
+          notification_type?: string
+          notified_at?: string
+        }
+        Update: {
+          demand_id?: string
+          id?: string
+          notification_type?: string
+          notified_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sla_notifications_demand_id_fkey"
+            columns: ["demand_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_demands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_members: {
         Row: {
           created_at: string
