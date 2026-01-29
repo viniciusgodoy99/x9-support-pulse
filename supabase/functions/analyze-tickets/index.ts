@@ -122,6 +122,8 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
       tickets (
         id,
         group_id,
+        customer_name,
+        customer_phone,
         monitored_groups (
           name
         )
@@ -173,9 +175,13 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
     };
     const priorityDisplay = priorityMap[demand.priority] || demand.priority;
 
+    // Get customer info
+    const customerName = (demand.tickets as any)?.customer_name || "Cliente desconhecido";
+
     // Build alert message
     const alertMessage = `⚠️ *ALERTA DE SLA*\n\n` +
       `📋 *Grupo:* ${groupName}\n` +
+      `👤 *Solicitante:* ${customerName}\n` +
       `📝 *Demanda:* ${demand.description}\n` +
       `⏱️ *Tempo aberto:* ${timeOpenMinutes} minutos\n` +
       `🎯 *Limite SLA:* ${slaLimitMinutes} minutos\n` +
