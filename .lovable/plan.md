@@ -1,144 +1,39 @@
 
-# Plano: Ajustar Responsividade 100% do Painel de Dashboard
+# Plano: Corrigir Intervalo de Analise para 1 Hora
 
-## Problemas Identificados
+## Problema Identificado
 
-Apos analisar o codigo do `Index.tsx`, identifiquei os seguintes problemas que ainda causam scroll horizontal ou quebra de layout em mobile:
+O `analyze-tickets` ja foi corrigido, porem o **webhook-whatsapp** ainda esta criando novos tickets com `next_analysis_at` de **2 minutos** em vez de **1 hora**.
 
-### 1. Grid de Graficos (Tendencia + Distribuicao SLA)
-- **Linha 416**: Usa `grid-cols-1 md:grid-cols-2` com `gap-6`
-- **Problema**: O gap de 6 (24px) e muito para mobile. Deveria usar `gap-4 sm:gap-6`
+### Arquivo com Problema
 
-### 2. CardContent dos Graficos
-- **Linhas 424, 470, 537**: O `CardContent` tem `overflow-hidden` mas falta padding responsivo
-- **Problema**: Falta `p-3 sm:p-4` para consistencia com outros componentes
+**`supabase/functions/webhook-whatsapp/index.ts`**
 
-### 3. ResponsiveContainer sem restricao de largura
-- **Linhas 431, 477, 550**: Os wrappers `<div className="w-full overflow-hidden">` estao corretos, mas os graficos ainda podem causar overflow em casos extremos
+- **Linha 486**: `const nextAnalysisAt = new Date(Date.now() + 2 * 60 * 1000).toISOString(); // +2 minutes`
 
-### 4. Eixo Y dos Graficos (YAxis)
-- **Problema Principal**: O `YAxis` do Recharts tem largura fixa padrao que pode causar overflow em telas muito pequenas
-- **Solucao**: Reduzir a largura do YAxis em mobile com `width={isMobile ? 30 : 40}`
+## Alteracao Necessaria
 
-### 5. CardContent do Historico de Atendimentos
-- **Linha 585**: Falta padding responsivo - deveria ser `p-3 sm:p-4`
+### Linha 486
 
-### 6. Container Principal do Space
-- **Linha 261**: O `space-y-6` pode ser demais para mobile
-- **Solucao**: Usar `space-y-4 sm:space-y-6`
-
----
-
-## Alteracoes em `src/pages/Index.tsx`
-
-### 1. Ajustar espacamento do container principal (Linha 261)
-```tsx
+```typescript
 // De:
-<div className="space-y-6 w-full max-w-full overflow-hidden">
+const nextAnalysisAt = new Date(Date.now() + 2 * 60 * 1000).toISOString(); // +2 minutes
 
 // Para:
-<div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
+const nextAnalysisAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // +1 hour
 ```
 
-### 2. Ajustar gap do grid de graficos (Linha 416)
-```tsx
-// De:
-<div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+## Atualizar Ticket Existente
 
-// Para:
-<div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
-```
-
-### 3. Ajustar padding e overflow do CardContent - Grafico de Tendencia (Linha 424)
-```tsx
-// De:
-<CardContent className="overflow-hidden">
-
-// Para:
-<CardContent className="p-3 sm:p-4 overflow-hidden">
-```
-
-### 4. Ajustar YAxis do LineChart para mobile (Linhas 434-435)
-```tsx
-// De:
-<XAxis dataKey="day" className="text-xs" />
-<YAxis className="text-xs" />
-
-// Para:
-<XAxis dataKey="day" className="text-xs" tick={{ fontSize: 10 }} />
-<YAxis className="text-xs" width={isMobile ? 30 : 40} tick={{ fontSize: 10 }} />
-```
-
-### 5. Ajustar padding e overflow do CardContent - Grafico de SLA (Linha 470)
-```tsx
-// De:
-<CardContent className="overflow-hidden">
-
-// Para:
-<CardContent className="p-3 sm:p-4 overflow-hidden">
-```
-
-### 6. Ajustar padding e overflow do CardContent - Desempenho (Linha 537)
-```tsx
-// De:
-<CardContent className="overflow-hidden">
-
-// Para:
-<CardContent className="p-3 sm:p-4 overflow-hidden">
-```
-
-### 7. Ajustar YAxis do BarChart para mobile (Linhas 553-554)
-```tsx
-// De:
-<XAxis dataKey="name" className="text-xs" />
-<YAxis className="text-xs" />
-
-// Para:
-<XAxis dataKey="name" className="text-xs" tick={{ fontSize: 10 }} />
-<YAxis className="text-xs" width={isMobile ? 30 : 40} tick={{ fontSize: 10 }} />
-```
-
-### 8. Ajustar padding do CardContent - Historico (Linha 585)
-```tsx
-// De:
-<CardContent>
-
-// Para:
-<CardContent className="p-3 sm:p-4">
-```
-
-### 9. Ajustar espacamento interno do container de cards (Linha 414)
-```tsx
-// De:
-<div className="space-y-6">
-
-// Para:
-<div className="space-y-4 sm:space-y-6">
-```
-
----
+O ticket `010f17cd-1fd0-4182-b2e6-6919a72c9026` ainda tem `next_analysis_at` em 2 minutos. Apos corrigir o codigo, vou atualizar este ticket para ter o intervalo correto de 1 hora.
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| src/pages/Index.tsx | Ajustar espacamentos, paddings, YAxis dos graficos |
+| supabase/functions/webhook-whatsapp/index.ts | Alterar 2 minutos para 1 hora na criacao de tickets |
 
----
+## Acoes Pos-Implementacao
 
-## Resumo das Correcoes
-
-1. **Espacamentos responsivos**: `space-y-4 sm:space-y-6`, `gap-4 sm:gap-6`
-2. **Paddings responsivos nos CardContent**: `p-3 sm:p-4`
-3. **YAxis com largura responsiva**: `width={isMobile ? 30 : 40}`
-4. **Fonte menor nos eixos**: `tick={{ fontSize: 10 }}`
-
----
-
-## Resultado Esperado
-
-Apos as alteracoes:
-- Nenhum scroll horizontal em telas de 320px ate 400px
-- Graficos visiveis e funcionais em qualquer tamanho de tela
-- Espacamentos proporcionais ao tamanho da tela
-- Eixos dos graficos legiveis mas compactos em mobile
+1. Fazer deploy da edge function `webhook-whatsapp`
+2. Atualizar o `next_analysis_at` do ticket existente para 1 hora no futuro
