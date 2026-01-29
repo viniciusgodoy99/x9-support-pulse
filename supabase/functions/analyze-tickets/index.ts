@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +29,183 @@ interface AnalysisResult {
   demands: Demand[];
   all_resolved: boolean;
   summary: string;
+}
+
+// ============ SLA NOTIFICATION FUNCTIONS ============
+
+async function sendWhatsAppMessage(groupJid: string, message: string): Promise<boolean> {
+  const apiUrl = Deno.env.get("EVOLUTION_API_URL");
+  const apiKey = Deno.env.get("EVOLUTION_API_KEY");
+
+  if (!apiUrl || !apiKey) {
+    console.error("UAZAPI credentials not configured");
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${apiUrl}/message/text`, {
+      method: "POST",
+      headers: {
+        "token": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chatid: groupJid,
+        text: message,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to send WhatsApp message: ${response.status} - ${errorText}`);
+      return false;
+    }
+
+    console.log(`WhatsApp message sent successfully to ${groupJid}`);
+    return true;
+  } catch (error) {
+    console.error("Error sending WhatsApp message:", error);
+    return false;
+  }
+}
+
+async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ sent: number; errors: number }> {
+  let sent = 0;
+  let errors = 0;
+
+  // Check if notifications are enabled
+  const { data: enabledSetting } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "sla_notifications_enabled")
+    .single();
+
+  if (!enabledSetting || enabledSetting.value !== "true") {
+    console.log("SLA notifications are disabled");
+    return { sent, errors };
+  }
+
+  // Get notification group ID
+  const { data: groupIdSetting } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "sla_notification_group_id")
+    .single();
+
+  if (!groupIdSetting?.value) {
+    console.log("No notification group configured");
+    return { sent, errors };
+  }
+
+  const notificationGroupId = groupIdSetting.value;
+
+  // Get global SLA limit
+  const { data: slaSettings } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "global_sla_minutes")
+    .single();
+
+  const slaLimitMinutes = slaSettings?.value ? parseInt(slaSettings.value) : 30;
+
+  // Find demands with SLA exceeded that haven't been notified
+  const { data: demandsToNotify, error: demandsError } = await supabase
+    .from("ticket_demands")
+    .select(`
+      id,
+      description,
+      priority,
+      created_at,
+      ticket_id,
+      tickets (
+        id,
+        group_id,
+        monitored_groups (
+          name
+        )
+      )
+    `)
+    .eq("sla_exceeded", true)
+    .eq("status", "open");
+
+  if (demandsError) {
+    console.error("Error fetching demands for SLA notifications:", demandsError);
+    return { sent, errors };
+  }
+
+  if (!demandsToNotify || demandsToNotify.length === 0) {
+    console.log("No SLA breached demands to notify");
+    return { sent, errors };
+  }
+
+  console.log(`Found ${demandsToNotify.length} demands with SLA breach to check for notifications`);
+
+  for (const demand of demandsToNotify) {
+    // Check if already notified
+    const { data: existingNotification } = await supabase
+      .from("sla_notifications")
+      .select("id")
+      .eq("demand_id", demand.id)
+      .eq("notification_type", "sla_breach")
+      .single();
+
+    if (existingNotification) {
+      console.log(`Demand ${demand.id} already notified, skipping`);
+      continue;
+    }
+
+    // Calculate time open
+    const demandCreatedAt = new Date(demand.created_at);
+    const timeOpenMs = Date.now() - demandCreatedAt.getTime();
+    const timeOpenMinutes = Math.round(timeOpenMs / (60 * 1000));
+
+    // Get group name
+    const groupName = (demand.tickets as any)?.monitored_groups?.name || "Grupo desconhecido";
+
+    // Format priority for display
+    const priorityMap: Record<string, string> = {
+      low: "🟢 Baixa",
+      normal: "🟡 Normal",
+      high: "🟠 Alta",
+      urgent: "🔴 Urgente"
+    };
+    const priorityDisplay = priorityMap[demand.priority] || demand.priority;
+
+    // Build alert message
+    const alertMessage = `⚠️ *ALERTA DE SLA*\n\n` +
+      `📋 *Grupo:* ${groupName}\n` +
+      `📝 *Demanda:* ${demand.description}\n` +
+      `⏱️ *Tempo aberto:* ${timeOpenMinutes} minutos\n` +
+      `🎯 *Limite SLA:* ${slaLimitMinutes} minutos\n` +
+      `${priorityDisplay}\n\n` +
+      `Por favor, verifique o atendimento!`;
+
+    // Send notification
+    const messageSent = await sendWhatsAppMessage(notificationGroupId, alertMessage);
+
+    if (messageSent) {
+      // Record notification to avoid duplicates
+      const { error: insertError } = await supabase
+        .from("sla_notifications")
+        .insert({
+          demand_id: demand.id,
+          notification_type: "sla_breach",
+        });
+
+      if (insertError) {
+        console.error(`Error recording notification for demand ${demand.id}:`, insertError);
+        errors++;
+      } else {
+        console.log(`SLA breach notification sent for demand ${demand.id}`);
+        sent++;
+      }
+    } else {
+      errors++;
+    }
+  }
+
+  console.log(`SLA notifications complete: ${sent} sent, ${errors} errors`);
+  return { sent, errors };
 }
 
 async function analyzeConversation(messages: Message[]): Promise<AnalysisResult> {
@@ -584,11 +761,17 @@ serve(async (req) => {
 
     console.log(`Analysis job completed. Analyzed: ${analyzedCount}, Errors: ${errors.length}`);
 
+    // Send SLA breach notifications after analysis
+    const notificationResult = await sendSlaBreachNotifications(supabase);
+    console.log(`SLA notifications: ${notificationResult.sent} sent, ${notificationResult.errors} errors`);
+
     return new Response(
       JSON.stringify({
         success: true,
         message: `Analyzed ${analyzedCount} tickets`,
         analyzed: analyzedCount,
+        notifications_sent: notificationResult.sent,
+        notification_errors: notificationResult.errors,
         errors: errors.length > 0 ? errors : undefined,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
