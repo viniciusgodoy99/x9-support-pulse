@@ -1,81 +1,93 @@
 
 
-# Plano: Corrigir Endpoint UAZAPI para Notificacoes de SLA
+# Plano: Adicionar Nome do Solicitante nas Notificacoes de SLA
 
-## Problema Identificado
+## Objetivo
 
-Os logs mostram erro **405 Method Not Allowed**:
+Incluir o nome do usuario/cliente que fez a solicitacao na mensagem de alerta de SLA enviada ao grupo "X9 de Atendimento".
+
+## Analise do Codigo Atual
+
+A query atual busca demandas com SLA estourado mas NAO inclui os dados do cliente:
+
+```typescript
+const { data: demandsToNotify } = await supabase
+  .from("ticket_demands")
+  .select(`
+    id,
+    description,
+    priority,
+    created_at,
+    ticket_id,
+    tickets (
+      id,
+      group_id,
+      monitored_groups (name)
+    )
+  `)
 ```
-Failed to send WhatsApp message: 405 - {"code":405,"message":"Method Not Allowed.","data":{}}
-```
 
-Consultando a documentacao oficial da UAZAPI, identifiquei que o endpoint e os parametros estao incorretos.
+Os campos `customer_name` e `customer_phone` existem na tabela `tickets` mas nao estao sendo buscados.
 
-## Comparacao: Codigo Atual vs Documentacao UAZAPI
-
-| Aspecto | Codigo Atual | UAZAPI Oficial |
-|---------|-------------|----------------|
-| Endpoint | `/message/text` | `/send/text` |
-| Campo destino | `chatid` | `number` |
-| Campo mensagem | `text` | `text` |
-
-## Correcao Necessaria
+## Alteracoes Necessarias
 
 ### Arquivo: `supabase/functions/analyze-tickets/index.ts`
 
-Na funcao `sendWhatsAppMessage`, alterar:
+#### 1. Modificar a Query (linhas 116-128)
 
-**Antes:**
+Adicionar `customer_name` e `customer_phone` na selecao do ticket:
+
 ```typescript
-const response = await fetch(`${baseUrl}/message/text`, {
-  method: "POST",
-  headers: {
-    "token": apiKey,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    chatid: groupJid,
-    text: message,
-  }),
-});
+tickets (
+  id,
+  group_id,
+  customer_name,
+  customer_phone,
+  monitored_groups (name)
+)
 ```
 
-**Depois:**
+#### 2. Modificar a Mensagem de Alerta (linhas 176-183)
+
+Extrair o nome do cliente e incluir na mensagem:
+
 ```typescript
-const response = await fetch(`${baseUrl}/send/text`, {
-  method: "POST",
-  headers: {
-    "token": apiKey,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    number: groupJid,
-    text: message,
-  }),
-});
+// Get customer info
+const customerName = (demand.tickets as any)?.customer_name || "Cliente desconhecido";
+
+// Build alert message
+const alertMessage = `⚠️ *ALERTA DE SLA*\n\n` +
+  `📋 *Grupo:* ${groupName}\n` +
+  `👤 *Solicitante:* ${customerName}\n` +
+  `📝 *Demanda:* ${demand.description}\n` +
+  `⏱️ *Tempo aberto:* ${timeOpenMinutes} minutos\n` +
+  `🎯 *Limite SLA:* ${slaLimitMinutes} minutos\n` +
+  `${priorityDisplay}\n\n` +
+  `Por favor, verifique o atendimento!`;
 ```
 
-## Formato da Mensagem
-
-A mensagem de alerta de SLA sera enviada com o seguinte formato (ja implementado corretamente):
+## Novo Formato da Mensagem
 
 ```text
 ⚠️ *ALERTA DE SLA*
 
 📋 *Grupo:* [Nome do Grupo do Cliente]
+👤 *Solicitante:* [Nome do Cliente]
 📝 *Demanda:* [Descricao gerada pela IA]
 ⏱️ *Tempo aberto:* X minutos
 🎯 *Limite SLA:* 30 minutos
-🔴 *Prioridade:* Alta/Normal/etc
+🟡 Normal
 
 Por favor, verifique o atendimento!
 ```
 
-Exemplo concreto com dados atuais:
+## Exemplo com Dados Reais
+
 ```text
 ⚠️ *ALERTA DE SLA*
 
 📋 *Grupo:* X9 de Atendimento
+👤 *Solicitante:* João Silva
 📝 *Demanda:* Solicitação de relatório/resultado das campanhas executadas.
 ⏱️ *Tempo aberto:* 45 minutos
 🎯 *Limite SLA:* 30 minutos
@@ -86,12 +98,8 @@ Por favor, verifique o atendimento!
 
 ## Acoes
 
-1. Alterar endpoint de `/message/text` para `/send/text`
-2. Alterar campo `chatid` para `number` no body
+1. Atualizar query para incluir `customer_name` e `customer_phone`
+2. Adicionar linha com nome do solicitante na mensagem
 3. Deploy da edge function
-4. Executar teste para confirmar envio no grupo "X9 de Atendimento"
-
-## Resultado Esperado
-
-A mensagem sera enviada corretamente para o grupo configurado (120363422213957419@g.us) sempre que uma demanda ultrapassar o limite de SLA.
+4. Testar para confirmar envio com dados do cliente
 
