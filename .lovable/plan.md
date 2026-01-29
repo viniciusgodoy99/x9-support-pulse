@@ -1,78 +1,97 @@
 
 
-# Plano: Corrigir URL da API UAZAPI para Notificacoes de SLA
+# Plano: Corrigir Endpoint UAZAPI para Notificacoes de SLA
 
 ## Problema Identificado
 
-O erro nos logs e claro:
+Os logs mostram erro **405 Method Not Allowed**:
 ```
-Error sending WhatsApp message: TypeError: Invalid URL: 'climb.uazapi.com/message/text'
+Failed to send WhatsApp message: 405 - {"code":405,"message":"Method Not Allowed.","data":{}}
 ```
 
-A URL esta invalida porque falta o prefixo `https://`. O valor em `EVOLUTION_API_URL` e `climb.uazapi.com`, mas a funcao `sendWhatsAppMessage` no `analyze-tickets` esta usando a URL diretamente sem adicionar o protocolo.
+Consultando a documentacao oficial da UAZAPI, identifiquei que o endpoint e os parametros estao incorretos.
 
-## Comparacao com Outras Edge Functions
+## Comparacao: Codigo Atual vs Documentacao UAZAPI
 
-As outras edge functions ja tratam este caso corretamente:
-
-| Edge Function | Tratamento da URL |
-|---------------|-------------------|
-| `webhook-whatsapp` | `const baseUrl = apiUrl.startsWith("http") ? apiUrl : \`https://${apiUrl}\`;` |
-| `whatsapp-connect` | Mesma verificacao nas linhas 64-65 |
-| `analyze-tickets` | **NAO TEM TRATAMENTO** - usa `${apiUrl}/message/text` diretamente |
+| Aspecto | Codigo Atual | UAZAPI Oficial |
+|---------|-------------|----------------|
+| Endpoint | `/message/text` | `/send/text` |
+| Campo destino | `chatid` | `number` |
+| Campo mensagem | `text` | `text` |
 
 ## Correcao Necessaria
 
 ### Arquivo: `supabase/functions/analyze-tickets/index.ts`
 
-Na funcao `sendWhatsAppMessage` (linha 46), adicionar a normalizacao da URL:
+Na funcao `sendWhatsAppMessage`, alterar:
 
+**Antes:**
 ```typescript
-// De:
-const response = await fetch(`${apiUrl}/message/text`, {
-
-// Para:
-const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
 const response = await fetch(`${baseUrl}/message/text`, {
+  method: "POST",
+  headers: {
+    "token": apiKey,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    chatid: groupJid,
+    text: message,
+  }),
+});
 ```
 
-## Alteracao Completa
-
+**Depois:**
 ```typescript
-async function sendWhatsAppMessage(groupJid: string, message: string): Promise<boolean> {
-  const apiUrl = Deno.env.get("EVOLUTION_API_URL");
-  const apiKey = Deno.env.get("EVOLUTION_API_KEY");
+const response = await fetch(`${baseUrl}/send/text`, {
+  method: "POST",
+  headers: {
+    "token": apiKey,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    number: groupJid,
+    text: message,
+  }),
+});
+```
 
-  if (!apiUrl || !apiKey) {
-    console.error("UAZAPI credentials not configured");
-    return false;
-  }
+## Formato da Mensagem
 
-  try {
-    // Normalizar URL - adicionar https:// se necessario
-    const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
-    
-    const response = await fetch(`${baseUrl}/message/text`, {
-      method: "POST",
-      headers: {
-        "token": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        chatid: groupJid,
-        text: message,
-      }),
-    });
-    // ... resto do codigo
+A mensagem de alerta de SLA sera enviada com o seguinte formato (ja implementado corretamente):
+
+```text
+⚠️ *ALERTA DE SLA*
+
+📋 *Grupo:* [Nome do Grupo do Cliente]
+📝 *Demanda:* [Descricao gerada pela IA]
+⏱️ *Tempo aberto:* X minutos
+🎯 *Limite SLA:* 30 minutos
+🔴 *Prioridade:* Alta/Normal/etc
+
+Por favor, verifique o atendimento!
+```
+
+Exemplo concreto com dados atuais:
+```text
+⚠️ *ALERTA DE SLA*
+
+📋 *Grupo:* X9 de Atendimento
+📝 *Demanda:* Solicitação de relatório/resultado das campanhas executadas.
+⏱️ *Tempo aberto:* 45 minutos
+🎯 *Limite SLA:* 30 minutos
+🟡 Normal
+
+Por favor, verifique o atendimento!
 ```
 
 ## Acoes
 
-1. Modificar a funcao `sendWhatsAppMessage` no `analyze-tickets`
-2. Deploy da edge function
-3. Testar novamente
+1. Alterar endpoint de `/message/text` para `/send/text`
+2. Alterar campo `chatid` para `number` no body
+3. Deploy da edge function
+4. Executar teste para confirmar envio no grupo "X9 de Atendimento"
 
 ## Resultado Esperado
 
-Apos a correcao, a URL sera `https://climb.uazapi.com/message/text` em vez de `climb.uazapi.com/message/text`, permitindo o envio correto das notificacoes.
+A mensagem sera enviada corretamente para o grupo configurado (120363422213957419@g.us) sempre que uma demanda ultrapassar o limite de SLA.
 
