@@ -175,8 +175,31 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
     };
     const priorityDisplay = priorityMap[demand.priority] || demand.priority;
 
-    // Get customer info
-    const customerName = (demand.tickets as any)?.customer_name || "Cliente desconhecido";
+    // Get customer info - with fallback logic
+    let customerName = (demand.tickets as any)?.customer_name;
+    const ticketId = (demand.tickets as any)?.id;
+    
+    // If name is empty, generic, or null - try to get from first client message
+    if (!customerName || customerName === "Cliente" || customerName === "Cliente desconhecido") {
+      if (ticketId) {
+        const { data: firstClientMessage } = await supabase
+          .from("messages")
+          .select("sender_name")
+          .eq("ticket_id", ticketId)
+          .eq("sender_role", "client")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        
+        if (firstClientMessage?.sender_name && firstClientMessage.sender_name !== "Cliente") {
+          customerName = firstClientMessage.sender_name;
+          console.log(`Found customer name from first message: ${customerName}`);
+        }
+      }
+    }
+    
+    // Final fallback
+    customerName = customerName || "Cliente desconhecido";
 
     // Build alert message
     const alertMessage = `⚠️ *ALERTA DE SLA*\n\n` +
