@@ -742,29 +742,36 @@ export default function GroupsSettings() {
                           </div>
                         </CardHeader>
                       <CardContent className="space-y-4 overflow-hidden">
-                        <div className="pt-2">
-                          <p className="text-sm text-muted-foreground mb-3">
-                            Este grupo é de cliente?
-                          </p>
-                          <div className="flex flex-col sm:flex-row gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleClassify(group, true)}
-                              className="w-full sm:flex-1 text-xs sm:text-sm"
-                            >
-                              <Building2 className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                              <span className="truncate">Sim, é cliente</span>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleClassify(group, false)}
-                              className="w-full sm:flex-1 text-xs sm:text-sm"
-                            >
-                              <UserCircle className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                              <span className="truncate">Não</span>
-                            </Button>
+                        <div className="pt-2 space-y-3">
+                          <div className="flex items-center justify-between py-2 border-t border-border">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <Label htmlFor={`client-pending-${group.id}`} className="text-sm cursor-pointer">
+                                Grupo de Cliente
+                              </Label>
+                            </div>
+                            <Switch
+                              id={`client-pending-${group.id}`}
+                              checked={false}
+                              onCheckedChange={(checked) => handleClassify(group, checked)}
+                            />
                           </div>
+                          <div className="flex items-center justify-between py-2 border-t border-border">
+                            <div className="flex items-center gap-2">
+                              <UserCircle className="h-4 w-4 text-muted-foreground" />
+                              <Label htmlFor={`internal-pending-${group.id}`} className="text-sm cursor-pointer">
+                                Grupo Interno
+                              </Label>
+                            </div>
+                            <Switch
+                              id={`internal-pending-${group.id}`}
+                              checked={false}
+                              onCheckedChange={(checked) => handleClassify(group, !checked)}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground text-center">
+                            Ative uma das opções para classificar o grupo
+                          </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
                           <Tooltip>
