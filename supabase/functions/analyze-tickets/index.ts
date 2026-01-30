@@ -11,9 +11,10 @@ interface Message {
   id: string;
   sender_name: string | null;
   sender_phone: string | null;
-  sender_role: "cs" | "client";
+  sender_role: string;
   content: string;
   created_at: string;
+  group_role?: "cs" | "client" | "traffic_manager" | "unknown";
 }
 
 interface Demand {
@@ -247,18 +248,29 @@ async function analyzeConversation(messages: Message[]): Promise<AnalysisResult>
     throw new Error("AI configuration missing");
   }
 
-  // Format conversation for AI
+  // Format conversation for AI - include group_role for context
   const conversationText = messages.map(m => {
-    const role = m.sender_role === "cs" ? "Atendente (CS)" : "Cliente";
+    // Determine display role based on group_role
+    let roleDisplay: string;
+    if (m.group_role === "cs" || m.sender_role === "cs") {
+      roleDisplay = "Atendente (CS)";
+    } else if (m.group_role === "traffic_manager") {
+      roleDisplay = "Gestor de Tráfego (Interno)";
+    } else if (m.group_role === "client") {
+      roleDisplay = "Cliente";
+    } else {
+      roleDisplay = m.sender_role === "cs" ? "Atendente (CS)" : "Cliente";
+    }
+    
     const name = m.sender_name || "Desconhecido";
     const time = new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    return `[${time}] ${role} (${name}): ${m.content}`;
+    return `[${time}] ${roleDisplay} (${name}): ${m.content}`;
   }).join("\n");
 
   const systemPrompt = `Você é um analista de atendimento ao cliente especializado em identificar demandas e avaliar qualidade de atendimento.
 
 Analise a conversa entre Atendentes (CS) e Clientes e identifique:
-1. TODAS as demandas/pedidos/solicitações feitas pelo cliente
+1. APENAS demandas/pedidos/solicitações feitas por CLIENTES EXTERNOS (marcados como "Cliente" nas mensagens)
 2. O status de cada demanda: "resolved" se foi atendida/respondida, "open" se ainda está pendente
 3. A prioridade baseada na urgência aparente: "low", "normal", "high", "urgent"
 4. A CATEGORIA de cada demanda (OBRIGATÓRIO - você DEVE classificar cada demanda):
@@ -274,6 +286,12 @@ Analise a conversa entre Atendentes (CS) e Clientes e identifique:
 6. Para demandas resolvidas, identifique o NOME do Atendente (CS) que resolveu a demanda com base nas mensagens
 7. Gere um RESUMO ESTRUTURADO seguindo este formato:
    "O cliente [NOME DO CLIENTE] solicitou [DESCRIÇÃO DA DEMANDA PRINCIPAL]. O atendente [NOME DO CS] [resolveu/está atendendo] a solicitação."
+
+⚠️ REGRA CRÍTICA - QUEM PODE GERAR DEMANDAS:
+- APENAS mensagens de "Cliente" devem gerar demandas
+- IGNORE solicitações de "Atendente (CS)" - são instruções internas
+- IGNORE solicitações de "Gestor de Tráfego (Interno)" - são membros da equipe interna
+- Mensagens de membros internos (CS, Gestor de Tráfego) são apenas CONVERSAS INTERNAS, não demandas de clientes
 
 REGRAS CRÍTICAS PARA DETERMINAR STATUS (SIGA À RISCA):
 
@@ -300,13 +318,14 @@ REGRAS DE CATEGORIZAÇÃO:
 - Se houver dúvida entre duas categorias, escolha a que melhor representa a INTENÇÃO do cliente
 
 REGRAS DO RESUMO:
-- SEMPRE comece identificando o cliente pelo nome (quem tem role = "client")
+- SEMPRE comece identificando o cliente pelo nome (quem tem role = "Cliente")
 - Descreva a demanda principal de forma clara e objetiva
-- Identifique o atendente (CS) que tratou/resolveu a solicitação (quem tem role = "cs")
+- Identifique o atendente (CS) que tratou/resolveu a solicitação
 - Use "O cliente [NOME]" para quem faz a solicitação
 - Use "O atendente [NOME]" para quem resolve
 - Se houver demandas pendentes, MENCIONE NO RESUMO
 - Máximo de 2-3 frases
+- Se não houver demandas de clientes externos, indique isso no resumo
 
 Use a função analyze_conversation para estruturar sua resposta.`;
 
@@ -510,7 +529,7 @@ serve(async (req) => {
         // For force resolve, fetch ALL messages; otherwise only since last analysis
         const sinceTime = forceResolve ? ticket.created_at : (ticket.last_analysis_at || ticket.created_at);
         
-        const { data: messages, error: messagesError } = await supabase
+        const { data: rawMessages, error: messagesError } = await supabase
           .from("messages")
           .select("id, sender_name, sender_phone, sender_role, content, created_at")
           .eq("ticket_id", ticket.id)
@@ -523,7 +542,7 @@ serve(async (req) => {
           continue;
         }
 
-        if (!messages || messages.length === 0) {
+        if (!rawMessages || rawMessages.length === 0) {
           console.log(`No new messages for ticket ${ticket.id}, skipping analysis`);
           // Still update next_analysis_at to avoid repeated checks
           await supabase
@@ -535,6 +554,30 @@ serve(async (req) => {
           continue;
         }
 
+        // Enrich messages with actual group_role from group_members table
+        const messages = await Promise.all(rawMessages.map(async (m) => {
+          const { data: memberData } = await supabase
+            .from("group_members")
+            .select("role")
+            .eq("group_id", ticket.group_id)
+            .eq("phone_number", m.sender_phone)
+            .maybeSingle();
+          
+          return {
+            ...m,
+            group_role: memberData?.role || "unknown"
+          } as Message;
+        }));
+
+        console.log(`Enriched ${messages.length} messages with group roles`);
+        
+        // Log role distribution for debugging
+        const roleDistribution = messages.reduce((acc, m) => {
+          acc[m.group_role || 'unknown'] = (acc[m.group_role || 'unknown'] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        console.log(`Role distribution: ${JSON.stringify(roleDistribution)}`);
+
         // Get timestamp of last message for accurate resolved_at (instead of NOW())
         const lastMessageTimestamp = messages[messages.length - 1].created_at;
 
@@ -544,7 +587,7 @@ serve(async (req) => {
         console.log(`Found ${messages.length} messages to analyze for ticket ${ticket.id}`);
 
         // Call AI to analyze the conversation
-        const analysis = await analyzeConversation(messages as Message[]);
+        const analysis = await analyzeConversation(messages);
         console.log(`Analysis result for ticket ${ticket.id}:`, JSON.stringify(analysis, null, 2));
 
         // Get existing demands for this ticket
