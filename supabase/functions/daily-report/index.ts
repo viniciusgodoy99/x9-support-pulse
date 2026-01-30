@@ -48,143 +48,99 @@ function formatDate(date: Date): string {
   return `${day}/${month}`;
 }
 
-// Format individual group message
+// Format individual group message - Commercial format for clients
 function formatGroupMessage(report: GroupReport, dateStr: string): string {
   const groupName = report.group.name.toUpperCase();
   
   // No demands case
   if (report.totalDemands === 0) {
-    return `${groupName} - Relatório do Dia (${dateStr})
+    return `${groupName}
+Resumo de Atendimento - ${dateStr}
 
-Dia tranquilo no grupo ${report.group.name}!
+Olá! Hoje não houve novas demandas registradas no seu canal de atendimento.
 
-Nenhuma demanda registrada hoje. Ótimo sinal de que está tudo fluindo bem por lá.`;
+Estamos à disposição para qualquer necessidade!
+
+Atenciosamente,
+Equipe de Atendimento`;
   }
 
-  // Build intro based on SLA status
-  let intro: string;
-  if (report.slaExceededCount > 0) {
-    intro = `Atenção, equipe! Resumo do grupo ${report.group.name}:`;
-  } else if (report.resolvedCount === report.totalDemands) {
-    intro = `Excelente dia no grupo ${report.group.name}!`;
-  } else {
-    intro = `Oi, equipe! Aqui vai o resumo de hoje para o grupo ${report.group.name}:`;
-  }
-
-  // Build demands list
-  const demandsList = report.demands
-    .map((demand, index) => {
-      const statusText =
-        demand.status === "resolved"
-          ? `Resolvida em ${demand.resolution_time_minutes || "?"} minutos`
-          : demand.sla_exceeded
-          ? "Pendente - SLA ESTOURADO"
-          : "Ainda pendente";
-
-      return `${index + 1}. ${demand.description}
-   ${statusText}`;
+  // Build topics list
+  const topicsList = report.demands
+    .map((demand) => {
+      const statusText = demand.status === "resolved" ? "Concluído" : "Em andamento";
+      return `• ${demand.description} - ${statusText}`;
     })
-    .join("\n\n");
+    .join("\n");
 
-  // Build summary line
-  const summaryParts = [
-    `${report.resolvedCount} resolvida${report.resolvedCount !== 1 ? "s" : ""}`,
-    `${report.pendingCount} pendente${report.pendingCount !== 1 ? "s" : ""}`,
-  ];
-  const summaryLine = `Resumo: ${summaryParts.join(", ")}`;
-
-  // Build SLA/time line
-  let statusLine: string;
-  if (report.slaExceededCount > 0) {
-    statusLine = `SLA estourado: ${report.slaExceededCount} demanda${report.slaExceededCount !== 1 ? "s" : ""} precisa${report.slaExceededCount === 1 ? "" : "m"} de atenção urgente!`;
-  } else if (report.resolvedCount === report.totalDemands) {
-    const avgTime = report.avgResolutionTime
-      ? `Tempo médio: ${Math.round(report.avgResolutionTime)} min | `
-      : "";
-    statusLine = `${avgTime}Parabéns ao time!`;
+  // Build conclusion
+  let conclusion: string;
+  const topicWord = report.totalDemands === 1 ? "assunto" : "assuntos";
+  const finalizedWord = report.resolvedCount === 1 ? "finalizado" : "finalizados";
+  
+  if (report.resolvedCount === report.totalDemands) {
+    conclusion = `Hoje ${report.totalDemands === 1 ? "foi tratado" : "foram tratados"} ${report.totalDemands} ${topicWord} no seu canal de atendimento, ${report.totalDemands === 1 ? "sendo ele já" : "todos já"} ${finalizedWord}. Excelente dia de parceria!`;
+  } else if (report.pendingCount > 0) {
+    const pendingWord = report.pendingCount === 1 ? "está" : "estão";
+    const followupWord = report.pendingCount === 1 ? "será concluído" : "serão concluídos";
+    conclusion = `Hoje ${report.totalDemands === 1 ? "foi tratado" : "foram tratados"} ${report.totalDemands} ${topicWord} no seu canal de atendimento, sendo ${report.resolvedCount} já ${finalizedWord}. ${report.pendingCount === 1 ? "O demais" : "Os demais"} ${pendingWord} em acompanhamento e ${followupWord} em breve.`;
   } else {
-    const avgTime = report.avgResolutionTime
-      ? `Tempo médio: ${Math.round(report.avgResolutionTime)} min | `
-      : "";
-    statusLine = `${avgTime}SLA: Tudo ok!`;
+    conclusion = `Hoje ${report.totalDemands === 1 ? "foi tratado" : "foram tratados"} ${report.totalDemands} ${topicWord} no seu canal de atendimento.`;
   }
 
-  const demandWord = report.totalDemands === 1 ? "demanda" : "demandas";
-  const resolvedText = report.resolvedCount === report.totalDemands 
-    ? ` e ${report.totalDemands === 1 ? "ela foi resolvida" : "todas foram resolvidas"}`
-    : "";
+  return `${groupName}
+Resumo de Atendimento - ${dateStr}
 
-  return `${groupName} - Relatório do Dia (${dateStr})
+Olá! Segue o resumo das principais atividades de hoje:
 
-${intro}
+TÓPICOS TRATADOS
 
-Tivemos ${report.totalDemands} ${demandWord}${resolvedText}:
+${topicsList}
 
-${demandsList}
+CONCLUSÃO
 
-${summaryLine}
-${statusLine}`;
+${conclusion}
+
+Agradecemos a parceria!
+
+Atenciosamente,
+Equipe de Atendimento`;
 }
 
-// Format general summary message
+// Format general summary message - Corporate format for clients
 function formatSummaryMessage(reports: GroupReport[], dateStr: string): string {
   const totalDemands = reports.reduce((sum, r) => sum + r.totalDemands, 0);
   const totalResolved = reports.reduce((sum, r) => sum + r.resolvedCount, 0);
   const totalPending = reports.reduce((sum, r) => sum + r.pendingCount, 0);
-  const totalSlaExceeded = reports.reduce((sum, r) => sum + r.slaExceededCount, 0);
-
-  // Calculate average resolution time
-  const allResolutionTimes = reports
-    .flatMap((r) =>
-      r.demands
-        .filter((d) => d.status === "resolved" && d.resolution_time_minutes)
-        .map((d) => d.resolution_time_minutes!)
-    );
-  const avgResolutionTime =
-    allResolutionTimes.length > 0
-      ? Math.round(
-          allResolutionTimes.reduce((a, b) => a + b, 0) / allResolutionTimes.length
-        )
-      : null;
 
   // Find highlight groups (100% resolved)
   const highlightGroups = reports
     .filter((r) => r.totalDemands > 0 && r.resolvedCount === r.totalDemands)
-    .map((r) => `- ${r.group.name}: 100% resolvido`);
+    .map((r) => `• ${r.group.name}: 100% concluído`);
 
-  // Find attention groups (SLA exceeded)
-  const attentionGroups = reports
-    .filter((r) => r.slaExceededCount > 0)
-    .map((r) => `- ${r.group.name}: ${r.slaExceededCount} SLA estourado`);
+  let message = `RESUMO GERAL DE ATENDIMENTOS - ${dateStr}
 
-  let message = `📊 RESUMO GERAL DO DIA (${dateStr})
+Prezados parceiros,
 
-Boa tarde! Fechando o dia com os números consolidados:
+Segue o consolidado das atividades do dia:
 
-Total de demandas: ${totalDemands}
-Resolvidas: ${totalResolved} | Pendentes: ${totalPending}`;
-
-  if (avgResolutionTime) {
-    message += `\nTempo médio de resolução: ${avgResolutionTime} min`;
-  }
-
-  if (totalSlaExceeded > 0) {
-    const exceededGroups = reports
-      .filter((r) => r.slaExceededCount > 0)
-      .map((r) => r.group.name)
-      .join(", ");
-    message += `\nSLA estourado: ${totalSlaExceeded} (${exceededGroups})`;
-  }
+• Total de demandas atendidas: ${totalDemands}
+• Demandas finalizadas: ${totalResolved}
+• Em acompanhamento: ${totalPending}`;
 
   if (highlightGroups.length > 0) {
-    message += `\n\n✅ Grupos destaque:\n${highlightGroups.join("\n")}`;
+    message += `
+
+DESTAQUES DO DIA
+
+${highlightGroups.join("\n")}`;
   }
 
-  if (attentionGroups.length > 0) {
-    message += `\n\n⚠️ Atenção:\n${attentionGroups.join("\n")}`;
-  }
+  message += `
 
-  message += "\n\nVamos com tudo amanhã!";
+Agradecemos a confiança e seguimos à disposição!
+
+Equipe de Atendimento`;
 
   return message;
 }
