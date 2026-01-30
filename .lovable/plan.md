@@ -1,80 +1,140 @@
 
 
-# Adicionar Novas Funcoes de Membro da Equipe
+# Ajuste das Mensagens de Relatorio para Formato Comercial
 
-## Resumo
+## Objetivo
 
-Adicionar 4 novas opcoes de funcao no painel de equipe:
-- Gestor de Performance
-- Gestor de CRM/IFOOD
-- Social Media
-- Equipe Cliente
+Reformular as mensagens do relatorio diario para um formato mais comercial e profissional, adequado para visualizacao por clientes. As mensagens devem apresentar os topicos principais discutidos e uma conclusao final, sem expor metricas internas como SLA.
 
-## Alteracoes Necessarias
+## Estrutura Proposta das Mensagens
 
-### 1. Banco de Dados - Alterar Enum `team_role`
+### Mensagem por Grupo (Cliente)
 
-Adicionar os novos valores ao enum existente:
+```
+[NOME DO GRUPO]
+Resumo de Atendimento - DD/MM
 
-```sql
-ALTER TYPE team_role ADD VALUE 'PerformanceManager';
-ALTER TYPE team_role ADD VALUE 'CRMManager';
-ALTER TYPE team_role ADD VALUE 'SocialMedia';
-ALTER TYPE team_role ADD VALUE 'ClientTeam';
+Ola! Segue o resumo das principais atividades de hoje:
+
+TOPICOS TRATADOS
+
+- [Descricao da demanda 1] - Concluido
+- [Descricao da demanda 2] - Concluido
+- [Descricao da demanda 3] - Em andamento
+
+CONCLUSAO
+
+Hoje foram tratados X assuntos, sendo Y ja finalizados. 
+[Mensagem positiva sobre o atendimento/parceria].
+
+Atenciosamente,
+Equipe de Atendimento
 ```
 
-### 2. Hook - `src/hooks/useTeamMembers.tsx`
+### Mensagem de Resumo Geral
 
-Atualizar o tipo `TeamMember["role"]` para incluir os novos valores:
+```
+RESUMO GERAL DE ATENDIMENTOS - DD/MM
 
-```typescript
-role: "CS" | "Manager" | "Support" | "Admin" | "PerformanceManager" | "CRMManager" | "SocialMedia" | "ClientTeam";
+Prezados parceiros,
+
+Segue o consolidado das atividades do dia:
+
+- Total de demandas atendidas: X
+- Demandas finalizadas: Y
+- Em acompanhamento: Z
+
+DESTAQUES DO DIA
+
+[Lista de grupos com 100% de resolucao]
+
+Agradecemos a confianca e seguimos a disposicao!
+
+Equipe de Atendimento
 ```
 
-### 3. Componente - `src/pages/settings/Team.tsx`
+## Alteracoes Tecnicas
 
-**Atualizar o objeto `roleLabels`:**
+### Arquivo: `supabase/functions/daily-report/index.ts`
 
-| Valor no DB | Label Exibido |
-|-------------|---------------|
-| CS | Customer Success |
-| Manager | Gerente |
-| Support | Suporte |
-| Admin | Administrador |
-| PerformanceManager | Gestor de Performance |
-| CRMManager | Gestor de CRM/IFOOD |
-| SocialMedia | Social Media |
-| ClientTeam | Equipe Cliente |
+**Funcao `formatGroupMessage`** (linhas 52-127):
+- Remover referencias a SLA e metricas internas
+- Reformular para tom comercial
+- Adicionar secao de "Topicos Tratados" com lista de demandas
+- Adicionar secao de "Conclusao" com resumo positivo
+- Adicionar assinatura profissional
 
-**Atualizar o Select com as novas opcoes:**
+**Funcao `formatSummaryMessage`** (linhas 130-190):
+- Remover emojis e linguagem informal
+- Usar tom corporativo ("Prezados parceiros")
+- Substituir "SLA estourado" por "Em acompanhamento"
+- Adicionar secao de "Destaques do Dia"
+- Adicionar assinatura profissional
 
-Adicionar 4 novos `<SelectItem>` no dropdown de funcao.
+## Mapeamento de Termos
+
+| Termo Atual | Novo Termo |
+|-------------|------------|
+| SLA estourado | Em acompanhamento |
+| Pendente | Em andamento |
+| Resolvida | Concluido |
+| Demanda | Topico/Assunto |
+| Equipe | - (remover referencias internas) |
+
+## Exemplo de Mensagem Reformulada
+
+**Antes:**
+```
+GRUPO EXEMPLO - Relatorio do Dia (30/01)
+
+Atencao, equipe! Resumo do grupo Grupo Exemplo:
+
+Tivemos 3 demandas:
+
+1. Solicitar alteracao de preco
+   Resolvida em 15 minutos
+
+2. Duvida sobre entrega
+   Ainda pendente
+
+Resumo: 1 resolvida, 2 pendentes
+SLA estourado: 1 demanda precisa de atencao urgente!
+```
+
+**Depois:**
+```
+GRUPO EXEMPLO
+Resumo de Atendimento - 30/01
+
+Ola! Segue o resumo das principais atividades de hoje:
+
+TOPICOS TRATADOS
+
+- Alteracao de preco solicitada - Concluido
+- Duvida sobre entrega - Em andamento
+- Atualizacao cadastral - Em andamento
+
+CONCLUSAO
+
+Hoje foram tratados 3 assuntos no seu canal de atendimento, sendo 1 ja finalizado. Os demais estao em acompanhamento e serao concluidos em breve.
+
+Agradecemos a parceria!
+
+Atenciosamente,
+Equipe de Atendimento
+```
 
 ## Fluxo de Implementacao
 
-```text
-1. Executar migracao SQL para adicionar valores ao enum
-2. Atualizar tipo TypeScript no hook
-3. Atualizar labels e opcoes do Select no componente
+```
+1. Atualizar formatGroupMessage com novo formato comercial
+2. Atualizar formatSummaryMessage com novo formato corporativo
+3. Testar a Edge Function para validar as novas mensagens
 ```
 
 ## Arquivos a Modificar
 
-| Arquivo | Acao |
-|---------|------|
-| Migracao SQL | Adicionar valores ao enum `team_role` |
-| `src/hooks/useTeamMembers.tsx` | Atualizar tipo `role` |
-| `src/pages/settings/Team.tsx` | Atualizar `roleLabels` e opcoes do Select |
-
-## Resultado Esperado
-
-O dropdown de funcao no formulario de membro da equipe tera 8 opcoes:
-1. Customer Success
-2. Suporte
-3. Gerente
-4. Administrador
-5. Gestor de Performance
-6. Gestor de CRM/IFOOD
-7. Social Media
-8. Equipe Cliente
+| Arquivo | Alteracao |
+|---------|-----------|
+| `supabase/functions/daily-report/index.ts` | Reformular funcoes de formatacao de mensagens |
 
