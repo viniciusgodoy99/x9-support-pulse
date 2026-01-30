@@ -1,140 +1,73 @@
 
 
-# Ajuste das Mensagens de Relatorio para Formato Comercial
+# Simplificar Mensagens - Remover Status dos Topicos
 
 ## Objetivo
 
-Reformular as mensagens do relatorio diario para um formato mais comercial e profissional, adequado para visualizacao por clientes. As mensagens devem apresentar os topicos principais discutidos e uma conclusao final, sem expor metricas internas como SLA.
+Remover os indicadores de status ("✅ Concluído", "⏳ Em andamento") de cada tópico nas mensagens do relatório. O formato será ainda mais limpo, contendo apenas o título e a descrição detalhada de cada tópico.
 
-## Estrutura Proposta das Mensagens
+## Novo Formato Final
 
-### Mensagem por Grupo (Cliente)
-
-```
-[NOME DO GRUPO]
-Resumo de Atendimento - DD/MM
-
-Ola! Segue o resumo das principais atividades de hoje:
-
-TOPICOS TRATADOS
-
-- [Descricao da demanda 1] - Concluido
-- [Descricao da demanda 2] - Concluido
-- [Descricao da demanda 3] - Em andamento
-
-CONCLUSAO
-
-Hoje foram tratados X assuntos, sendo Y ja finalizados. 
-[Mensagem positiva sobre o atendimento/parceria].
-
-Atenciosamente,
-Equipe de Atendimento
-```
-
-### Mensagem de Resumo Geral
+### Mensagem por Grupo
 
 ```
-RESUMO GERAL DE ATENDIMENTOS - DD/MM
+📋 *[NOME DO GRUPO]*
+_Resumo do dia DD/MM_
 
-Prezados parceiros,
+📌 *TÓPICOS PRINCIPAIS*
 
-Segue o consolidado das atividades do dia:
+🔹 *[Título do Tópico 1]*
+[Descrição detalhada do que foi discutido]
 
-- Total de demandas atendidas: X
-- Demandas finalizadas: Y
-- Em acompanhamento: Z
+🔹 *[Título do Tópico 2]*
+[Descrição detalhada do que foi discutido]
 
-DESTAQUES DO DIA
+Até amanhã! 👋
+```
 
-[Lista de grupos com 100% de resolucao]
+### Mensagem Quando Nao Ha Topicos
 
-Agradecemos a confianca e seguimos a disposicao!
+```
+📋 *[NOME DO GRUPO]*
+_Resumo do dia DD/MM_
 
-Equipe de Atendimento
+Hoje não houve novos tópicos registrados.
+
+Qualquer necessidade, estamos à disposição! 👋
 ```
 
 ## Alteracoes Tecnicas
 
 ### Arquivo: `supabase/functions/daily-report/index.ts`
 
-**Funcao `formatGroupMessage`** (linhas 52-127):
-- Remover referencias a SLA e metricas internas
-- Reformular para tom comercial
-- Adicionar secao de "Topicos Tratados" com lista de demandas
-- Adicionar secao de "Conclusao" com resumo positivo
-- Adicionar assinatura profissional
+**Funcao `formatGroupMessage`**
 
-**Funcao `formatSummaryMessage`** (linhas 130-190):
-- Remover emojis e linguagem informal
-- Usar tom corporativo ("Prezados parceiros")
-- Substituir "SLA estourado" por "Em acompanhamento"
-- Adicionar secao de "Destaques do Dia"
-- Adicionar assinatura profissional
+Mudancas:
+- Remover status "Concluído" e "Em andamento" de cada tópico
+- Cada tópico terá apenas: emoji 🔹 + título em negrito + descrição
+- Manter formatação WhatsApp (*negrito*, _itálico_)
+- Manter encerramento "Até amanhã! 👋"
 
-## Mapeamento de Termos
-
-| Termo Atual | Novo Termo |
-|-------------|------------|
-| SLA estourado | Em acompanhamento |
-| Pendente | Em andamento |
-| Resolvida | Concluido |
-| Demanda | Topico/Assunto |
-| Equipe | - (remover referencias internas) |
-
-## Exemplo de Mensagem Reformulada
-
-**Antes:**
-```
-GRUPO EXEMPLO - Relatorio do Dia (30/01)
-
-Atencao, equipe! Resumo do grupo Grupo Exemplo:
-
-Tivemos 3 demandas:
-
-1. Solicitar alteracao de preco
-   Resolvida em 15 minutos
-
-2. Duvida sobre entrega
-   Ainda pendente
-
-Resumo: 1 resolvida, 2 pendentes
-SLA estourado: 1 demanda precisa de atencao urgente!
-```
-
-**Depois:**
-```
-GRUPO EXEMPLO
-Resumo de Atendimento - 30/01
-
-Ola! Segue o resumo das principais atividades de hoje:
-
-TOPICOS TRATADOS
-
-- Alteracao de preco solicitada - Concluido
-- Duvida sobre entrega - Em andamento
-- Atualizacao cadastral - Em andamento
-
-CONCLUSAO
-
-Hoje foram tratados 3 assuntos no seu canal de atendimento, sendo 1 ja finalizado. Os demais estao em acompanhamento e serao concluidos em breve.
-
-Agradecemos a parceria!
-
-Atenciosamente,
-Equipe de Atendimento
-```
-
-## Fluxo de Implementacao
+## Exemplo de Mensagem Final
 
 ```
-1. Atualizar formatGroupMessage com novo formato comercial
-2. Atualizar formatSummaryMessage com novo formato corporativo
-3. Testar a Edge Function para validar as novas mensagens
+📋 *GRUPO EXEMPLO*
+_Resumo do dia 30/01_
+
+📌 *TÓPICOS PRINCIPAIS*
+
+🔹 *Alteração de Preço*
+Solicitação de ajuste no valor do produto X conforme negociação comercial.
+
+🔹 *Dúvida sobre Entrega*
+Questionamento sobre prazo de entrega do pedido #1234.
+
+Até amanhã! 👋
 ```
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/daily-report/index.ts` | Reformular funcoes de formatacao de mensagens |
+| `supabase/functions/daily-report/index.ts` | Simplificar `formatGroupMessage` removendo status dos tópicos e remover envio do resumo geral |
 
