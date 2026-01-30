@@ -52,20 +52,10 @@ function formatDate(date: Date): string {
 function formatGroupMessage(report: GroupReport, dateStr: string): string {
   const groupName = report.group.name.toUpperCase();
   
-  // No topics case
-  if (report.totalDemands === 0) {
-    return `📋 *${groupName}*
-_Resumo do dia ${dateStr}_
-
-Hoje não houve novos tópicos registrados.
-
-Qualquer necessidade, estamos à disposição! 👋`;
-  }
-
-  // Build topics list with detailed descriptions
+// Build topics list with detailed descriptions
   const topicsList = report.demands
     .map((demand) => {
-      return `🔹 *${demand.description}*`;
+      return `🔹${demand.description}`;
     })
     .join("\n\n");
 
@@ -331,7 +321,12 @@ Deno.serve(async (req) => {
     let sentCount = 0;
     let failedCount = 0;
 
-    for (const report of reports) {
+for (const report of reports) {
+      // Skip groups with no topics
+      if (report.totalDemands === 0) {
+        continue;
+      }
+
       const message = formatGroupMessage(report, dateStr);
       const success = await sendWhatsAppMessage(
         instance.api_url,
