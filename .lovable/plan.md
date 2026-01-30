@@ -1,124 +1,134 @@
 
-# Plano de Correção: Demandas em Grupos Internos
+# Plano: Cadastro de Grupos Internos e Modal de Confirmação de Troca
 
-## Problema Identificado
+## Resumo
 
-O grupo "X9 de Atendimento" está classificado como **grupo interno** (`is_client_group: false`), mas ainda possui um **ticket aberto com demanda**, o que não deveria acontecer.
-
-### Causa Raiz
-
-O sistema possui duas falhas de consistência:
-
-1. **Tickets órfãos**: Quando um grupo é reclassificado de "grupo de clientes" para "grupo interno", os tickets e demandas existentes permanecem no banco de dados
-
-2. **Análise sem filtro**: A Edge Function `analyze-tickets` processa todos os tickets abertos sem verificar se o grupo associado ainda é um grupo de clientes
+Implementar duas melhorias na gestao de grupos:
+1. Adicionar botao para cadastrar grupos internos manualmente (similar ao fluxo de grupos de clientes)
+2. Adicionar modal de confirmacao ao trocar um grupo entre cliente e interno
 
 ---
 
-## Solução Proposta
+## Funcionalidades
 
-### Parte 1: Correção na Edge Function
+### 1. Cadastro Manual de Grupos Internos
 
-Adicionar filtro na query de tickets para incluir apenas grupos de clientes ativos:
+Adicionar um botao "Novo Grupo Interno" na secao de Grupos Internos que abre um dialog para cadastrar um grupo diretamente como interno (sem passar pela classificacao pendente).
 
-**Arquivo:** `supabase/functions/analyze-tickets/index.ts`
+**Campos do formulario:**
+- Nome do grupo
+- WhatsApp ID
+- Limite de SLA (opcional, ja que grupos internos nao geram demandas)
 
-```text
-Alteração na query (linhas 587-610):
+### 2. Modal de Confirmacao de Troca
 
-ANTES:
-- Busca tickets com status = 'open'
-- Não filtra por is_client_group
+Ao clicar no Switch "Grupo de Cliente" em qualquer card de grupo (seja cliente ou interno), exibir um modal de confirmacao explicando as consequencias da troca:
 
-DEPOIS:
-- Busca tickets com status = 'open'
-- Faz JOIN com monitored_groups
-- Filtra apenas grupos com is_client_group = true E is_active = true
-```
+**De Cliente para Interno:**
+- Alerta de que demandas abertas serao fechadas automaticamente
+- Grupo deixara de gerar metricas de SLA
 
-### Parte 2: Limpeza de Dados Existentes
-
-Executar SQL para fechar tickets órfãos de grupos internos:
-
-```text
-1. Identificar tickets abertos de grupos internos
-2. Atualizar status para 'resolved' com nota explicativa
-3. Marcar demandas pendentes como 'resolved' com razão de fechamento
-```
-
-### Parte 3: Trigger de Consistência (Opcional)
-
-Criar trigger no banco que, ao alterar `is_client_group` para `false`:
-- Fecha automaticamente tickets abertos do grupo
-- Remove demandas pendentes ou marca como resolvidas
+**De Interno para Cliente:**
+- Grupo passara a gerar tickets e demandas
+- Mensagens futuras serao monitoradas para SLA
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Tipo de Alteração |
-|---------|-------------------|
-| `supabase/functions/analyze-tickets/index.ts` | Adicionar filtro `is_client_group = true` na query |
-| Banco de dados | SQL para limpar tickets do "X9 de Atendimento" |
+| Arquivo | Alteracao |
+|---------|-----------|
+| `src/pages/settings/Groups.tsx` | Adicionar dialog de cadastro de grupo interno, adicionar modal de confirmacao de troca |
+| `src/hooks/useGroups.tsx` | Adicionar funcao `addInternalGroup` para criar grupos ja classificados como internos |
 
 ---
 
-## Benefícios
+## Detalhes da Implementacao
 
-- Grupos internos nunca mais terão demandas no painel de pendentes
-- Consistência entre classificação do grupo e monitoramento de SLA
-- Dados limpos sem tickets órfãos
+### Novos Estados
+
+```text
+- showNewInternalDialog: boolean - Controla o dialog de novo grupo interno
+- groupToSwitch: MonitoredGroup | null - Armazena o grupo que esta sendo trocado
+- showSwitchConfirmDialog: boolean - Controla o modal de confirmacao de troca
+```
+
+### Novo Dialog: Cadastrar Grupo Interno
+
+Semelhante ao dialog de edicao existente, mas:
+- Titulo: "Novo Grupo Interno"
+- Campos: Nome, WhatsApp ID
+- Ao salvar, cria o grupo com `is_client_group: false` e `pending_classification: false`
+
+### Modal de Confirmacao de Troca
+
+```text
+Titulo: "Alterar tipo do grupo?"
+
+Se grupo.is_client_group = true:
+  Mensagem: "Ao marcar como grupo interno, este grupo deixara de gerar demandas e metricas de SLA. Demandas abertas serao fechadas automaticamente."
+  Botoes: [Cancelar] [Confirmar]
+
+Se grupo.is_client_group = false:
+  Mensagem: "Ao marcar como grupo de cliente, este grupo passara a gerar tickets e demandas. Novas mensagens serao monitoradas para SLA."
+  Botoes: [Cancelar] [Confirmar]
+```
+
+### Fluxo Atualizado
+
+1. Usuario clica no Switch "Grupo de Cliente"
+2. Sistema abre modal de confirmacao (em vez de trocar imediatamente)
+3. Usuario confirma ou cancela
+4. Se confirmado, executa `handleToggleClientGroup` com fechamento automatico de tickets (se necessario)
 
 ---
 
-## Seção Tecnica
+## Secao Tecnica
 
-### Query Atual (linhas 587-603)
-```sql
-SELECT id, group_id, created_at, last_analysis_at, analysis_count, 
-       monitored_groups (name)
-FROM tickets
-WHERE status = 'open'
-  AND next_analysis_at <= NOW()
-ORDER BY next_analysis_at
-LIMIT 10
+### Modificacoes no useGroups.tsx
+
+```typescript
+// Nova funcao para adicionar grupo interno
+const addInternalGroup = async (group: { name: string; whatsapp_id: string; sla_limit_minutes?: number }) => {
+  try {
+    const { error } = await supabase.from("monitored_groups").insert({
+      ...group,
+      is_client_group: false,
+      pending_classification: false,
+      is_archived: false,
+    });
+    if (error) throw error;
+    await fetchGroups();
+  } catch (err) {
+    console.error("Error adding internal group:", err);
+    throw err;
+  }
+};
 ```
 
-### Query Corrigida
-```sql
-SELECT t.id, t.group_id, t.created_at, t.last_analysis_at, t.analysis_count,
-       monitored_groups (name, is_client_group, is_active)
-FROM tickets t
-JOIN monitored_groups mg ON t.group_id = mg.id
-WHERE t.status = 'open'
-  AND t.next_analysis_at <= NOW()
-  AND mg.is_client_group = true
-  AND mg.is_active = true
-ORDER BY t.next_analysis_at
-LIMIT 10
+### Modificacoes no Groups.tsx
+
+1. Adicionar estados para controlar os novos dialogs
+2. Modificar `handleToggleClientGroup` para abrir confirmacao primeiro
+3. Adicionar `handleConfirmSwitch` para executar a troca apos confirmacao
+4. Adicionar componente de dialog para cadastro de grupo interno
+5. Adicionar componente AlertDialog para confirmacao de troca
+
+### Botao "Novo Grupo Interno"
+
+Posicionamento: No header da secao "Grupos Internos", ao lado dos filtros de busca
+
+```tsx
+<Button variant="outline" onClick={() => setShowNewInternalDialog(true)}>
+  <Plus className="h-4 w-4 mr-2" />
+  Novo Grupo
+</Button>
 ```
 
-### SQL de Limpeza
-```sql
--- Fechar tickets de grupos não-clientes
-UPDATE tickets 
-SET status = 'resolved', 
-    resolved_at = NOW(),
-    notes = 'Fechado automaticamente: grupo reclassificado como interno'
-WHERE group_id IN (
-  SELECT id FROM monitored_groups 
-  WHERE is_client_group = false
-)
-AND status = 'open';
+---
 
--- Resolver demandas pendentes desses tickets
-UPDATE ticket_demands 
-SET status = 'resolved',
-    resolved_at = NOW()
-WHERE ticket_id IN (
-  SELECT t.id FROM tickets t
-  JOIN monitored_groups mg ON t.group_id = mg.id
-  WHERE mg.is_client_group = false
-)
-AND status = 'open';
-```
+## Beneficios
+
+- Permite cadastrar grupos internos sem passar pelo fluxo de classificacao pendente
+- Evita trocas acidentais entre cliente/interno com confirmacao explicita
+- Informa ao usuario as consequencias da troca de tipo
