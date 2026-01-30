@@ -585,6 +585,7 @@ serve(async (req) => {
       ticketsToAnalyze = data ? [data] : [];
     } else {
       // Find tickets that need analysis (next_analysis_at <= now AND status = open)
+      // IMPORTANT: Only analyze tickets from active client groups (is_client_group = true AND is_active = true)
       const { data, error: ticketsError } = await supabase
         .from("tickets")
         .select(`
@@ -593,11 +594,15 @@ serve(async (req) => {
           created_at,
           last_analysis_at,
           analysis_count,
-          monitored_groups (
-            name
+          monitored_groups!inner (
+            name,
+            is_client_group,
+            is_active
           )
         `)
         .eq("status", "open")
+        .eq("monitored_groups.is_client_group", true)
+        .eq("monitored_groups.is_active", true)
         .lte("next_analysis_at", new Date().toISOString())
         .order("next_analysis_at", { ascending: true })
         .limit(10); // Process up to 10 tickets per run
@@ -608,6 +613,7 @@ serve(async (req) => {
       }
       
       ticketsToAnalyze = data;
+      console.log(`Filtered to ${ticketsToAnalyze?.length || 0} tickets from active client groups`);
     }
 
     if (!ticketsToAnalyze || ticketsToAnalyze.length === 0) {
