@@ -48,23 +48,107 @@ function formatDate(date: Date): string {
   return `${day}/${month}`;
 }
 
-// Format individual group message - Meeting minute format for clients
-function formatGroupMessage(report: GroupReport, dateStr: string): string {
+// Generate humanized narrative using Lovable AI
+async function generateNarrativeSummary(
+  groupName: string,
+  demands: TicketDemand[]
+): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+  if (!LOVABLE_API_KEY) {
+    console.log("LOVABLE_API_KEY not configured, using fallback");
+    return demands.map((d) => d.description).join(". ") + ".";
+  }
+
+  const topicsList = demands.map((d) => `- ${d.description}`).join("\n");
+
+  const systemPrompt = `Você é um especialista em copywriting responsável por criar resumos diários de conversas com clientes. Seu objetivo é transformar interações e acontecimentos do dia em mensagens humanizadas, fluidas e focadas em progresso.
+
+DIRETRIZES OBRIGATÓRIAS:
+
+Tom de voz: Profissional, mas conversacional e acolhedor
+
+Evite: Linguagem de demandas, listas de tarefas, cobranças ou senso de urgência
+
+Foque em: Diálogo, alinhamentos, progressos naturais e colaboração
+
+ESTILO DE ESCRITA:
+
+Use verbos como "conversamos", "alinhamos", "ficou combinado", "vamos receber"
+
+Conecte as informações de forma fluida, como uma narrativa
+
+Transmita sensação de colaboração e andamento natural
+
+Evite bullet points ou linguagem técnica demais
+
+FORMATO DE SAÍDA:
+
+Retorne APENAS o corpo da mensagem (2-3 linhas sobre o que foi conversado/alinhado, focando no diálogo e nos próximos passos de forma natural).
+
+NÃO inclua cabeçalho, data ou despedida - apenas o texto narrativo.`;
+
+  try {
+    console.log(`Generating narrative for ${groupName} with ${demands.length} topics...`);
+
+    const response = await fetch(
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: `Cliente: ${groupName}\n\nTópicos do dia:\n${topicsList}`,
+            },
+          ],
+          temperature: 0.7,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`AI API error: ${response.status} - ${errorText}`);
+      return demands.map((d) => d.description).join(". ") + ".";
+    }
+
+    const data = await response.json();
+    const narrative = data.choices?.[0]?.message?.content?.trim();
+
+    if (!narrative) {
+      console.error("Empty narrative from AI, using fallback");
+      return demands.map((d) => d.description).join(". ") + ".";
+    }
+
+    console.log(`Generated narrative: ${narrative.substring(0, 100)}...`);
+    return narrative;
+  } catch (error) {
+    console.error(`Error generating narrative: ${error}`);
+    return demands.map((d) => d.description).join(". ") + ".";
+  }
+}
+
+// Format individual group message - Humanized narrative format
+async function formatGroupMessage(
+  report: GroupReport,
+  dateStr: string
+): Promise<string> {
   const groupName = report.group.name.toUpperCase();
-  
-// Build topics list with detailed descriptions
-  const topicsList = report.demands
-    .map((demand) => {
-      return `🔹${demand.description}`;
-    })
-    .join("\n\n");
 
-  return `📋 *${groupName}*
-_Resumo do dia ${dateStr}_
+  // Generate humanized narrative via AI
+  const narrative = await generateNarrativeSummary(groupName, report.demands);
 
-📌 *TÓPICOS PRINCIPAIS*
+  return `📋 ${groupName}
+Resumo do dia ${dateStr}
 
-${topicsList}
+${narrative}
 
 Até amanhã! 👋`;
 }
@@ -241,7 +325,7 @@ Deno.serve(async (req) => {
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setUTCHours(3, 0, 0, 0); // 00:00 BRT = 03:00 UTC
-    
+
     // If current UTC time is before 03:00, we need yesterday's BRT date
     if (now.getUTCHours() < 3) {
       todayStart.setDate(todayStart.getDate() - 1);
@@ -254,7 +338,7 @@ Deno.serve(async (req) => {
 
     // Fetch demands for all groups in one query
     const groupIds = groups.map((g) => g.id);
-    
+
     const { data: allTickets, error: ticketsError } = await supabase
       .from("tickets")
       .select("id, group_id")
@@ -300,7 +384,7 @@ Deno.serve(async (req) => {
       const resolutionTimes = resolvedDemands
         .filter((d) => d.resolution_time_minutes)
         .map((d) => d.resolution_time_minutes!);
-      
+
       const avgResolutionTime =
         resolutionTimes.length > 0
           ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length
@@ -321,13 +405,14 @@ Deno.serve(async (req) => {
     let sentCount = 0;
     let failedCount = 0;
 
-for (const report of reports) {
+    for (const report of reports) {
       // Skip groups with no topics
       if (report.totalDemands === 0) {
         continue;
       }
 
-      const message = formatGroupMessage(report, dateStr);
+      // Generate humanized message with AI (async)
+      const message = await formatGroupMessage(report, dateStr);
       const success = await sendWhatsAppMessage(
         instance.api_url,
         instance.api_token,
