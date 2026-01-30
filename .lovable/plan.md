@@ -1,151 +1,124 @@
 
+# Plano de Correção: Demandas em Grupos Internos
 
-# Transformar Relatorio Diario em Narrativa Humanizada com IA
+## Problema Identificado
 
-## Objetivo
+O grupo "X9 de Atendimento" está classificado como **grupo interno** (`is_client_group: false`), mas ainda possui um **ticket aberto com demanda**, o que não deveria acontecer.
 
-Modificar a funcao `daily-report` para usar IA (Lovable AI) para transformar os topicos do dia em um resumo narrativo fluido e humanizado, em vez de uma lista com bullet points.
+### Causa Raiz
 
-## Formato Desejado
+O sistema possui duas falhas de consistência:
 
-```
-📋 [NOME DO GRUPO]
-Resumo do dia DD/MM
+1. **Tickets órfãos**: Quando um grupo é reclassificado de "grupo de clientes" para "grupo interno", os tickets e demandas existentes permanecem no banco de dados
 
-[2-3 linhas narrativas sobre conversas e alinhamentos do dia]
+2. **Análise sem filtro**: A Edge Function `analyze-tickets` processa todos os tickets abertos sem verificar se o grupo associado ainda é um grupo de clientes
 
-Até amanhã! 👋
-```
+---
 
-## Exemplo de Saida
+## Solução Proposta
 
-```
-📋 ARTTICO DIGITAL
-Resumo do dia 30/01
+### Parte 1: Correção na Edge Function
 
-Hoje conversamos sobre os dados necessários para a plataforma e alinhamos alguns pontos importantes. Como parte desse processo, vamos receber por e-mail o banco de imagens com a logo para darmos continuidade ao trabalho.
+Adicionar filtro na query de tickets para incluir apenas grupos de clientes ativos:
 
-Até amanhã! 👋
-```
+**Arquivo:** `supabase/functions/analyze-tickets/index.ts`
 
-## Alteracoes Tecnicas
+```text
+Alteração na query (linhas 587-610):
 
-### Arquivo: `supabase/functions/daily-report/index.ts`
+ANTES:
+- Busca tickets com status = 'open'
+- Não filtra por is_client_group
 
-**1. Criar funcao de geracao de narrativa com IA**
-
-Nova funcao `generateNarrativeSummary` que:
-- Recebe o nome do grupo e a lista de topicos/demandas do dia
-- Chama o Lovable AI (google/gemini-3-flash-preview) com um prompt de copywriting
-- Retorna um texto narrativo de 2-3 linhas
-
-```typescript
-async function generateNarrativeSummary(
-  groupName: string,
-  demands: TicketDemand[]
-): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  
-  if (!LOVABLE_API_KEY) {
-    // Fallback: listar topicos sem IA
-    return demands.map(d => d.description).join(". ");
-  }
-
-  const topicsList = demands.map(d => d.description).join("\n- ");
-  
-  const systemPrompt = `Você é um especialista em copywriting...
-  // Prompt fornecido pelo usuario
-  `;
-
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Topicos do dia:\n- ${topicsList}` }
-      ],
-      temperature: 0.7,
-    }),
-  });
-
-  const data = await response.json();
-  return data.choices[0].message.content;
-}
+DEPOIS:
+- Busca tickets com status = 'open'
+- Faz JOIN com monitored_groups
+- Filtra apenas grupos com is_client_group = true E is_active = true
 ```
 
-**2. Modificar funcao `formatGroupMessage`**
+### Parte 2: Limpeza de Dados Existentes
 
-Tornar a funcao `async` e chamar `generateNarrativeSummary`:
+Executar SQL para fechar tickets órfãos de grupos internos:
 
-```typescript
-// ANTES: funcao sincrona com bullet points
-function formatGroupMessage(report: GroupReport, dateStr: string): string {
-  const groupName = report.group.name.toUpperCase();
-  const topicsList = report.demands
-    .map((demand) => `🔹${demand.description}`)
-    .join("\n\n");
-  
-  return `📋 *${groupName}*...`;
-}
-
-// DEPOIS: funcao assincrona com narrativa IA
-async function formatGroupMessage(
-  report: GroupReport, 
-  dateStr: string
-): Promise<string> {
-  const groupName = report.group.name.toUpperCase();
-  
-  // Gera narrativa humanizada via IA
-  const narrative = await generateNarrativeSummary(groupName, report.demands);
-  
-  return `📋 ${groupName}
-Resumo do dia ${dateStr}
-
-${narrative}
-
-Até amanhã! 👋`;
-}
+```text
+1. Identificar tickets abertos de grupos internos
+2. Atualizar status para 'resolved' com nota explicativa
+3. Marcar demandas pendentes como 'resolved' com razão de fechamento
 ```
 
-**3. Ajustar chamadas no loop principal**
+### Parte 3: Trigger de Consistência (Opcional)
 
-Adicionar `await` na chamada de `formatGroupMessage`:
+Criar trigger no banco que, ao alterar `is_client_group` para `false`:
+- Fecha automaticamente tickets abertos do grupo
+- Remove demandas pendentes ou marca como resolvidas
 
-```typescript
-for (const report of reports) {
-  if (report.totalDemands === 0) {
-    continue;
-  }
-
-  // Agora com await
-  const message = await formatGroupMessage(report, dateStr);
-  // ...
-}
-```
-
-## Prompt de IA Completo
-
-O prompt seguira exatamente as diretrizes fornecidas:
-
-- Tom profissional mas conversacional
-- Evitar linguagem de demandas, listas ou cobranças
-- Focar em dialogo, alinhamentos e colaboracao
-- Usar verbos como "conversamos", "alinhamos", "ficou combinado"
-- Conectar informacoes de forma fluida como narrativa
-- Saida apenas do corpo da mensagem (2-3 linhas)
-
-## Fallback
-
-Se a IA falhar ou nao estiver configurada, o sistema usara um fallback simples concatenando os topicos em uma frase, garantindo que o relatorio sempre seja enviado.
+---
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `supabase/functions/daily-report/index.ts` | Adicionar integracao com Lovable AI para gerar narrativas humanizadas |
+| Arquivo | Tipo de Alteração |
+|---------|-------------------|
+| `supabase/functions/analyze-tickets/index.ts` | Adicionar filtro `is_client_group = true` na query |
+| Banco de dados | SQL para limpar tickets do "X9 de Atendimento" |
 
+---
+
+## Benefícios
+
+- Grupos internos nunca mais terão demandas no painel de pendentes
+- Consistência entre classificação do grupo e monitoramento de SLA
+- Dados limpos sem tickets órfãos
+
+---
+
+## Seção Tecnica
+
+### Query Atual (linhas 587-603)
+```sql
+SELECT id, group_id, created_at, last_analysis_at, analysis_count, 
+       monitored_groups (name)
+FROM tickets
+WHERE status = 'open'
+  AND next_analysis_at <= NOW()
+ORDER BY next_analysis_at
+LIMIT 10
+```
+
+### Query Corrigida
+```sql
+SELECT t.id, t.group_id, t.created_at, t.last_analysis_at, t.analysis_count,
+       monitored_groups (name, is_client_group, is_active)
+FROM tickets t
+JOIN monitored_groups mg ON t.group_id = mg.id
+WHERE t.status = 'open'
+  AND t.next_analysis_at <= NOW()
+  AND mg.is_client_group = true
+  AND mg.is_active = true
+ORDER BY t.next_analysis_at
+LIMIT 10
+```
+
+### SQL de Limpeza
+```sql
+-- Fechar tickets de grupos não-clientes
+UPDATE tickets 
+SET status = 'resolved', 
+    resolved_at = NOW(),
+    notes = 'Fechado automaticamente: grupo reclassificado como interno'
+WHERE group_id IN (
+  SELECT id FROM monitored_groups 
+  WHERE is_client_group = false
+)
+AND status = 'open';
+
+-- Resolver demandas pendentes desses tickets
+UPDATE ticket_demands 
+SET status = 'resolved',
+    resolved_at = NOW()
+WHERE ticket_id IN (
+  SELECT t.id FROM tickets t
+  JOIN monitored_groups mg ON t.group_id = mg.id
+  WHERE mg.is_client_group = false
+)
+AND status = 'open';
+```
