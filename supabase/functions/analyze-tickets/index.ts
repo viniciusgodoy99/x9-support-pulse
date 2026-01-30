@@ -32,6 +32,74 @@ interface AnalysisResult {
   summary: string;
 }
 
+// ============ PRIORITY CALCULATION FUNCTIONS ============
+
+/**
+ * Detects urgency keywords in client messages
+ */
+function hasUrgencyKeywords(messages: Message[]): boolean {
+  const urgencyKeywords = [
+    "urgente", "urgência", "urgencia",
+    "preciso agora", "imediato", "imediatamente",
+    "o mais rápido possível", "mais rápido possível",
+    "asap", "pressa", "emergência", "emergencia",
+    "emergencial", "não pode esperar", "nao pode esperar",
+    "prioridade", "prioritário", "prioritario"
+  ];
+  
+  // Check only client messages
+  const clientMessages = messages.filter(m => 
+    m.group_role === "client" || m.sender_role === "client"
+  );
+  
+  for (const msg of clientMessages) {
+    const content = msg.content.toLowerCase();
+    if (urgencyKeywords.some(keyword => content.includes(keyword))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Calculates objective priority based on time open, SLA, and urgency keywords
+ * Priority hierarchy:
+ * 1. Time open > 2x SLA = urgent
+ * 2. Client used urgency keywords = urgent
+ * 3. Time open > 1x SLA = high
+ * 4. Category is "duvida" (simple question) = low
+ * 5. Normal request = normal
+ */
+function calculateObjectivePriority(
+  category: string,
+  timeOpenMinutes: number,
+  slaLimitMinutes: number,
+  hasUrgencyWords: boolean
+): "low" | "normal" | "high" | "urgent" {
+  // 1. Time open > 2x SLA = urgent
+  if (timeOpenMinutes > slaLimitMinutes * 2) {
+    return "urgent";
+  }
+  
+  // 2. Client used urgency keywords = urgent
+  if (hasUrgencyWords) {
+    return "urgent";
+  }
+  
+  // 3. Time open > 1x SLA = high
+  if (timeOpenMinutes > slaLimitMinutes) {
+    return "high";
+  }
+  
+  // 4. Simple question = low
+  if (category === "duvida") {
+    return "low";
+  }
+  
+  // 5. Normal request = normal
+  return "normal";
+}
+
 // ============ SLA NOTIFICATION FUNCTIONS ============
 
 async function sendWhatsAppMessage(groupJid: string, message: string): Promise<boolean> {
@@ -721,6 +789,40 @@ serve(async (req) => {
             }
           } else {
             // Create new demand
+            
+            // Get global SLA limit for priority calculation
+            const { data: slaSettings } = await supabase
+              .from("settings")
+              .select("value")
+              .eq("key", "global_sla_minutes")
+              .single();
+            const slaLimitMinutes = slaSettings?.value ? parseInt(slaSettings.value) : 30;
+            
+            // Calculate time open from first client message
+            const firstClientMsg = (messages as Message[])
+              .filter(m => m.group_role === "client" || m.sender_role === "client")
+              .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+            
+            let timeOpenMinutes = 0;
+            if (firstClientMsg) {
+              timeOpenMinutes = Math.round((Date.now() - new Date(firstClientMsg.created_at).getTime()) / 60000);
+            }
+            
+            // Check for urgency keywords in client messages
+            const hasUrgency = hasUrgencyKeywords(messages as Message[]);
+            
+            // Calculate objective priority based on criteria
+            const objectivePriority = calculateObjectivePriority(
+              demand.category || "geral",
+              timeOpenMinutes,
+              slaLimitMinutes,
+              hasUrgency
+            );
+            
+            console.log(`Priority calculation for "${demand.description.slice(0, 40)}...": ` +
+              `timeOpen=${timeOpenMinutes}min, SLA=${slaLimitMinutes}min, hasUrgency=${hasUrgency}, ` +
+              `AI=${demand.priority} -> Objective=${objectivePriority}`);
+            
             const demandAge = Date.now() - new Date(ticket.created_at).getTime();
             const slaExceeded = demand.status === "open" && demandAge > 2 * 60 * 1000; // 2 minutes for testing
 
@@ -750,7 +852,7 @@ serve(async (req) => {
                 ticket_id: ticket.id,
                 description: demand.description,
                 status: demand.status,
-                priority: demand.priority,
+                priority: objectivePriority, // Use objective priority instead of AI priority
                 category: demand.category || "geral",
                 resolution_time_minutes: demand.status === "resolved" ? demand.resolution_time_minutes : null,
                 resolved_at: demand.status === "resolved" ? lastCsMessageTimestamp : null,
@@ -762,7 +864,7 @@ serve(async (req) => {
             if (insertError) {
               console.error(`Error inserting demand for ticket ${ticket.id}:`, insertError);
             } else {
-              console.log(`Created new demand: ${demand.description} (${demand.status})`);
+              console.log(`Created new demand: ${demand.description} (${demand.status}) with priority ${objectivePriority}`);
             }
           }
         }
