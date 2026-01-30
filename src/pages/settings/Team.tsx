@@ -42,6 +42,10 @@ const roleLabels: Record<TeamMember["role"], string> = {
   Manager: "Gerente",
   Support: "Suporte",
   Admin: "Administrador",
+  PerformanceManager: "Gestor de Performance",
+  CRMManager: "Gestor de CRM/IFOOD",
+  SocialMedia: "Social Media",
+  ClientTeam: "Equipe Cliente",
 };
 
 export default function TeamSettings() {
@@ -211,6 +215,10 @@ export default function TeamSettings() {
                       <SelectItem value="Support">Suporte</SelectItem>
                       <SelectItem value="Manager">Gerente</SelectItem>
                       <SelectItem value="Admin">Administrador</SelectItem>
+                      <SelectItem value="PerformanceManager">Gestor de Performance</SelectItem>
+                      <SelectItem value="CRMManager">Gestor de CRM/IFOOD</SelectItem>
+                      <SelectItem value="SocialMedia">Social Media</SelectItem>
+                      <SelectItem value="ClientTeam">Equipe Cliente</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

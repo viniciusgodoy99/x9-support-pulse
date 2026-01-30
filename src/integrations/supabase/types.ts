@@ -427,7 +427,15 @@ export type Database = {
     }
     Enums: {
       group_member_role: "cs" | "client" | "traffic_manager" | "unknown"
-      team_role: "CS" | "Manager" | "Support" | "Admin"
+      team_role:
+        | "CS"
+        | "Manager"
+        | "Support"
+        | "Admin"
+        | "PerformanceManager"
+        | "CRMManager"
+        | "SocialMedia"
+        | "ClientTeam"
       ticket_status: "open" | "resolved"
     }
     CompositeTypes: {
@@ -557,7 +565,16 @@ export const Constants = {
   public: {
     Enums: {
       group_member_role: ["cs", "client", "traffic_manager", "unknown"],
-      team_role: ["CS", "Manager", "Support", "Admin"],
+      team_role: [
+        "CS",
+        "Manager",
+        "Support",
+        "Admin",
+        "PerformanceManager",
+        "CRMManager",
+        "SocialMedia",
+        "ClientTeam",
+      ],
       ticket_status: ["open", "resolved"],
     },
   },
