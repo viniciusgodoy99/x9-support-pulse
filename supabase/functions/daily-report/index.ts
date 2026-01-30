@@ -48,63 +48,35 @@ function formatDate(date: Date): string {
   return `${day}/${month}`;
 }
 
-// Format individual group message - Commercial format for clients
+// Format individual group message - Meeting minute format for clients
 function formatGroupMessage(report: GroupReport, dateStr: string): string {
   const groupName = report.group.name.toUpperCase();
   
-  // No demands case
+  // No topics case
   if (report.totalDemands === 0) {
-    return `${groupName}
-Resumo de Atendimento - ${dateStr}
+    return `📋 *${groupName}*
+_Resumo do dia ${dateStr}_
 
-Olá! Hoje não houve novas demandas registradas no seu canal de atendimento.
+Hoje não houve novos tópicos registrados.
 
-Estamos à disposição para qualquer necessidade!
-
-Atenciosamente,
-Equipe de Atendimento`;
+Qualquer necessidade, estamos à disposição! 👋`;
   }
 
-  // Build topics list
+  // Build topics list with detailed descriptions
   const topicsList = report.demands
     .map((demand) => {
-      const statusText = demand.status === "resolved" ? "Concluído" : "Em andamento";
-      return `• ${demand.description} - ${statusText}`;
+      return `🔹 *${demand.description}*`;
     })
-    .join("\n");
+    .join("\n\n");
 
-  // Build conclusion
-  let conclusion: string;
-  const topicWord = report.totalDemands === 1 ? "assunto" : "assuntos";
-  const finalizedWord = report.resolvedCount === 1 ? "finalizado" : "finalizados";
-  
-  if (report.resolvedCount === report.totalDemands) {
-    conclusion = `Hoje ${report.totalDemands === 1 ? "foi tratado" : "foram tratados"} ${report.totalDemands} ${topicWord} no seu canal de atendimento, ${report.totalDemands === 1 ? "sendo ele já" : "todos já"} ${finalizedWord}. Excelente dia de parceria!`;
-  } else if (report.pendingCount > 0) {
-    const pendingWord = report.pendingCount === 1 ? "está" : "estão";
-    const followupWord = report.pendingCount === 1 ? "será concluído" : "serão concluídos";
-    conclusion = `Hoje ${report.totalDemands === 1 ? "foi tratado" : "foram tratados"} ${report.totalDemands} ${topicWord} no seu canal de atendimento, sendo ${report.resolvedCount} já ${finalizedWord}. ${report.pendingCount === 1 ? "O demais" : "Os demais"} ${pendingWord} em acompanhamento e ${followupWord} em breve.`;
-  } else {
-    conclusion = `Hoje ${report.totalDemands === 1 ? "foi tratado" : "foram tratados"} ${report.totalDemands} ${topicWord} no seu canal de atendimento.`;
-  }
+  return `📋 *${groupName}*
+_Resumo do dia ${dateStr}_
 
-  return `${groupName}
-Resumo de Atendimento - ${dateStr}
-
-Olá! Segue o resumo das principais atividades de hoje:
-
-TÓPICOS TRATADOS
+📌 *TÓPICOS PRINCIPAIS*
 
 ${topicsList}
 
-CONCLUSÃO
-
-${conclusion}
-
-Agradecemos a parceria!
-
-Atenciosamente,
-Equipe de Atendimento`;
+Até amanhã! 👋`;
 }
 
 // Format general summary message - Corporate format for clients
@@ -378,24 +350,7 @@ Deno.serve(async (req) => {
       await sleep(2000);
     }
 
-    // Send summary message if enabled
-    if (includeSummary) {
-      const summaryMessage = formatSummaryMessage(reports, dateStr);
-      const summarySuccess = await sendWhatsAppMessage(
-        instance.api_url,
-        instance.api_token,
-        targetGroupId,
-        summaryMessage
-      );
-
-      if (summarySuccess) {
-        sentCount++;
-        console.log("Summary message sent successfully");
-      } else {
-        failedCount++;
-        console.error("Failed to send summary message");
-      }
-    }
+    // Summary message removed as per client request
 
     console.log(`Daily report completed: ${sentCount} sent, ${failedCount} failed`);
 
