@@ -1,105 +1,119 @@
 
-# Plano: Corrigir Identificacao do Solicitante nas Notificacoes de SLA
+
+# Plano: Filtrar Demandas para Apenas Clientes Reais
 
 ## Problema Identificado
 
-A mensagem de SLA mostra "Cliente desconhecido" mesmo que o cliente tenha sido identificado. A investigacao revelou:
+A demanda de SLA foi criada por **Gabriel Pereira**, que no banco de dados está marcado como `role: client`, mas na realidade é um **gestor de tráfego** (membro interno). O sistema atualmente:
 
-| Campo | Valor | Origem |
-|-------|-------|--------|
-| `tickets.customer_name` | "Cliente" (generico) | Webhook no momento da criacao |
-| `messages.sender_name` | "Gabriel Pereira" (real) | Mensagem original do cliente |
-| `group_members.name` | "Gabriel Pereira" | Sincronizado posteriormente |
+1. Marca qualquer pessoa não-CS como `sender_role: client` nas mensagens
+2. A IA analisa e cria demandas para todas as mensagens de "clientes"
+3. Isso inclui erroneamente solicitações de membros internos (gestores de tráfego, etc.)
 
-O problema e que o webhook criou o ticket com `customer_name: "Cliente"` (valor padrao), e as atualizacoes posteriores de nome aconteceram apenas na tabela `messages` e `group_members`, nao no ticket.
+## Estrutura Atual de Roles
 
-## Solucao
+| Role no grupo | Descrição | Deve gerar demanda? |
+|---------------|-----------|---------------------|
+| `cs` | Atendente/Customer Success | Não |
+| `client` | Cliente externo real | Sim |
+| `traffic_manager` | Gestor de tráfego (interno) | Não |
+| `unknown` | Não classificado | Depende |
 
-Modificar a funcao `sendSlaBreachNotifications` no `analyze-tickets` para buscar o nome correto do solicitante quando o `customer_name` do ticket estiver vazio ou generico:
+## Solução Proposta
 
-1. Primeiro tentar `tickets.customer_name`
-2. Se vazio/generico, buscar na primeira mensagem do ticket com `sender_role = 'client'`
-3. Se ainda vazio, buscar em `group_members` pelo `customer_phone`
+Modificar a edge function `analyze-tickets` para que, antes de criar uma demanda, verifique se o solicitante identificado é realmente um **cliente externo** e não um membro interno (CS, gestor de tráfego, etc.).
 
-## Alteracoes Necessarias
+### Alterações Necessárias
 
-### Arquivo: `supabase/functions/analyze-tickets/index.ts`
+#### Arquivo: `supabase/functions/analyze-tickets/index.ts`
 
-#### Modificar a secao de notificacoes SLA (linhas 146-189)
+**1. Adicionar busca do role real do solicitante nas mensagens analisadas:**
 
-Adicionar uma subconsulta para buscar o nome real quando necessario:
+Ao processar as mensagens para análise, buscar o role do grupo para cada sender:
 
 ```typescript
-for (const demand of demandsToNotify) {
-  // ... existing notification check ...
-
-  // Get customer info - FALLBACK logic
-  let customerName = (demand.tickets as any)?.customer_name;
+// Após buscar as mensagens do ticket, enriquecer com role do grupo
+const messagesWithRoles = await Promise.all(messages.map(async (m) => {
+  const { data: memberRole } = await supabase
+    .from("group_members")
+    .select("role")
+    .eq("group_id", ticket.group_id)
+    .eq("phone_number", m.sender_phone)
+    .maybeSingle();
   
-  // If name is empty, generic, or null - try to get from first client message
-  if (!customerName || customerName === "Cliente" || customerName === "Cliente desconhecido") {
-    const ticketId = (demand.tickets as any)?.id;
-    if (ticketId) {
-      // Fetch first client message to get real name
-      const { data: firstClientMessage } = await supabase
-        .from("messages")
-        .select("sender_name")
-        .eq("ticket_id", ticketId)
-        .eq("sender_role", "client")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      
-      if (firstClientMessage?.sender_name && firstClientMessage.sender_name !== "Cliente") {
-        customerName = firstClientMessage.sender_name;
-        console.log(`Found customer name from first message: ${customerName}`);
-      }
-    }
-  }
-  
-  // Final fallback
-  customerName = customerName || "Cliente desconhecido";
-  
-  // Build alert message with correct name
-  const alertMessage = `...`
-}
+  return {
+    ...m,
+    group_role: memberRole?.role || "unknown"
+  };
+}));
 ```
 
-## Fluxo de Resolucao de Nome
+**2. Modificar o system prompt da IA para identificar o role real:**
+
+Adicionar no prompt:
+- Instrução para a IA considerar apenas mensagens de clientes externos
+- Ignorar solicitações de pessoas marcadas como `cs`, `traffic_manager` ou outros roles internos
+
+**3. Filtrar demandas criadas:**
+
+Após a IA retornar as demandas, filtrar aquelas que vieram de membros internos:
+
+```typescript
+// Filtrar demandas de membros internos
+const validDemands = analysis.demands.filter(demand => {
+  // Verificar se o solicitante é um cliente real
+  // Buscar nas mensagens quem fez a solicitação
+  const isFromExternalClient = checkIfFromExternalClient(messages, demand);
+  return isFromExternalClient;
+});
+```
+
+## Fluxo de Validação
 
 ```text
-1. tickets.customer_name existe e != "Cliente"?
-   └─ SIM → Usar esse nome
-   └─ NAO ↓
-
-2. Buscar primeira mensagem do cliente no ticket
-   └─ Encontrou sender_name != "Cliente"?
-      └─ SIM → Usar esse nome
-      └─ NAO ↓
-
-3. Usar "Cliente desconhecido" (fallback final)
+Mensagem recebida
+       |
+       v
+É de um membro com role no grupo?
+       |
+   +---+---+
+   |       |
+  SIM     NÃO
+   |       |
+   v       v
+Role = 'client'?   Verificar team_members
+   |                    |
+  SIM                  NÃO
+   |                    |
+   v                    v
+Gera demanda      Não gera demanda
 ```
 
-## Resultado Esperado
+## Opção Alternativa (Mais Simples)
 
-A mensagem sera enviada com o nome real:
+Se a classificação de roles no grupo estiver correta, podemos simplesmente:
+1. Alterar o role de **Gabriel Pereira** de `client` para `traffic_manager`
+2. Isso já impediria que suas mensagens gerassem demandas
 
-```text
-⚠️ *ALERTA DE SLA*
-
-📋 *Grupo:* X9 de Atendimento
-👤 *Solicitante:* Gabriel Pereira
-📝 *Demanda:* Resultado das campanhas de marketing/anúncios
-⏱️ *Tempo aberto:* 5 minutos
-🎯 *Limite SLA:* 3 minutos
-🟡 Normal
-
-Por favor, verifique o atendimento!
+### Correção imediata via SQL:
+```sql
+UPDATE group_members 
+SET role = 'traffic_manager' 
+WHERE phone_number = '558494397878' 
+  AND group_id = 'f6df1fdb-8c01-400a-83d5-2d11ad5c71e3';
 ```
 
-## Acoes
+## Recomendação
 
-1. Modificar funcao `sendSlaBreachNotifications` no `analyze-tickets`
-2. Adicionar logica de fallback para buscar nome da primeira mensagem
-3. Deploy da edge function
-4. Testar com ticket existente para confirmar nome correto
+Implementar **ambas** as soluções:
+1. **Correção imediata**: Atualizar o role do Gabriel para `traffic_manager`
+2. **Prevenção futura**: Modificar a lógica de criação de demandas para só considerar roles = `client` ou `unknown` (pessoas não classificadas)
+
+## Ações
+
+1. Modificar `analyze-tickets` para verificar o role real do solicitante
+2. Filtrar demandas de membros com roles internos (cs, traffic_manager)
+3. Manter a lógica de criar demandas apenas para `client` ou `unknown`
+4. Deploy da edge function
+5. Testar com mensagens de diferentes tipos de membros
+
