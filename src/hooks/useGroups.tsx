@@ -160,6 +160,22 @@ export function useGroups() {
     fetchGroups();
   }, [fetchGroups]);
 
+  const addInternalGroup = async (group: { name: string; whatsapp_id: string; sla_limit_minutes?: number }) => {
+    try {
+      const { error } = await supabase.from("monitored_groups").insert({
+        ...group,
+        is_client_group: false,
+        pending_classification: false,
+        is_archived: false,
+      });
+      if (error) throw error;
+      await fetchGroups();
+    } catch (err) {
+      console.error("Error adding internal group:", err);
+      throw err;
+    }
+  };
+
   return {
     groups,
     archivedGroups,
@@ -169,6 +185,7 @@ export function useGroups() {
     refetch: fetchGroups,
     fetchArchivedGroups,
     addGroup,
+    addInternalGroup,
     updateGroup,
     classifyGroup,
     archiveGroup,

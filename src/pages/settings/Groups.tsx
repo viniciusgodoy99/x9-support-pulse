@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter, Archive, RotateCcw, Clock } from "lucide-react";
+import { MessageSquare, Trash2, Edit2, Power, Users, AlertCircle, Building2, UserCircle, Search, Filter, Archive, RotateCcw, Clock, Plus } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +51,8 @@ export default function GroupsSettings() {
     archivedGroups,
     loading, 
     loadingArchived,
-    addGroup, 
+    addGroup,
+    addInternalGroup,
     updateGroup, 
     classifyGroup, 
     archiveGroup,
@@ -61,11 +62,17 @@ export default function GroupsSettings() {
   } = useGroups();
   const [isOpen, setIsOpen] = useState(false);
   const [showArchivedDialog, setShowArchivedDialog] = useState(false);
+  const [showNewInternalDialog, setShowNewInternalDialog] = useState(false);
+  const [groupToSwitch, setGroupToSwitch] = useState<MonitoredGroup | null>(null);
   const [editingGroup, setEditingGroup] = useState<MonitoredGroup | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     whatsapp_id: "",
     sla_limit_minutes: 30,
+  });
+  const [newInternalFormData, setNewInternalFormData] = useState({
+    name: "",
+    whatsapp_id: "",
   });
   const [pendingSearchQuery, setPendingSearchQuery] = useState("");
   const [pendingDaysFilter, setPendingDaysFilter] = useState<"all" | "urgent" | "1-3" | "4-7">("all");
@@ -74,9 +81,14 @@ export default function GroupsSettings() {
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [internalStatusFilter, setInternalStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [archivedSearchQuery, setArchivedSearchQuery] = useState("");
+
   const resetForm = () => {
     setFormData({ name: "", whatsapp_id: "", sla_limit_minutes: 30 });
     setEditingGroup(null);
+  };
+
+  const resetNewInternalForm = () => {
+    setNewInternalFormData({ name: "", whatsapp_id: "" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,16 +165,39 @@ export default function GroupsSettings() {
     }
   };
 
-  const handleToggleClientGroup = async (group: MonitoredGroup) => {
+  const handleRequestSwitch = (group: MonitoredGroup) => {
+    setGroupToSwitch(group);
+  };
+
+  const handleConfirmSwitch = async () => {
+    if (!groupToSwitch) return;
+    
     try {
-      await updateGroup(group.id, { is_client_group: !group.is_client_group });
+      await updateGroup(groupToSwitch.id, { is_client_group: !groupToSwitch.is_client_group });
       toast({
-        title: group.is_client_group ? "Removido como grupo de cliente" : "Marcado como grupo de cliente",
+        title: groupToSwitch.is_client_group ? "Removido como grupo de cliente" : "Marcado como grupo de cliente",
       });
+      setGroupToSwitch(null);
     } catch (err) {
       toast({
         title: "Erro",
         description: "Não foi possível alterar o tipo do grupo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddInternalGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await addInternalGroup(newInternalFormData);
+      toast({ title: "Grupo interno adicionado com sucesso!" });
+      setShowNewInternalDialog(false);
+      resetNewInternalForm();
+    } catch (err) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível adicionar o grupo interno.",
         variant: "destructive",
       });
     }
@@ -450,6 +485,85 @@ export default function GroupsSettings() {
             </DialogContent>
           </Dialog>
 
+          {/* New Internal Group Dialog */}
+          <Dialog open={showNewInternalDialog} onOpenChange={(open) => {
+            setShowNewInternalDialog(open);
+            if (!open) resetNewInternalForm();
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Novo Grupo Interno</DialogTitle>
+                <DialogDescription>
+                  Cadastre um grupo interno manualmente. Grupos internos não geram demandas ou métricas de SLA.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAddInternalGroup} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="internal-name">Nome do Grupo</Label>
+                  <Input
+                    id="internal-name"
+                    value={newInternalFormData.name}
+                    onChange={(e) =>
+                      setNewInternalFormData({ ...newInternalFormData, name: e.target.value })
+                    }
+                    placeholder="Ex: Equipe Interna, X9 de Atendimento"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="internal-whatsapp-id">WhatsApp ID</Label>
+                  <Input
+                    id="internal-whatsapp-id"
+                    value={newInternalFormData.whatsapp_id}
+                    onChange={(e) =>
+                      setNewInternalFormData({ ...newInternalFormData, whatsapp_id: e.target.value })
+                    }
+                    placeholder="Ex: 5511999999999@g.us"
+                    required
+                  />
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      Cancelar
+                    </Button>
+                  </DialogClose>
+                  <Button type="submit">
+                    Cadastrar
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Switch Group Type Confirmation Dialog */}
+          <AlertDialog open={!!groupToSwitch} onOpenChange={(open) => !open && setGroupToSwitch(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Alterar tipo do grupo?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {groupToSwitch?.is_client_group ? (
+                    <>
+                      Ao marcar como <strong>grupo interno</strong>, este grupo deixará de gerar demandas e métricas de SLA. 
+                      Demandas abertas serão fechadas automaticamente.
+                    </>
+                  ) : (
+                    <>
+                      Ao marcar como <strong>grupo de cliente</strong>, este grupo passará a gerar tickets e demandas. 
+                      Novas mensagens serão monitoradas para SLA.
+                    </>
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmSwitch}>
+                  Confirmar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -539,7 +653,7 @@ export default function GroupsSettings() {
                           <Switch
                             id={`client-${group.id}`}
                             checked={group.is_client_group}
-                            onCheckedChange={() => handleToggleClientGroup(group)}
+                            onCheckedChange={() => handleRequestSwitch(group)}
                           />
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -810,6 +924,10 @@ export default function GroupsSettings() {
                     </h2>
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                    <Button variant="outline" onClick={() => setShowNewInternalDialog(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Grupo
+                    </Button>
                     <div className="relative w-full sm:w-48">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -867,7 +985,7 @@ export default function GroupsSettings() {
                           <Switch
                             id={`client-${group.id}`}
                             checked={group.is_client_group}
-                            onCheckedChange={() => handleToggleClientGroup(group)}
+                            onCheckedChange={() => handleRequestSwitch(group)}
                           />
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
