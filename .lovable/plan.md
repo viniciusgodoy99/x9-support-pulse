@@ -1,176 +1,178 @@
 
-# Plano: Implementar Critérios Objetivos de Prioridade
+# Plano: Filtrar Mensagens de Alerta de SLA para Apenas Clientes Reais
 
-## Situação Atual
+## Problema Identificado
 
-A prioridade das demandas é definida **subjetivamente pela IA** com base na "urgência aparente". Isso resulta em classificações inconsistentes.
+A lógica atual na função `sendSlaBreachNotifications` busca mensagens usando `sender_role = "client"`:
 
-## Nova Lógica de Prioridade
+```typescript
+const { data: firstClientMessage } = await supabase
+  .from("messages")
+  .select("created_at")
+  .eq("ticket_id", ticketId)
+  .eq("sender_role", "client")  // <-- Problema aqui
+  .order("created_at", { ascending: true })
+  .limit(1)
+  .maybeSingle();
+```
 
-Implementar critérios **objetivos e hierárquicos**:
+Isso inclui qualquer pessoa que não seja CS, incluindo **gestores de tráfego** que estão classificados como `traffic_manager` na tabela `group_members`.
 
-| Critério | Prioridade | Peso |
-|----------|------------|------|
-| Tempo aberto > 2x SLA | `urgent` | 1º (mais alto) |
-| Cliente usou palavras de urgência | `urgent` | 2º |
-| Tempo aberto > 1x SLA | `high` | 3º |
-| Solicitação normal | `normal` | 4º |
-| Dúvida simples | `low` | 5º (mais baixo) |
+## Solução
 
-**Palavras de urgência a detectar:**
-- "urgente", "urgência", "preciso agora", "imediato", "imediatamente"
-- "o mais rápido possível", "asap", "pressa", "emergência", "emergencial"
-- "não pode esperar", "prioridade", "prioritário"
+Modificar as queries para buscar o **role real do membro no grupo** através de um JOIN com a tabela `group_members`, filtrando apenas mensagens de pessoas classificadas como `role = 'client'` no grupo.
 
 ## Alterações Necessárias
 
 ### Arquivo: `supabase/functions/analyze-tickets/index.ts`
 
-#### 1. Adicionar função para detectar palavras de urgência
+#### 1. Query para timestamp da primeira mensagem do cliente (linhas 237-251)
 
+**Antes:**
 ```typescript
-function hasUrgencyKeywords(messages: Message[]): boolean {
-  const urgencyKeywords = [
-    "urgente", "urgência", "urgencia",
-    "preciso agora", "imediato", "imediatamente",
-    "o mais rápido possível", "mais rápido possível",
-    "asap", "pressa", "emergência", "emergencia",
-    "emergencial", "não pode esperar", "nao pode esperar",
-    "prioridade", "prioritário", "prioritario"
-  ];
+const { data: firstClientMessage } = await supabase
+  .from("messages")
+  .select("created_at")
+  .eq("ticket_id", ticketId)
+  .eq("sender_role", "client")
+  .order("created_at", { ascending: true })
+  .limit(1)
+  .maybeSingle();
+```
+
+**Depois:**
+```typescript
+// Get group_id from the ticket
+const groupId = (demand.tickets as any)?.group_id;
+
+// First, get all group members with role = 'client'
+const { data: clientMembers } = await supabase
+  .from("group_members")
+  .select("phone_number")
+  .eq("group_id", groupId)
+  .eq("role", "client");
+
+const clientPhoneNumbers = (clientMembers || []).map(m => m.phone_number);
+
+// Find first message from an actual client member
+let firstClientMessage = null;
+if (clientPhoneNumbers.length > 0) {
+  const { data } = await supabase
+    .from("messages")
+    .select("created_at, sender_phone")
+    .eq("ticket_id", ticketId)
+    .in("sender_phone", clientPhoneNumbers)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   
-  // Verificar apenas mensagens de clientes
-  const clientMessages = messages.filter(m => 
-    m.group_role === "client" || m.sender_role === "client"
-  );
-  
-  for (const msg of clientMessages) {
-    const content = msg.content.toLowerCase();
-    if (urgencyKeywords.some(keyword => content.includes(keyword))) {
-      return true;
-    }
-  }
-  return false;
+  firstClientMessage = data;
 }
 ```
 
-#### 2. Adicionar função para calcular prioridade objetiva
+#### 2. Query para nome do cliente (linhas 272-288)
 
+**Antes:**
 ```typescript
-function calculateObjectivePriority(
-  category: string,
-  timeOpenMinutes: number,
-  slaLimitMinutes: number,
-  hasUrgencyWords: boolean
-): "low" | "normal" | "high" | "urgent" {
-  // 1. Tempo aberto > 2x SLA = urgent
-  if (timeOpenMinutes > slaLimitMinutes * 2) {
-    return "urgent";
-  }
+const { data: firstClientMessage } = await supabase
+  .from("messages")
+  .select("sender_name")
+  .eq("ticket_id", ticketId)
+  .eq("sender_role", "client")
+  .order("created_at", { ascending: true })
+  .limit(1)
+  .maybeSingle();
+```
+
+**Depois:**
+```typescript
+// Reuse clientPhoneNumbers from above
+let firstClientMessageForName = null;
+if (clientPhoneNumbers.length > 0) {
+  const { data } = await supabase
+    .from("messages")
+    .select("sender_name, sender_phone")
+    .eq("ticket_id", ticketId)
+    .in("sender_phone", clientPhoneNumbers)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   
-  // 2. Cliente usou palavras de urgência = urgent
-  if (hasUrgencyWords) {
-    return "urgent";
-  }
-  
-  // 3. Tempo aberto > 1x SLA = high
-  if (timeOpenMinutes > slaLimitMinutes) {
-    return "high";
-  }
-  
-  // 4. Dúvida simples = low
-  if (category === "duvida") {
-    return "low";
-  }
-  
-  // 5. Solicitação normal = normal
-  return "normal";
+  firstClientMessageForName = data;
+}
+
+if (firstClientMessageForName?.sender_name && firstClientMessageForName.sender_name !== "Cliente") {
+  customerName = firstClientMessageForName.sender_name;
 }
 ```
 
-#### 3. Modificar a criação de demandas para usar prioridade objetiva
+#### 3. Otimização: Buscar membros clientes uma única vez
 
-Após a IA retornar as demandas, recalcular a prioridade com base nos critérios objetivos:
+Para evitar queries duplicadas, buscar a lista de membros clientes do grupo uma única vez no início do loop e reutilizar:
 
 ```typescript
-// Após criar a demanda no banco
-const hasUrgency = hasUrgencyKeywords(messages);
-
-// Calcular tempo aberto desde primeira mensagem do cliente
-const firstClientMsg = messages
-  .filter(m => m.group_role === "client" || m.sender_role === "client")
-  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
-
-let timeOpenMinutes = 0;
-if (firstClientMsg) {
-  timeOpenMinutes = Math.round((Date.now() - new Date(firstClientMsg.created_at).getTime()) / 60000);
+for (const demand of demandsToNotify) {
+  // ... existing code ...
+  
+  const ticketId = (demand.tickets as any)?.id;
+  const groupId = (demand.tickets as any)?.group_id;
+  
+  // Get all group members with role = 'client' once
+  let clientPhoneNumbers: string[] = [];
+  if (groupId) {
+    const { data: clientMembers } = await supabase
+      .from("group_members")
+      .select("phone_number")
+      .eq("group_id", groupId)
+      .eq("role", "client");
+    
+    clientPhoneNumbers = (clientMembers || []).map(m => m.phone_number);
+    console.log(`Found ${clientPhoneNumbers.length} client members in group ${groupId}`);
+  }
+  
+  // Use clientPhoneNumbers in subsequent queries...
 }
-
-// Prioridade objetiva
-const objectivePriority = calculateObjectivePriority(
-  demand.category,
-  timeOpenMinutes,
-  groupSlaLimit,
-  hasUrgency
-);
-
-// Usar a prioridade objetiva ao inserir no banco
 ```
 
-## Fluxo de Decisão
+## Fluxo de Validação
 
 ```text
-Demanda criada
-       |
-       v
-Tempo aberto > 2x SLA?
-       |
-   +---+---+
-   |       |
-  SIM     NÃO
-   |       |
-   v       |
-URGENT     v
-       Cliente usou palavras de urgência?
-              |
-          +---+---+
-          |       |
-         SIM     NÃO
-          |       |
-          v       |
-       URGENT     v
-              Tempo aberto > 1x SLA?
-                     |
-                 +---+---+
-                 |       |
-                SIM     NÃO
-                 |       |
-                 v       |
-              HIGH       v
-                     Categoria = "duvida"?
-                            |
-                        +---+---+
-                        |       |
-                       SIM     NÃO
-                        |       |
-                        v       v
-                      LOW    NORMAL
+Demanda com SLA estourado
+          |
+          v
+Buscar group_id do ticket
+          |
+          v
+Buscar membros com role='client' no grupo
+          |
+          v
+Filtrar mensagens por sender_phone IN (clientes reais)
+          |
+          v
+Usar primeira mensagem de cliente real para:
+  - Timestamp do "Tempo aberto"
+  - Nome do solicitante
 ```
 
 ## Resultado Esperado
 
-| Cenário | Antes (IA) | Depois (Objetivo) |
-|---------|------------|-------------------|
-| SLA 5 min, aberto há 12 min | "normal" | **urgent** (>2x SLA) |
-| Cliente escreveu "urgente" | "normal" | **urgent** |
-| SLA 5 min, aberto há 6 min | "normal" | **high** (>1x SLA) |
-| Pergunta sobre horário | "normal" | **low** (dúvida) |
-| Pedido de relatório | "normal" | **normal** |
+| Cenário | Antes | Depois |
+|---------|-------|--------|
+| Primeira msg de Gabriel (traffic_manager) | Considerado cliente | Ignorado |
+| Primeira msg de João (cliente real) | Considerado cliente | Considerado cliente |
+| Timestamp usado | Msg de qualquer "não-CS" | Msg de membro com role='client' |
+| Nome do solicitante | Qualquer pessoa | Apenas cliente real |
+
+## Benefícios
+
+1. **Precisão**: Apenas clientes externos reais são considerados para métricas de SLA
+2. **Consistência**: Alinhado com a lógica de geração de demandas que já ignora gestores de tráfego
+3. **Controle**: Permite classificar corretamente quem é cliente em cada grupo
 
 ## Ações
 
-1. Adicionar função `hasUrgencyKeywords` para detectar palavras de urgência
-2. Adicionar função `calculateObjectivePriority` com a lógica de critérios
-3. Modificar a inserção de demandas para usar prioridade objetiva
+1. Modificar a busca de `firstClientMessage` para usar `group_members.role = 'client'`
+2. Modificar a busca de nome do cliente para usar a mesma lógica
+3. Adicionar logs para debug da filtragem de membros clientes
 4. Deploy da edge function
-5. Testar com diferentes cenários para validar a classificação
+5. Testar enviando mensagens de diferentes tipos de membros
