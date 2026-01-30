@@ -1,119 +1,115 @@
 
 
-# Plano: Filtrar Demandas para Apenas Clientes Reais
+# Plano: Corrigir Cálculo do Tempo Aberto para Usar Timestamp da Solicitação Original
 
 ## Problema Identificado
 
-A demanda de SLA foi criada por **Gabriel Pereira**, que no banco de dados está marcado como `role: client`, mas na realidade é um **gestor de tráfego** (membro interno). O sistema atualmente:
+O "Tempo aberto" nas notificações de SLA mostra "0 minutos" porque:
 
-1. Marca qualquer pessoa não-CS como `sender_role: client` nas mensagens
-2. A IA analisa e cria demandas para todas as mensagens de "clientes"
-3. Isso inclui erroneamente solicitações de membros internos (gestores de tráfego, etc.)
+| Evento | Timestamp |
+|--------|-----------|
+| Cliente solicitou | 13:33:59 |
+| IA criou demanda | 13:37:41 |
+| Notificação enviada | 13:37:45 |
 
-## Estrutura Atual de Roles
+A lógica atual calcula: `NOW() - demand.created_at` = 13:37 - 13:37 = 0 minutos
 
-| Role no grupo | Descrição | Deve gerar demanda? |
-|---------------|-----------|---------------------|
-| `cs` | Atendente/Customer Success | Não |
-| `client` | Cliente externo real | Sim |
-| `traffic_manager` | Gestor de tráfego (interno) | Não |
-| `unknown` | Não classificado | Depende |
+O correto seria: `NOW() - message.created_at` = 13:37 - 13:33 = ~4 minutos
 
-## Solução Proposta
+## Solução
 
-Modificar a edge function `analyze-tickets` para que, antes de criar uma demanda, verifique se o solicitante identificado é realmente um **cliente externo** e não um membro interno (CS, gestor de tráfego, etc.).
+Modificar a edge function `analyze-tickets` para:
 
-### Alterações Necessárias
+1. **Ao criar a demanda**: Salvar o timestamp da mensagem original do cliente que gerou a demanda (novo campo ou usar campo existente)
+2. **Ao calcular tempo aberto**: Usar esse timestamp original em vez do `created_at` da demanda
 
-#### Arquivo: `supabase/functions/analyze-tickets/index.ts`
+## Opções de Implementação
 
-**1. Adicionar busca do role real do solicitante nas mensagens analisadas:**
+### Opção A: Buscar primeira mensagem do ticket (mais simples)
 
-Ao processar as mensagens para análise, buscar o role do grupo para cada sender:
+Usar o timestamp da primeira mensagem do cliente no ticket como referência.
+
+Prós: Simples, não requer alteração de schema
+Contras: Pode não ser preciso se houver múltiplas demandas no mesmo ticket
+
+### Opção B: Adicionar campo `request_timestamp` na demanda (mais preciso)
+
+Pedir para a IA identificar qual mensagem gerou cada demanda e salvar o timestamp.
+
+Prós: Mais preciso para cada demanda individual
+Contras: Requer alteração de schema e lógica da IA
+
+### Recomendação: Opção A (implementação imediata)
+
+Como a maioria dos tickets tem uma demanda principal, usar o timestamp da primeira mensagem do cliente é uma solução adequada e imediata.
+
+## Alterações Necessárias
+
+### Arquivo: `supabase/functions/analyze-tickets/index.ts`
+
+#### 1. Na função `sendSlaBreachNotifications` (linhas 162-165)
+
+Mudar a lógica para buscar a primeira mensagem do cliente ao invés de usar `demand.created_at`:
 
 ```typescript
-// Após buscar as mensagens do ticket, enriquecer com role do grupo
-const messagesWithRoles = await Promise.all(messages.map(async (m) => {
-  const { data: memberRole } = await supabase
-    .from("group_members")
-    .select("role")
-    .eq("group_id", ticket.group_id)
-    .eq("phone_number", m.sender_phone)
+// ANTES (atual):
+const demandCreatedAt = new Date(demand.created_at);
+const timeOpenMs = Date.now() - demandCreatedAt.getTime();
+const timeOpenMinutes = Math.round(timeOpenMs / (60 * 1000));
+
+// DEPOIS (proposto):
+// Buscar a primeira mensagem do cliente no ticket
+const ticketId = (demand.tickets as any)?.id;
+let requestTimestamp = new Date(demand.created_at);
+
+if (ticketId) {
+  const { data: firstClientMessage } = await supabase
+    .from("messages")
+    .select("created_at")
+    .eq("ticket_id", ticketId)
+    .eq("sender_role", "client")
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
   
-  return {
-    ...m,
-    group_role: memberRole?.role || "unknown"
-  };
-}));
+  if (firstClientMessage?.created_at) {
+    requestTimestamp = new Date(firstClientMessage.created_at);
+    console.log(`Using original request timestamp: ${firstClientMessage.created_at}`);
+  }
+}
+
+const timeOpenMs = Date.now() - requestTimestamp.getTime();
+const timeOpenMinutes = Math.round(timeOpenMs / (60 * 1000));
 ```
 
-**2. Modificar o system prompt da IA para identificar o role real:**
+## Resultado Esperado
 
-Adicionar no prompt:
-- Instrução para a IA considerar apenas mensagens de clientes externos
-- Ignorar solicitações de pessoas marcadas como `cs`, `traffic_manager` ou outros roles internos
+Com a mensagem original às 13:33 e a notificação às 13:37:
 
-**3. Filtrar demandas criadas:**
+| Campo | Antes | Depois |
+|-------|-------|--------|
+| Tempo aberto | 0 minutos | 4 minutos |
 
-Após a IA retornar as demandas, filtrar aquelas que vieram de membros internos:
-
-```typescript
-// Filtrar demandas de membros internos
-const validDemands = analysis.demands.filter(demand => {
-  // Verificar se o solicitante é um cliente real
-  // Buscar nas mensagens quem fez a solicitação
-  const isFromExternalClient = checkIfFromExternalClient(messages, demand);
-  return isFromExternalClient;
-});
-```
-
-## Fluxo de Validação
+A mensagem agora será:
 
 ```text
-Mensagem recebida
-       |
-       v
-É de um membro com role no grupo?
-       |
-   +---+---+
-   |       |
-  SIM     NÃO
-   |       |
-   v       v
-Role = 'client'?   Verificar team_members
-   |                    |
-  SIM                  NÃO
-   |                    |
-   v                    v
-Gera demanda      Não gera demanda
+⚠️ *ALERTA DE SLA*
+
+📋 *Grupo:* X9 de Atendimento
+👤 *Solicitante:* Gabriel Pereira
+📝 *Demanda:* Solicitação de informações sobre o resultado das campanhas.
+⏱️ *Tempo aberto:* 4 minutos
+🎯 *Limite SLA:* 3 minutos
+🟡 Normal
+
+Por favor, verifique o atendimento!
 ```
-
-## Opção Alternativa (Mais Simples)
-
-Se a classificação de roles no grupo estiver correta, podemos simplesmente:
-1. Alterar o role de **Gabriel Pereira** de `client` para `traffic_manager`
-2. Isso já impediria que suas mensagens gerassem demandas
-
-### Correção imediata via SQL:
-```sql
-UPDATE group_members 
-SET role = 'traffic_manager' 
-WHERE phone_number = '558494397878' 
-  AND group_id = 'f6df1fdb-8c01-400a-83d5-2d11ad5c71e3';
-```
-
-## Recomendação
-
-Implementar **ambas** as soluções:
-1. **Correção imediata**: Atualizar o role do Gabriel para `traffic_manager`
-2. **Prevenção futura**: Modificar a lógica de criação de demandas para só considerar roles = `client` ou `unknown` (pessoas não classificadas)
 
 ## Ações
 
-1. Modificar `analyze-tickets` para verificar o role real do solicitante
-2. Filtrar demandas de membros com roles internos (cs, traffic_manager)
-3. Manter a lógica de criar demandas apenas para `client` ou `unknown`
+1. Modificar função `sendSlaBreachNotifications` no `analyze-tickets`
+2. Adicionar query para buscar timestamp da primeira mensagem do cliente
+3. Usar esse timestamp no cálculo do tempo aberto
 4. Deploy da edge function
-5. Testar com mensagens de diferentes tipos de membros
+5. Testar enviando uma solicitação e verificando se o tempo aparece corretamente
 
