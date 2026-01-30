@@ -1,80 +1,141 @@
 
 
-# Plano: Remover Botao de Novo Grupo Interno
+# Plano: Adicionar Switch de Classificacao nos Cards Pendentes
 
-## Resumo
+## Problema Identificado
 
-O usuario esclareceu que nao deseja um botao separado para cadastrar grupos internos. O cadastro de grupos internos deve continuar sendo feito atraves do fluxo de classificacao de grupos pendentes (usando os botoes "Sim, e cliente" ou "Nao" nos cards de Aguardando Classificacao).
+Os cards de "Aguardando Classificacao" atualmente usam dois botoes separados para classificar:
+- "Sim, e cliente" (botao primario)
+- "Nao" (botao outline)
 
-A funcionalidade de modal de confirmacao de troca implementada esta correta e sera mantida.
-
----
-
-## Alteracao Necessaria
-
-Remover o botao "Novo Grupo" e o dialog associado da secao de Grupos Internos.
+O usuario espera ver um controle de Switch ou opcao mais clara para "Grupo Interno", similar ao que existe nos cards de grupos ja classificados.
 
 ---
 
-## Arquivos a Modificar
+## Solucao Proposta
+
+Substituir os dois botoes de classificacao por um controle mais intuitivo:
+
+### Opcao 1: Switch com Labels (Recomendado)
+
+Adicionar um Switch identico ao dos cards classificados, com label "Grupo de Cliente":
+- Switch OFF = Grupo Interno
+- Switch ON = Grupo de Cliente
+
+Apos o usuario mover o switch, o grupo e classificado automaticamente.
+
+### Opcao 2: Radio Group
+
+Usar RadioGroup com duas opcoes explicitas:
+- "Grupo de Cliente"
+- "Grupo Interno"
+
+---
+
+## Arquivo a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `src/pages/settings/Groups.tsx` | Remover botao "Novo Grupo", estados e dialog relacionados |
-| `src/hooks/useGroups.tsx` | Remover funcao `addInternalGroup` (opcional, pode manter para uso futuro) |
+| `src/pages/settings/Groups.tsx` | Substituir botoes de classificacao por Switch nos cards pendentes |
 
 ---
 
 ## Detalhes da Implementacao
 
-### Elementos a Remover em Groups.tsx
+### Codigo Atual (linhas 744-767)
 
-1. **Estado**: `showNewInternalDialog` (linha 65)
-2. **Estado**: `newInternalFormData` (linhas 73-76)
-3. **Funcao**: `resetNewInternalForm` (linhas 90-92)
-4. **Funcao**: `handleAddInternalGroup` (linhas 190-204)
-5. **Botao**: "Novo Grupo" na secao de Grupos Internos (linhas 927-930)
-6. **Dialog**: Dialog de novo grupo interno (linhas 486-528)
+```tsx
+<div className="pt-2">
+  <p className="text-sm text-muted-foreground mb-3">
+    Este grupo é de cliente?
+  </p>
+  <div className="flex flex-col sm:flex-row gap-2">
+    <Button size="sm" onClick={() => handleClassify(group, true)} ...>
+      Sim, é cliente
+    </Button>
+    <Button variant="outline" size="sm" onClick={() => handleClassify(group, false)} ...>
+      Não
+    </Button>
+  </div>
+</div>
+```
 
-### Elementos a Manter
+### Codigo Proposto (Opcao Switch)
 
-- Modal de confirmacao de troca (AlertDialog com `groupToSwitch`) - esta funcionando corretamente
-- Switch "Grupo de Cliente" nos cards de grupos classificados
-- Fluxo de classificacao nos cards de "Aguardando Classificacao"
+```tsx
+<div className="pt-2 space-y-3">
+  <div className="flex items-center justify-between py-2 border-t border-border">
+    <Label htmlFor={`client-pending-${group.id}`} className="text-sm">
+      Grupo de Cliente
+    </Label>
+    <Switch
+      id={`client-pending-${group.id}`}
+      checked={false}
+      onCheckedChange={(checked) => handleClassify(group, checked)}
+    />
+  </div>
+  <p className="text-xs text-muted-foreground">
+    Ative para grupo de cliente ou desative para grupo interno
+  </p>
+</div>
+```
 
----
+### Codigo Proposto (Opcao Radio Group)
 
-## Fluxo Correto (Mantido)
-
-```text
-1. Grupo novo aparece em "Aguardando Classificacao"
-2. Usuario clica "Sim, e cliente" ou "Nao"
-3. Grupo e movido para "Grupos de Clientes" ou "Grupos Internos"
-4. Se quiser trocar depois, usa o Switch "Grupo de Cliente" no card
-5. Sistema exibe modal de confirmacao antes de trocar
+```tsx
+<div className="pt-2 space-y-3">
+  <p className="text-sm text-muted-foreground">
+    Classificar grupo como:
+  </p>
+  <RadioGroup 
+    onValueChange={(value) => handleClassify(group, value === "client")}
+    className="flex flex-col gap-2"
+  >
+    <div className="flex items-center space-x-2">
+      <RadioGroupItem value="client" id={`client-${group.id}`} />
+      <Label htmlFor={`client-${group.id}`} className="text-sm flex items-center gap-2">
+        <Building2 className="h-4 w-4" />
+        Grupo de Cliente
+      </Label>
+    </div>
+    <div className="flex items-center space-x-2">
+      <RadioGroupItem value="internal" id={`internal-${group.id}`} />
+      <Label htmlFor={`internal-${group.id}`} className="text-sm flex items-center gap-2">
+        <UserCircle className="h-4 w-4" />
+        Grupo Interno
+      </Label>
+    </div>
+  </RadioGroup>
+</div>
 ```
 
 ---
 
 ## Secao Tecnica
 
-### Codigo a Remover - Botao (linhas 927-930)
-```tsx
-<Button variant="outline" onClick={() => setShowNewInternalDialog(true)}>
-  <Plus className="h-4 w-4 mr-2" />
-  Novo Grupo
-</Button>
+### Fluxo Atualizado
+
+```text
+1. Grupo novo aparece em "Aguardando Classificacao"
+2. Card mostra Switch/RadioGroup para classificar
+3. Usuario ativa o switch (cliente) ou mantem desativado (interno)
+   OU seleciona opcao no RadioGroup
+4. Grupo e movido para a secao correspondente
+5. Se quiser trocar depois, usa o Switch "Grupo de Cliente" no card
+6. Sistema exibe modal de confirmacao antes de trocar
 ```
 
-### Codigo a Remover - Estados (linhas 65, 73-76)
+### Importacoes Necessarias (se usar RadioGroup)
+
 ```tsx
-const [showNewInternalDialog, setShowNewInternalDialog] = useState(false);
-const [newInternalFormData, setNewInternalFormData] = useState({
-  name: "",
-  whatsapp_id: "",
-});
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 ```
 
-### Codigo a Remover - Dialog (linhas 486-528)
-O dialog completo de "Novo Grupo Interno" sera removido.
+---
+
+## Beneficios
+
+- Interface consistente entre cards pendentes e classificados
+- Opcao explicita para "Grupo Interno" visivel no card
+- UX mais intuitiva com Switch ou RadioGroup em vez de botoes
 
