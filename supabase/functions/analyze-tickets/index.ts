@@ -227,26 +227,40 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
       continue;
     }
 
-    // Get ticket ID for queries
+    // Get ticket ID and group ID for queries
     const ticketId = (demand.tickets as any)?.id;
+    const groupId = (demand.tickets as any)?.group_id;
     
-    // Calculate time open - use first client message timestamp instead of demand created_at
+    // Get all group members with role = 'client' (real clients only)
+    let clientPhoneNumbers: string[] = [];
+    if (groupId) {
+      const { data: clientMembers } = await supabase
+        .from("group_members")
+        .select("phone_number")
+        .eq("group_id", groupId)
+        .eq("role", "client");
+      
+      clientPhoneNumbers = (clientMembers || []).map(m => m.phone_number);
+      console.log(`Found ${clientPhoneNumbers.length} client members in group ${groupId}`);
+    }
+    
+    // Calculate time open - use first REAL client message timestamp instead of demand created_at
     let requestTimestamp = new Date(demand.created_at);
 
-    // Get the timestamp of the first client message in the ticket
-    if (ticketId) {
+    // Get the timestamp of the first message from an actual client member
+    if (ticketId && clientPhoneNumbers.length > 0) {
       const { data: firstClientMessage } = await supabase
         .from("messages")
-        .select("created_at")
+        .select("created_at, sender_phone")
         .eq("ticket_id", ticketId)
-        .eq("sender_role", "client")
+        .in("sender_phone", clientPhoneNumbers)
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       
       if (firstClientMessage?.created_at) {
         requestTimestamp = new Date(firstClientMessage.created_at);
-        console.log(`Using original request timestamp: ${firstClientMessage.created_at}`);
+        console.log(`Using original request timestamp from real client: ${firstClientMessage.created_at}`);
       }
     }
 
@@ -265,24 +279,24 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
     };
     const priorityDisplay = priorityMap[demand.priority] || demand.priority;
 
-    // Get customer info - with fallback logic
+    // Get customer info - with fallback logic using REAL clients only
     let customerName = (demand.tickets as any)?.customer_name;
     
-    // If name is empty, generic, or null - try to get from first client message
+    // If name is empty, generic, or null - try to get from first REAL client message
     if (!customerName || customerName === "Cliente" || customerName === "Cliente desconhecido") {
-      if (ticketId) {
+      if (ticketId && clientPhoneNumbers.length > 0) {
         const { data: firstClientMessage } = await supabase
           .from("messages")
-          .select("sender_name")
+          .select("sender_name, sender_phone")
           .eq("ticket_id", ticketId)
-          .eq("sender_role", "client")
+          .in("sender_phone", clientPhoneNumbers)
           .order("created_at", { ascending: true })
           .limit(1)
           .maybeSingle();
         
         if (firstClientMessage?.sender_name && firstClientMessage.sender_name !== "Cliente") {
           customerName = firstClientMessage.sender_name;
-          console.log(`Found customer name from first message: ${customerName}`);
+          console.log(`Found customer name from real client message: ${customerName}`);
         }
       }
     }
