@@ -1,73 +1,62 @@
 
-
-# Simplificar Mensagens - Remover Status dos Topicos
+# Remover Mensagem de Topicos Vazios e Ajustar Formato
 
 ## Objetivo
 
-Remover os indicadores de status ("✅ Concluído", "⏳ Em andamento") de cada tópico nas mensagens do relatório. O formato será ainda mais limpo, contendo apenas o título e a descrição detalhada de cada tópico.
-
-## Novo Formato Final
-
-### Mensagem por Grupo
-
-```
-📋 *[NOME DO GRUPO]*
-_Resumo do dia DD/MM_
-
-📌 *TÓPICOS PRINCIPAIS*
-
-🔹 *[Título do Tópico 1]*
-[Descrição detalhada do que foi discutido]
-
-🔹 *[Título do Tópico 2]*
-[Descrição detalhada do que foi discutido]
-
-Até amanhã! 👋
-```
-
-### Mensagem Quando Nao Ha Topicos
-
-```
-📋 *[NOME DO GRUPO]*
-_Resumo do dia DD/MM_
-
-Hoje não houve novos tópicos registrados.
-
-Qualquer necessidade, estamos à disposição! 👋
-```
+Fazer duas alteracoes na funcao de relatorio diario:
+1. Remover o bloco que envia mensagem quando nao ha topicos
+2. Remover o negrito dos topicos (conforme solicitado anteriormente)
 
 ## Alteracoes Tecnicas
 
 ### Arquivo: `supabase/functions/daily-report/index.ts`
 
-**Funcao `formatGroupMessage`**
+**Mudanca 1: Remover bloco "sem topicos" (linhas 55-63)**
 
-Mudancas:
-- Remover status "Concluído" e "Em andamento" de cada tópico
-- Cada tópico terá apenas: emoji 🔹 + título em negrito + descrição
-- Manter formatação WhatsApp (*negrito*, _itálico_)
-- Manter encerramento "Até amanhã! 👋"
+Remover completamente:
+```typescript
+// No topics case
+if (report.totalDemands === 0) {
+  return `📋 *${groupName}*
+_Resumo do dia ${dateStr}_
 
-## Exemplo de Mensagem Final
+Hoje não houve novos tópicos registrados.
 
+Qualquer necessidade, estamos à disposição! 👋`;
+}
 ```
-📋 *GRUPO EXEMPLO*
-_Resumo do dia 30/01_
 
-📌 *TÓPICOS PRINCIPAIS*
+**Mudanca 2: Remover negrito dos topicos (linha 68)**
 
-🔹 *Alteração de Preço*
-Solicitação de ajuste no valor do produto X conforme negociação comercial.
+```typescript
+// ANTES
+return `🔹 *${demand.description}*`;
 
-🔹 *Dúvida sobre Entrega*
-Questionamento sobre prazo de entrega do pedido #1234.
-
-Até amanhã! 👋
+// DEPOIS
+return `🔹${demand.description}`;
 ```
+
+**Mudanca 3: Pular grupos sem topicos no loop de envio (linhas 334-351)**
+
+Adicionar verificacao para nao enviar mensagem de grupos vazios:
+```typescript
+for (const report of reports) {
+  // Skip groups with no topics
+  if (report.totalDemands === 0) {
+    continue;
+  }
+  
+  const message = formatGroupMessage(report, dateStr);
+  // ... resto do codigo
+}
+```
+
+## Resultado
+
+Grupos sem topicos no dia simplesmente nao receberao mensagem, evitando envio de conteudo vazio ou desnecessario.
 
 ## Arquivos a Modificar
 
 | Arquivo | Alteracao |
 |---------|-----------|
-| `supabase/functions/daily-report/index.ts` | Simplificar `formatGroupMessage` removendo status dos tópicos e remover envio do resumo geral |
-
+| `supabase/functions/daily-report/index.ts` | Remover bloco sem topicos, remover negrito e pular grupos vazios |
