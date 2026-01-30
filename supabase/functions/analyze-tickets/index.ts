@@ -159,9 +159,30 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
       continue;
     }
 
-    // Calculate time open
-    const demandCreatedAt = new Date(demand.created_at);
-    const timeOpenMs = Date.now() - demandCreatedAt.getTime();
+    // Get ticket ID for queries
+    const ticketId = (demand.tickets as any)?.id;
+    
+    // Calculate time open - use first client message timestamp instead of demand created_at
+    let requestTimestamp = new Date(demand.created_at);
+
+    // Get the timestamp of the first client message in the ticket
+    if (ticketId) {
+      const { data: firstClientMessage } = await supabase
+        .from("messages")
+        .select("created_at")
+        .eq("ticket_id", ticketId)
+        .eq("sender_role", "client")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      
+      if (firstClientMessage?.created_at) {
+        requestTimestamp = new Date(firstClientMessage.created_at);
+        console.log(`Using original request timestamp: ${firstClientMessage.created_at}`);
+      }
+    }
+
+    const timeOpenMs = Date.now() - requestTimestamp.getTime();
     const timeOpenMinutes = Math.round(timeOpenMs / (60 * 1000));
 
     // Get group name
@@ -178,7 +199,6 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
 
     // Get customer info - with fallback logic
     let customerName = (demand.tickets as any)?.customer_name;
-    const ticketId = (demand.tickets as any)?.id;
     
     // If name is empty, generic, or null - try to get from first client message
     if (!customerName || customerName === "Cliente" || customerName === "Cliente desconhecido") {
