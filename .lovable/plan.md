@@ -1,115 +1,176 @@
 
+# Plano: Implementar Critérios Objetivos de Prioridade
 
-# Plano: Corrigir Cálculo do Tempo Aberto para Usar Timestamp da Solicitação Original
+## Situação Atual
 
-## Problema Identificado
+A prioridade das demandas é definida **subjetivamente pela IA** com base na "urgência aparente". Isso resulta em classificações inconsistentes.
 
-O "Tempo aberto" nas notificações de SLA mostra "0 minutos" porque:
+## Nova Lógica de Prioridade
 
-| Evento | Timestamp |
-|--------|-----------|
-| Cliente solicitou | 13:33:59 |
-| IA criou demanda | 13:37:41 |
-| Notificação enviada | 13:37:45 |
+Implementar critérios **objetivos e hierárquicos**:
 
-A lógica atual calcula: `NOW() - demand.created_at` = 13:37 - 13:37 = 0 minutos
+| Critério | Prioridade | Peso |
+|----------|------------|------|
+| Tempo aberto > 2x SLA | `urgent` | 1º (mais alto) |
+| Cliente usou palavras de urgência | `urgent` | 2º |
+| Tempo aberto > 1x SLA | `high` | 3º |
+| Solicitação normal | `normal` | 4º |
+| Dúvida simples | `low` | 5º (mais baixo) |
 
-O correto seria: `NOW() - message.created_at` = 13:37 - 13:33 = ~4 minutos
-
-## Solução
-
-Modificar a edge function `analyze-tickets` para:
-
-1. **Ao criar a demanda**: Salvar o timestamp da mensagem original do cliente que gerou a demanda (novo campo ou usar campo existente)
-2. **Ao calcular tempo aberto**: Usar esse timestamp original em vez do `created_at` da demanda
-
-## Opções de Implementação
-
-### Opção A: Buscar primeira mensagem do ticket (mais simples)
-
-Usar o timestamp da primeira mensagem do cliente no ticket como referência.
-
-Prós: Simples, não requer alteração de schema
-Contras: Pode não ser preciso se houver múltiplas demandas no mesmo ticket
-
-### Opção B: Adicionar campo `request_timestamp` na demanda (mais preciso)
-
-Pedir para a IA identificar qual mensagem gerou cada demanda e salvar o timestamp.
-
-Prós: Mais preciso para cada demanda individual
-Contras: Requer alteração de schema e lógica da IA
-
-### Recomendação: Opção A (implementação imediata)
-
-Como a maioria dos tickets tem uma demanda principal, usar o timestamp da primeira mensagem do cliente é uma solução adequada e imediata.
+**Palavras de urgência a detectar:**
+- "urgente", "urgência", "preciso agora", "imediato", "imediatamente"
+- "o mais rápido possível", "asap", "pressa", "emergência", "emergencial"
+- "não pode esperar", "prioridade", "prioritário"
 
 ## Alterações Necessárias
 
 ### Arquivo: `supabase/functions/analyze-tickets/index.ts`
 
-#### 1. Na função `sendSlaBreachNotifications` (linhas 162-165)
-
-Mudar a lógica para buscar a primeira mensagem do cliente ao invés de usar `demand.created_at`:
+#### 1. Adicionar função para detectar palavras de urgência
 
 ```typescript
-// ANTES (atual):
-const demandCreatedAt = new Date(demand.created_at);
-const timeOpenMs = Date.now() - demandCreatedAt.getTime();
-const timeOpenMinutes = Math.round(timeOpenMs / (60 * 1000));
-
-// DEPOIS (proposto):
-// Buscar a primeira mensagem do cliente no ticket
-const ticketId = (demand.tickets as any)?.id;
-let requestTimestamp = new Date(demand.created_at);
-
-if (ticketId) {
-  const { data: firstClientMessage } = await supabase
-    .from("messages")
-    .select("created_at")
-    .eq("ticket_id", ticketId)
-    .eq("sender_role", "client")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+function hasUrgencyKeywords(messages: Message[]): boolean {
+  const urgencyKeywords = [
+    "urgente", "urgência", "urgencia",
+    "preciso agora", "imediato", "imediatamente",
+    "o mais rápido possível", "mais rápido possível",
+    "asap", "pressa", "emergência", "emergencia",
+    "emergencial", "não pode esperar", "nao pode esperar",
+    "prioridade", "prioritário", "prioritario"
+  ];
   
-  if (firstClientMessage?.created_at) {
-    requestTimestamp = new Date(firstClientMessage.created_at);
-    console.log(`Using original request timestamp: ${firstClientMessage.created_at}`);
+  // Verificar apenas mensagens de clientes
+  const clientMessages = messages.filter(m => 
+    m.group_role === "client" || m.sender_role === "client"
+  );
+  
+  for (const msg of clientMessages) {
+    const content = msg.content.toLowerCase();
+    if (urgencyKeywords.some(keyword => content.includes(keyword))) {
+      return true;
+    }
   }
+  return false;
+}
+```
+
+#### 2. Adicionar função para calcular prioridade objetiva
+
+```typescript
+function calculateObjectivePriority(
+  category: string,
+  timeOpenMinutes: number,
+  slaLimitMinutes: number,
+  hasUrgencyWords: boolean
+): "low" | "normal" | "high" | "urgent" {
+  // 1. Tempo aberto > 2x SLA = urgent
+  if (timeOpenMinutes > slaLimitMinutes * 2) {
+    return "urgent";
+  }
+  
+  // 2. Cliente usou palavras de urgência = urgent
+  if (hasUrgencyWords) {
+    return "urgent";
+  }
+  
+  // 3. Tempo aberto > 1x SLA = high
+  if (timeOpenMinutes > slaLimitMinutes) {
+    return "high";
+  }
+  
+  // 4. Dúvida simples = low
+  if (category === "duvida") {
+    return "low";
+  }
+  
+  // 5. Solicitação normal = normal
+  return "normal";
+}
+```
+
+#### 3. Modificar a criação de demandas para usar prioridade objetiva
+
+Após a IA retornar as demandas, recalcular a prioridade com base nos critérios objetivos:
+
+```typescript
+// Após criar a demanda no banco
+const hasUrgency = hasUrgencyKeywords(messages);
+
+// Calcular tempo aberto desde primeira mensagem do cliente
+const firstClientMsg = messages
+  .filter(m => m.group_role === "client" || m.sender_role === "client")
+  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+
+let timeOpenMinutes = 0;
+if (firstClientMsg) {
+  timeOpenMinutes = Math.round((Date.now() - new Date(firstClientMsg.created_at).getTime()) / 60000);
 }
 
-const timeOpenMs = Date.now() - requestTimestamp.getTime();
-const timeOpenMinutes = Math.round(timeOpenMs / (60 * 1000));
+// Prioridade objetiva
+const objectivePriority = calculateObjectivePriority(
+  demand.category,
+  timeOpenMinutes,
+  groupSlaLimit,
+  hasUrgency
+);
+
+// Usar a prioridade objetiva ao inserir no banco
+```
+
+## Fluxo de Decisão
+
+```text
+Demanda criada
+       |
+       v
+Tempo aberto > 2x SLA?
+       |
+   +---+---+
+   |       |
+  SIM     NÃO
+   |       |
+   v       |
+URGENT     v
+       Cliente usou palavras de urgência?
+              |
+          +---+---+
+          |       |
+         SIM     NÃO
+          |       |
+          v       |
+       URGENT     v
+              Tempo aberto > 1x SLA?
+                     |
+                 +---+---+
+                 |       |
+                SIM     NÃO
+                 |       |
+                 v       |
+              HIGH       v
+                     Categoria = "duvida"?
+                            |
+                        +---+---+
+                        |       |
+                       SIM     NÃO
+                        |       |
+                        v       v
+                      LOW    NORMAL
 ```
 
 ## Resultado Esperado
 
-Com a mensagem original às 13:33 e a notificação às 13:37:
-
-| Campo | Antes | Depois |
-|-------|-------|--------|
-| Tempo aberto | 0 minutos | 4 minutos |
-
-A mensagem agora será:
-
-```text
-⚠️ *ALERTA DE SLA*
-
-📋 *Grupo:* X9 de Atendimento
-👤 *Solicitante:* Gabriel Pereira
-📝 *Demanda:* Solicitação de informações sobre o resultado das campanhas.
-⏱️ *Tempo aberto:* 4 minutos
-🎯 *Limite SLA:* 3 minutos
-🟡 Normal
-
-Por favor, verifique o atendimento!
-```
+| Cenário | Antes (IA) | Depois (Objetivo) |
+|---------|------------|-------------------|
+| SLA 5 min, aberto há 12 min | "normal" | **urgent** (>2x SLA) |
+| Cliente escreveu "urgente" | "normal" | **urgent** |
+| SLA 5 min, aberto há 6 min | "normal" | **high** (>1x SLA) |
+| Pergunta sobre horário | "normal" | **low** (dúvida) |
+| Pedido de relatório | "normal" | **normal** |
 
 ## Ações
 
-1. Modificar função `sendSlaBreachNotifications` no `analyze-tickets`
-2. Adicionar query para buscar timestamp da primeira mensagem do cliente
-3. Usar esse timestamp no cálculo do tempo aberto
+1. Adicionar função `hasUrgencyKeywords` para detectar palavras de urgência
+2. Adicionar função `calculateObjectivePriority` com a lógica de critérios
+3. Modificar a inserção de demandas para usar prioridade objetiva
 4. Deploy da edge function
-5. Testar enviando uma solicitação e verificando se o tempo aparece corretamente
-
+5. Testar com diferentes cenários para validar a classificação
