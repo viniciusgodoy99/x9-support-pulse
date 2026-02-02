@@ -8,7 +8,7 @@ import { AddInstanceDialog } from '@/components/whatsapp/AddInstanceDialog';
 import { QrCodeDialog } from '@/components/whatsapp/QrCodeDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Smartphone, Plus, Loader2 } from 'lucide-react';
+import { Smartphone, Plus, Loader2, RefreshCw } from 'lucide-react';
 
 export default function WhatsAppConnect() {
   const { instances, loading, fetchInstances, createInstance, deleteInstance } = useWhatsAppInstances();
@@ -20,6 +20,33 @@ export default function WhatsAppConnect() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [connectingInstanceId, setConnectingInstanceId] = useState<string | null>(null);
   const [disconnectingInstanceId, setDisconnectingInstanceId] = useState<string | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
+
+  const handleSyncAll = useCallback(async () => {
+    setSyncingAll(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const instance of instances) {
+      try {
+        await supabase.functions.invoke('whatsapp-connect', {
+          body: { action: 'status', instanceId: instance.id },
+        });
+        successCount++;
+      } catch (err) {
+        console.error(`Error syncing ${instance.name}:`, err);
+        errorCount++;
+      }
+    }
+
+    await fetchInstances();
+    setSyncingAll(false);
+
+    toast({
+      title: 'Sincronização concluída',
+      description: `${successCount} instância(s) sincronizada(s)${errorCount > 0 ? `, ${errorCount} erro(s)` : ''}`,
+    });
+  }, [instances, fetchInstances, toast]);
 
   const handleConnect = useCallback(async (instance: WhatsAppInstance) => {
     setSelectedInstance(instance);
@@ -184,10 +211,24 @@ export default function WhatsAppConnect() {
               <span className="font-semibold text-foreground">{instances.length}</span> instâncias
             </span>
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Instância
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleSyncAll}
+              disabled={syncingAll || instances.length === 0}
+            >
+              {syncingAll ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Sincronizar Todas
+            </Button>
+            <Button onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Instância
+            </Button>
+          </div>
         </div>
 
         {loading ? (
