@@ -1,48 +1,60 @@
 
-# Plano: Melhorar Cores das Barras do Grafico
+# Plano: Exibir Nome Completo no Gráfico de Desempenho
 
-## Situacao Atual
+## Problema
 
-O grafico de desempenho por membro usa duas cores:
-- **Tickets**: `hsl(var(--primary))` - azul ice primario
-- **SLA Medio**: `hsl(var(--chart-2))` - verde-azulado (chart-2)
+O gráfico de "Desempenho por Membro" atualmente exibe apenas o primeiro nome dos membros, o que causa confusão quando há nomes similares como "Mateus" e "Matheus".
 
-Ambas as cores sao tons de azul/ciano, o que pode dificultar a distincao visual.
-
-## Solucao
-
-Alterar a cor da barra de SLA Medio para usar `--chart-4` (azul mais escuro) que oferece maior contraste com a cor primaria, mantendo a paleta de cores "frozen/ice" do tema.
-
-Cores disponiveis na paleta (de src/index.css):
-- `--chart-1`: 195 100% 50% (ciano brilhante)
-- `--chart-2`: 180 70% 45% (verde-azulado)
-- `--chart-3`: 200 40% 60% (azul medio)
-- `--chart-4`: 210 50% 40% (azul escuro) - **melhor contraste**
-- `--chart-5`: 220 40% 30% (azul profundo)
-
-## Alteracao
-
-| Arquivo | Linha | Modificacao |
-|---------|-------|-------------|
-| src/pages/Index.tsx | 594-595 | Alterar cores das barras |
-
-## Codigo Atual
-
+**Código atual (linha 224):**
 ```tsx
-<Bar dataKey="tickets" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Tickets" />
-<Bar dataKey="avgSla" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} name="SLA Médio (min)" />
+firstName: member.name.split(" ")[0],
 ```
 
-## Codigo Proposto
+## Solução
 
+Alterar a lógica de agregação para usar o nome completo do membro em vez do primeiro nome.
+
+## Alterações
+
+| Arquivo | Linhas | Modificação |
+|---------|--------|-------------|
+| src/pages/Index.tsx | 224, 231-234, 240-241 | Usar nome completo em vez de primeiro nome |
+
+### Código Proposto
+
+**Linha 224** - Extrair nome completo:
 ```tsx
-<Bar dataKey="tickets" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} name="Tickets" />
-<Bar dataKey="avgSla" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} name="SLA Médio (min)" />
+fullName: member.name,  // Era: member.name.split(" ")[0]
+```
+
+**Linhas 231-245** - Atualizar agregação para usar nome completo:
+```tsx
+// 2. Aggregate by full name (combines results from multiple groups)
+const aggregated = memberMetrics.reduce(
+  (acc, curr) => {
+    const existing = acc.find((a) => a.name === curr.fullName);
+    if (existing) {
+      existing.tickets += curr.tickets;
+      existing.totalSlaMinutes += curr.totalSlaMinutes;
+      existing.ticketsWithResponse += curr.ticketsWithResponse;
+    } else {
+      acc.push({
+        name: curr.fullName,
+        tickets: curr.tickets,
+        totalSlaMinutes: curr.totalSlaMinutes,
+        ticketsWithResponse: curr.ticketsWithResponse,
+      });
+    }
+    return acc;
+  },
+  [] as { name: string; tickets: number; totalSlaMinutes: number; ticketsWithResponse: number }[]
+);
 ```
 
 ## Resultado Visual
 
-- **Tickets**: Ciano brilhante (chart-1) - cor vibrante e chamativa
-- **SLA Medio**: Azul escuro (chart-4) - contraste claro com a primeira barra
+Antes: `Mateus` | `Matheus` | `Thiago`
 
-Ambas as cores permanecem dentro da paleta "ice/snow" do tema, mas com contraste suficiente para distincao imediata.
+Depois: `Mateus Silva` | `Matheus Medeiros` | `Thiago Barretto`
+
+**Nota:** Se os nomes ficarem muito longos no eixo X do gráfico, o Recharts automaticamente rotaciona ou trunca conforme o espaço disponível.
