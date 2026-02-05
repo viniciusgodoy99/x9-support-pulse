@@ -542,7 +542,7 @@ export default function Dashboard() {
 
             {/* Desempenho por Membro */}
             <Card className="frosted-glass border-border/50">
-              <CardHeader className="flex flex-col gap-3 p-4 sm:p-6">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 p-4 sm:p-6">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                     <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
@@ -553,7 +553,7 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <Select value={selectedCS} onValueChange={setSelectedCS}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectTrigger className="w-[140px] sm:w-[180px]">
                     <SelectValue placeholder="Filtrar membro" />
                   </SelectTrigger>
                   <SelectContent>
