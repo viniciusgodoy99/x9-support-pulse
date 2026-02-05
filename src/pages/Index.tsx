@@ -221,24 +221,24 @@ export default function Dashboard() {
       }, 0);
 
       return {
-        firstName: member.name.split(" ")[0],
+        fullName: member.name,
         tickets: memberTickets.length,
         totalSlaMinutes,
         ticketsWithResponse: ticketsWithResponse.length,
       };
     });
 
-    // 2. Aggregate by first name (combines results from multiple groups)
+    // 2. Aggregate by full name (combines results from multiple groups)
     const aggregated = memberMetrics.reduce(
       (acc, curr) => {
-        const existing = acc.find((a) => a.name === curr.firstName);
+        const existing = acc.find((a) => a.name === curr.fullName);
         if (existing) {
           existing.tickets += curr.tickets;
           existing.totalSlaMinutes += curr.totalSlaMinutes;
           existing.ticketsWithResponse += curr.ticketsWithResponse;
         } else {
           acc.push({
-            name: curr.firstName,
+            name: curr.fullName,
             tickets: curr.tickets,
             totalSlaMinutes: curr.totalSlaMinutes,
             ticketsWithResponse: curr.ticketsWithResponse,
