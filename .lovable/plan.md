@@ -1,112 +1,168 @@
 
 
-# Plano: Sincronizar Status da Instancia WhatsApp
+# Plano: Agregar Desempenho por Membro Corretamente
 
-## Problema Identificado
+## Entendimento do Problema
 
-A instancia "Arttico X9" mostra status `connected` na UAZAPI, mas no banco de dados local esta como `waiting` com `phone_number: null`. Isso impede a sincronizacao correta das mensagens do grupo "Nautt Finance".
+O membro da equipe pode estar em varios grupos de cliente. Atualmente, se existem multiplos registros na tabela `team_members` para a mesma pessoa (mesmo nome, telefones diferentes), o grafico exibe cada registro separadamente.
+
+**Comportamento atual:**
+- Matheus Medeiros (ID 1) - 5 tickets resolvidos
+- Matheus Medeiros (ID 2) - 3 tickets resolvidos
+- Grafico mostra: "Matheus" com 5 tickets | "Matheus" com 3 tickets
+
+**Comportamento esperado:**
+- Matheus Medeiros (todos os IDs) - 8 tickets resolvidos no total
+- Grafico mostra: "Matheus" com 8 tickets e SLA medio ponderado
 
 ---
 
 ## Solucao
 
-Adicionar um botao de "Sincronizar Todas" que forca a atualizacao do status de todas as instancias de uma vez, chamando a edge function com `action: 'status'` para cada instancia.
+Modificar a logica do `teamPerformance` em `src/pages/Index.tsx` para:
+
+1. Calcular as metricas individuais de cada registro do membro
+2. Agregar os resultados pelo primeiro nome (ou nome completo)
+3. Somar os tickets e calcular a media ponderada do SLA
 
 ---
 
-## Alteracoes
+## Alteracao
 
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/pages/settings/WhatsAppConnect.tsx` | Adicionar botao "Sincronizar Todas" e handler para sincronizar em lote |
-| `src/hooks/useWhatsAppInstances.tsx` | Adicionar funcao `syncAllStatuses` que percorre todas as instancias |
+| Arquivo | Modificacao |
+|---------|-------------|
+| `src/pages/Index.tsx` | Refatorar o `useMemo` de `teamPerformance` (linhas 209-231) |
 
 ---
 
-## Detalhes da Implementacao
-
-### 1. Adicionar Estado e Handler em WhatsAppConnect.tsx
+## Codigo Atual (linhas 209-231)
 
 ```tsx
-const [syncingAll, setSyncingAll] = useState(false);
+const teamPerformance = useMemo(() => {
+  const membersToShow = selectedCS === "all" 
+    ? csMembers 
+    : csMembers.filter((m) => m.id === selectedCS);
 
-const handleSyncAll = useCallback(async () => {
-  setSyncingAll(true);
-  let successCount = 0;
-  let errorCount = 0;
+  return membersToShow.map((member) => {
+    const memberTickets = filteredTickets.filter(
+      (t) => t.resolved_by === member.id && t.status === "resolved"
+    );
 
-  for (const instance of instances) {
-    try {
-      await supabase.functions.invoke('whatsapp-connect', {
-        body: { action: 'status', instanceId: instance.id },
-      });
-      successCount++;
-    } catch (err) {
-      console.error(`Error syncing ${instance.name}:`, err);
-      errorCount++;
-    }
-  }
+    const ticketsWithResponse = memberTickets.filter((t) => t.first_response_at);
+    const avgSla = ticketsWithResponse.length > 0
+      ? ticketsWithResponse.reduce((acc, t) => {
+          const created = new Date(t.created_at).getTime();
+          const responded = new Date(t.first_response_at!).getTime();
+          return acc + (responded - created) / (1000 * 60);
+        }, 0) / ticketsWithResponse.length
+      : 0;
 
-  await fetchInstances();
-  setSyncingAll(false);
-
-  toast({
-    title: 'Sincronizacao concluida',
-    description: `${successCount} instancia(s) sincronizada(s)${errorCount > 0 ? `, ${errorCount} erro(s)` : ''}`,
+    return {
+      name: member.name.split(" ")[0],
+      tickets: memberTickets.length,
+      avgSla: Math.round(avgSla),
+    };
   });
-}, [instances, fetchInstances, toast]);
-```
-
-### 2. Adicionar Botao na Action Bar
-
-```tsx
-<div className="flex flex-wrap items-center justify-between gap-4">
-  <div className="flex items-center gap-2 text-muted-foreground">
-    <Smartphone className="h-5 w-5" />
-    <span className="text-sm">
-      <span className="font-semibold text-foreground">{instances.length}</span> instancias
-    </span>
-  </div>
-  <div className="flex items-center gap-2">
-    <Button 
-      variant="outline" 
-      onClick={handleSyncAll}
-      disabled={syncingAll || instances.length === 0}
-    >
-      {syncingAll ? (
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-      ) : (
-        <RefreshCw className="h-4 w-4 mr-2" />
-      )}
-      Sincronizar Todas
-    </Button>
-    <Button onClick={() => setShowAddDialog(true)}>
-      <Plus className="h-4 w-4 mr-2" />
-      Nova Instancia
-    </Button>
-  </div>
-</div>
+}, [csMembers, filteredTickets, selectedCS]);
 ```
 
 ---
 
-## Fluxo de Uso
+## Codigo Proposto
+
+```tsx
+const teamPerformance = useMemo(() => {
+  const membersToShow = selectedCS === "all" 
+    ? csMembers 
+    : csMembers.filter((m) => m.id === selectedCS);
+
+  // 1. Calcular metricas individuais de cada registro
+  const memberMetrics = membersToShow.map((member) => {
+    const memberTickets = filteredTickets.filter(
+      (t) => t.resolved_by === member.id && t.status === "resolved"
+    );
+
+    const ticketsWithResponse = memberTickets.filter((t) => t.first_response_at);
+    
+    const totalSlaMinutes = ticketsWithResponse.reduce((acc, t) => {
+      const created = new Date(t.created_at).getTime();
+      const responded = new Date(t.first_response_at!).getTime();
+      return acc + (responded - created) / (1000 * 60);
+    }, 0);
+
+    return {
+      firstName: member.name.split(" ")[0],
+      tickets: memberTickets.length,
+      totalSlaMinutes,
+      ticketsWithResponse: ticketsWithResponse.length,
+    };
+  });
+
+  // 2. Agregar por primeiro nome (junta resultados de varios grupos)
+  const aggregated = memberMetrics.reduce((acc, curr) => {
+    const existing = acc.find((a) => a.name === curr.firstName);
+    if (existing) {
+      // Soma tickets e tempo total para calcular media ponderada depois
+      existing.tickets += curr.tickets;
+      existing.totalSlaMinutes += curr.totalSlaMinutes;
+      existing.ticketsWithResponse += curr.ticketsWithResponse;
+    } else {
+      acc.push({
+        name: curr.firstName,
+        tickets: curr.tickets,
+        totalSlaMinutes: curr.totalSlaMinutes,
+        ticketsWithResponse: curr.ticketsWithResponse,
+      });
+    }
+    return acc;
+  }, [] as { 
+    name: string; 
+    tickets: number; 
+    totalSlaMinutes: number; 
+    ticketsWithResponse: number;
+  }[]);
+
+  // 3. Calcular media ponderada final e formatar para o grafico
+  return aggregated.map((m) => ({
+    name: m.name,
+    tickets: m.tickets,
+    avgSla: m.ticketsWithResponse > 0 
+      ? Math.round(m.totalSlaMinutes / m.ticketsWithResponse) 
+      : 0,
+  }));
+}, [csMembers, filteredTickets, selectedCS]);
+```
+
+---
+
+## Exemplo de Agregacao
 
 ```text
-1. Usuario acessa pagina de Conexoes WhatsApp
-2. Usuario clica em "Sincronizar Todas"
-3. Sistema chama edge function com action='status' para cada instancia
-4. Edge function consulta UAZAPI e atualiza banco de dados
-5. Interface atualiza mostrando status correto (connected)
-6. Webhook volta a funcionar para grupos vinculados a instancia
+Dados de entrada (por registro individual):
++--------------------------------+----------+------------+
+| Membro (ID)                    | Tickets  | SLA Total  |
++--------------------------------+----------+------------+
+| Matheus Medeiros (ID abc-123)  | 5        | 75 min     |
+| Matheus Medeiros (ID def-456)  | 3        | 60 min     |
+| Thiago Barretto (ID ghi-789)   | 4        | 40 min     |
+| Thiago Barretto (ID jkl-012)   | 2        | 50 min     |
++--------------------------------+----------+------------+
+
+Resultado agregado:
++----------+----------+-------------------+
+| Nome     | Tickets  | SLA Medio         |
++----------+----------+-------------------+
+| Matheus  | 8        | 16.9 min (135/8)  |
+| Thiago   | 6        | 15 min (90/6)     |
++----------+----------+-------------------+
 ```
 
 ---
 
 ## Beneficios
 
-- Corrige dessincronizacao entre UAZAPI e banco local
-- Permite sincronizar todas as instancias com um clique
-- Feedback visual durante o processo de sincronizacao
-- Toast informando quantidade de instancias sincronizadas
+- Membros com multiplos registros aparecem uma unica vez no grafico
+- Total de tickets e somado corretamente entre todos os registros
+- SLA medio e calculado como media ponderada (mais preciso)
+- Funciona independente de quantos registros o membro tenha na tabela
 
