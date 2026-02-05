@@ -205,29 +205,56 @@ export default function Dashboard() {
     });
   }, [filteredTickets]);
 
-  // Team performance
+  // Team performance - aggregated by first name to handle members in multiple groups
   const teamPerformance = useMemo(() => {
     const membersToShow = selectedCS === "all" ? csMembers : csMembers.filter((m) => m.id === selectedCS);
 
-    return membersToShow.map((member) => {
+    // 1. Calculate individual metrics for each member record
+    const memberMetrics = membersToShow.map((member) => {
       const memberTickets = filteredTickets.filter((t) => t.resolved_by === member.id && t.status === "resolved");
-
       const ticketsWithResponse = memberTickets.filter((t) => t.first_response_at);
-      const avgSla =
-        ticketsWithResponse.length > 0
-          ? ticketsWithResponse.reduce((acc, t) => {
-              const created = new Date(t.created_at).getTime();
-              const responded = new Date(t.first_response_at!).getTime();
-              return acc + (responded - created) / (1000 * 60);
-            }, 0) / ticketsWithResponse.length
-          : 0;
+
+      const totalSlaMinutes = ticketsWithResponse.reduce((acc, t) => {
+        const created = new Date(t.created_at).getTime();
+        const responded = new Date(t.first_response_at!).getTime();
+        return acc + (responded - created) / (1000 * 60);
+      }, 0);
 
       return {
-        name: member.name.split(" ")[0],
+        firstName: member.name.split(" ")[0],
         tickets: memberTickets.length,
-        avgSla: Math.round(avgSla),
+        totalSlaMinutes,
+        ticketsWithResponse: ticketsWithResponse.length,
       };
     });
+
+    // 2. Aggregate by first name (combines results from multiple groups)
+    const aggregated = memberMetrics.reduce(
+      (acc, curr) => {
+        const existing = acc.find((a) => a.name === curr.firstName);
+        if (existing) {
+          existing.tickets += curr.tickets;
+          existing.totalSlaMinutes += curr.totalSlaMinutes;
+          existing.ticketsWithResponse += curr.ticketsWithResponse;
+        } else {
+          acc.push({
+            name: curr.firstName,
+            tickets: curr.tickets,
+            totalSlaMinutes: curr.totalSlaMinutes,
+            ticketsWithResponse: curr.ticketsWithResponse,
+          });
+        }
+        return acc;
+      },
+      [] as { name: string; tickets: number; totalSlaMinutes: number; ticketsWithResponse: number }[]
+    );
+
+    // 3. Calculate weighted average and format for chart
+    return aggregated.map((m) => ({
+      name: m.name,
+      tickets: m.tickets,
+      avgSla: m.ticketsWithResponse > 0 ? Math.round(m.totalSlaMinutes / m.ticketsWithResponse) : 0,
+    }));
   }, [csMembers, filteredTickets, selectedCS]);
 
   // Paginated resolved tickets
