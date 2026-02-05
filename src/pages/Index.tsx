@@ -591,8 +591,8 @@ export default function Dashboard() {
                           borderRadius: "var(--radius)",
                         }}
                       />
-                      <Bar dataKey="tickets" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Tickets" />
-                      <Bar dataKey="avgSla" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} name="SLA Médio (min)" />
+                      <Bar dataKey="tickets" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} name="Tickets" />
+                      <Bar dataKey="avgSla" fill="hsl(var(--chart-4))" radius={[4, 4, 0, 0]} name="SLA Médio (min)" />
                     </BarChart>
                   </ResponsiveContainer></div>
                 )}
