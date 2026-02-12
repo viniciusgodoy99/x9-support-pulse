@@ -65,6 +65,12 @@ async function fetchContactInfo(
   }
 }
 
+function normalizePhoneNumber(phone: string): string {
+  if (!phone) return "";
+  // Removes all non-digit characters
+  return phone.replace(/\D/g, "");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -99,6 +105,28 @@ serve(async (req) => {
     }
 
     console.log("Fetching participants for group:", group.name, group.whatsapp_id);
+
+    // Fetch ALL team members to map roles
+    const { data: teamMembers, error: teamError } = await supabase
+      .from("team_members")
+      .select("*")
+      .eq("is_active", true);
+
+    if (teamError) {
+      console.error("Error fetching team members:", teamError);
+    }
+
+    // Create a map for fast lookup by normalized phone number
+    const teamMemberMap = new Map<string, any>();
+    if (teamMembers) {
+      teamMembers.forEach(member => {
+        const normalized = normalizePhoneNumber(member.phone_number);
+        if (normalized) {
+          teamMemberMap.set(normalized, member);
+        }
+      });
+    }
+    console.log(`Loaded ${teamMemberMap.size} active team members for role mapping`);
 
     // Fetch group info from UAZAPI using POST /group/info
     const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
@@ -153,7 +181,7 @@ serve(async (req) => {
 
     for (const participant of participants) {
       const whatsappId = participant.id;
-      let phoneNumber = participant.phoneNumber 
+      let rawPhoneNumber = participant.phoneNumber 
         ? participant.phoneNumber.replace("@s.whatsapp.net", "")
         : whatsappId.split("@")[0];
       let participantName = participant.name;
@@ -162,7 +190,7 @@ serve(async (req) => {
       // If we only have a LID (not a real phone number), try to fetch contact info
       // LIDs are typically long numeric strings without country code format
       const isLid = whatsappId.includes("@lid") || 
-                   (!whatsappId.includes("@s.whatsapp.net") && phoneNumber.length > 13);
+                   (!whatsappId.includes("@s.whatsapp.net") && rawPhoneNumber.length > 13);
       
       if (isLid) {
         console.log("Participant has LID, attempting to fetch real phone number:", whatsappId);
@@ -170,8 +198,8 @@ serve(async (req) => {
         if (contactInfo) {
           if (contactInfo.phone) {
             const realPhone = contactInfo.phone.replace("@s.whatsapp.net", "");
-            console.log("Got real phone number:", realPhone, "for LID:", phoneNumber);
-            phoneNumber = realPhone;
+            console.log("Got real phone number:", realPhone, "for LID:", rawPhoneNumber);
+            rawPhoneNumber = realPhone;
           }
           if (contactInfo.name) {
             participantName = contactInfo.name;
@@ -180,50 +208,73 @@ serve(async (req) => {
         }
       }
 
+      // Determine correct role based on team_members
+      const normalizedPhone = normalizePhoneNumber(rawPhoneNumber);
+      const teamMember = teamMemberMap.get(normalizedPhone);
+      
+      let role = "unknown";
+      if (teamMember) {
+        const teamRole = teamMember.role;
+        // Map team roles to group roles
+        if (["CS", "Support", "Admin", "Manager", "CRMManager"].includes(teamRole)) {
+          role = "cs";
+        } else if (["PerformanceManager", "SocialMedia"].includes(teamRole)) {
+          role = "traffic_manager";
+        } else if (["ClientTeam"].includes(teamRole)) {
+          role = "client";
+        }
+        console.log(`Matched team member ${teamMember.name} (${normalizedPhone}) with role ${teamRole} -> group role ${role}`);
+      }
+
       const { data: existingMember } = await supabase
         .from("group_members")
-        .select("id, is_admin, phone_number, name")
+        .select("id, is_admin, phone_number, name, role")
         .eq("group_id", groupId)
         .eq("whatsapp_id", whatsappId)
         .maybeSingle();
 
       if (!existingMember) {
-        // Check if the person is already a CS in team_members
-        const { data: teamMember } = await supabase
-          .from("team_members")
-          .select("id, role")
-          .eq("phone_number", phoneNumber)
-          .eq("is_active", true)
-          .maybeSingle();
-
-        const role = teamMember?.role === "CS" ? "cs" : "unknown";
-
         const { error: insertError } = await supabase
           .from("group_members")
           .insert({
             group_id: groupId,
             whatsapp_id: whatsappId,
-            phone_number: phoneNumber,
+            phone_number: rawPhoneNumber,
             is_admin: isAdmin,
-            role: role,
-            name: participantName || null,
+            role: role as any,
+            name: participantName || (teamMember ? teamMember.name : null),
           });
 
         if (!insertError) {
           added++;
-          console.log("Added member:", phoneNumber, "name:", participantName, "role:", role);
+          console.log("Added member:", rawPhoneNumber, "role:", role);
+        } else {
+             console.error("Error adding member:", insertError);
         }
       } else {
-        // Update admin status, phone_number and name if changed
+        // Update admin status, phone_number, name AND ROLE if changed
         const updates: any = {};
+        
+        // Always force update role if we found a match in team_members and current role is different
+        // OR if current role is unknown/traffic_manager/client but should be CS
+        // Basically if we have a definitive team match, that takes precedence
+        if (teamMember && existingMember.role !== role) {
+            updates.role = role;
+            console.log(`Updating role for ${rawPhoneNumber} from ${existingMember.role} to ${role}`);
+        }
+
         if (existingMember.is_admin !== isAdmin) {
           updates.is_admin = isAdmin;
         }
-        if (existingMember.phone_number !== phoneNumber && phoneNumber) {
-          updates.phone_number = phoneNumber;
+        if (existingMember.phone_number !== rawPhoneNumber && rawPhoneNumber) {
+          updates.phone_number = rawPhoneNumber;
         }
         if (participantName && existingMember.name !== participantName) {
           updates.name = participantName;
+        }
+        // If we found a team member name and existing name is null/empty, update it
+        if (teamMember && !existingMember.name) {
+             updates.name = teamMember.name;
         }
         
         if (Object.keys(updates).length > 0) {
@@ -232,7 +283,7 @@ serve(async (req) => {
             .update(updates)
             .eq("id", existingMember.id);
           updated++;
-          console.log("Updated member:", phoneNumber, "updates:", updates);
+          console.log("Updated member:", rawPhoneNumber, "updates:", updates);
         }
       }
     }

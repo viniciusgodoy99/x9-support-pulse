@@ -60,15 +60,33 @@ export function useGroups() {
     }
   }, []);
 
+  const syncGroupMembers = async (groupId: string) => {
+    try {
+      await supabase.functions.invoke("fetch-group-participants", {
+        body: { groupId },
+      });
+      // No need to wait for response or handle errors loudly, this is a background sync
+    } catch (err) {
+      console.error("Error syncing group members:", err);
+    }
+  };
+
   const addGroup = async (group: { name: string; whatsapp_id: string; sla_limit_minutes?: number }) => {
     try {
-      const { error } = await supabase.from("monitored_groups").insert({
+      const { data, error } = await supabase.from("monitored_groups").insert({
         ...group,
         is_client_group: false,
         pending_classification: false,
         is_archived: false,
-      });
+      }).select().single();
+
       if (error) throw error;
+
+      // Trigger sync for the new group
+      if (data) {
+        syncGroupMembers(data.id);
+      }
+
       await fetchGroups();
     } catch (err) {
       console.error("Error adding group:", err);
@@ -100,6 +118,12 @@ export function useGroups() {
         })
         .eq("id", id);
       if (error) throw error;
+
+      // Trigger sync when classified as client group
+      if (isClientGroup) {
+        syncGroupMembers(id);
+      }
+
       await fetchGroups();
     } catch (err) {
       console.error("Error classifying group:", err);

@@ -91,7 +91,24 @@ export function usePendingDemands() {
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
 
-      setDemands(transformedDemands);
+      // Filter by business hours: Mon-Fri, 08:00 - 18:00
+      const isBusinessHours = (dateString: string) => {
+        const date = new Date(dateString);
+        const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        const hour = date.getHours();
+
+        // Check if it's weekend (Sunday or Saturday)
+        if (day === 0 || day === 6) return false;
+
+        // Check if it's outside 08:00 - 18:00
+        if (hour < 8 || hour >= 18) return false;
+
+        return true;
+      };
+
+      const filteredDemands = transformedDemands.filter(d => isBusinessHours(d.created_at));
+
+      setDemands(filteredDemands);
     } catch (err: any) {
       console.error("Error fetching pending demands:", err);
       setError(err.message);

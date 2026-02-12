@@ -46,12 +46,12 @@ function hasUrgencyKeywords(messages: Message[]): boolean {
     "emergencial", "não pode esperar", "nao pode esperar",
     "prioridade", "prioritário", "prioritario"
   ];
-  
+
   // Check only client messages
-  const clientMessages = messages.filter(m => 
+  const clientMessages = messages.filter(m =>
     m.group_role === "client" || m.sender_role === "client"
   );
-  
+
   for (const msg of clientMessages) {
     const content = msg.content.toLowerCase();
     if (urgencyKeywords.some(keyword => content.includes(keyword))) {
@@ -80,24 +80,131 @@ function calculateObjectivePriority(
   if (timeOpenMinutes > slaLimitMinutes * 2) {
     return "urgent";
   }
-  
+
   // 2. Client used urgency keywords = urgent
   if (hasUrgencyWords) {
     return "urgent";
   }
-  
+
   // 3. Time open > 1x SLA = high
   if (timeOpenMinutes > slaLimitMinutes) {
     return "high";
   }
-  
+
   // 4. Simple question = low
   if (category === "duvida") {
     return "low";
   }
-  
+
   // 5. Normal request = normal
   return "normal";
+}
+
+// ============ BUSINESS HOURS CALCULATION ============
+
+/**
+ * Calculates the number of business minutes between two dates.
+ * Business hours: Monday-Friday, 08:00 - 18:00
+ */
+function calculateBusinessMinutes(startDate: Date, endDate: Date): number {
+  if (startDate >= endDate) return 0;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Clone to avoid modifying original dates
+  let current = new Date(start);
+  let minutes = 0;
+
+  // Helper to check if a specific time is within business hours
+  const isBusinessTime = (date: Date) => {
+    const day = date.getDay();
+    const hour = date.getHours();
+    // 0 = Sunday, 6 = Saturday
+    if (day === 0 || day === 6) return false;
+    // 08:00 to 18:00
+    if (hour < 8 || hour >= 18) return false;
+    return true;
+  };
+
+  // If start and end are on the same day
+  if (start.toDateString() === end.toDateString()) {
+    // If it's a weekend, 0 minutes
+    const day = start.getDay();
+    if (day === 0 || day === 6) return 0;
+
+    // Calculate overlap with 08:00-18:00
+    const startHour = start.getHours();
+    const startMin = start.getMinutes();
+    const endHour = end.getHours();
+    const endMin = end.getMinutes();
+
+    const startTimeInMinutes = startHour * 60 + startMin;
+    const endTimeInMinutes = endHour * 60 + endMin;
+
+    const businessStart = 8 * 60; // 08:00
+    const businessEnd = 18 * 60;  // 18:00
+
+    // Effective start: max(start, 08:00)
+    const effectiveStart = Math.max(startTimeInMinutes, businessStart);
+    // Effective end: min(end, 18:00)
+    const effectiveEnd = Math.min(endTimeInMinutes, businessEnd);
+
+    if (effectiveStart < effectiveEnd) {
+      return effectiveEnd - effectiveStart;
+    }
+    return 0;
+  }
+
+  // Iterate day by day (for simplicity and robustness)
+  // 1. Remaining minutes in start day
+  if (isBusinessTime(start) || (start.getDay() !== 0 && start.getDay() !== 6 && start.getHours() < 18)) {
+    const day = start.getDay();
+    if (day !== 0 && day !== 6) {
+      const startHour = start.getHours();
+      const startMin = start.getMinutes();
+      const startTimeInMinutes = startHour * 60 + startMin;
+      const businessStart = 8 * 60;
+      const businessEnd = 18 * 60;
+
+      const effectiveStart = Math.max(startTimeInMinutes, businessStart);
+      if (effectiveStart < businessEnd) {
+        minutes += businessEnd - effectiveStart;
+      }
+    }
+  }
+
+  // Move to next day 00:00
+  current.setDate(current.getDate() + 1);
+  current.setHours(0, 0, 0, 0);
+
+  // 2. Full days between
+  while (current.toDateString() !== end.toDateString()) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) {
+      minutes += 10 * 60; // 10 hours per business day
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  // 3. Minutes in end day
+  const endDay = end.getDay();
+  if (endDay !== 0 && endDay !== 6) {
+    const endHour = end.getHours();
+    const endMin = end.getMinutes();
+    const endTimeInMinutes = endHour * 60 + endMin;
+    const businessStart = 8 * 60;
+    const businessEnd = 18 * 60;
+
+    // Effective end: min(end, 18:00)
+    const effectiveEnd = Math.min(endTimeInMinutes, businessEnd);
+
+    if (effectiveEnd > businessStart) {
+      minutes += effectiveEnd - businessStart;
+    }
+  }
+
+  return minutes;
 }
 
 // ============ SLA NOTIFICATION FUNCTIONS ============
@@ -113,7 +220,7 @@ async function sendWhatsAppMessage(groupJid: string, message: string): Promise<b
   try {
     // Normalizar URL - adicionar https:// se necessário
     const baseUrl = apiUrl.startsWith("http") ? apiUrl : `https://${apiUrl}`;
-    
+
     const response = await fetch(`${baseUrl}/send/text`, {
       method: "POST",
       headers: {
@@ -230,7 +337,7 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
     // Get ticket ID and group ID for queries
     const ticketId = (demand.tickets as any)?.id;
     const groupId = (demand.tickets as any)?.group_id;
-    
+
     // Get all group members with role = 'client' (real clients only)
     let clientPhoneNumbers: string[] = [];
     if (groupId) {
@@ -239,11 +346,11 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
         .select("phone_number")
         .eq("group_id", groupId)
         .eq("role", "client");
-      
+
       clientPhoneNumbers = (clientMembers || []).map(m => m.phone_number);
       console.log(`Found ${clientPhoneNumbers.length} client members in group ${groupId}`);
     }
-    
+
     // Calculate time open - use first REAL client message timestamp instead of demand created_at
     let requestTimestamp = new Date(demand.created_at);
 
@@ -257,15 +364,14 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
-      
+
       if (firstClientMessage?.created_at) {
         requestTimestamp = new Date(firstClientMessage.created_at);
         console.log(`Using original request timestamp from real client: ${firstClientMessage.created_at}`);
       }
     }
 
-    const timeOpenMs = Date.now() - requestTimestamp.getTime();
-    const timeOpenMinutes = Math.round(timeOpenMs / (60 * 1000));
+    const timeOpenMinutes = calculateBusinessMinutes(requestTimestamp, new Date());
 
     // Get group name
     const groupName = (demand.tickets as any)?.monitored_groups?.name || "Grupo desconhecido";
@@ -281,7 +387,7 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
 
     // Get customer info - with fallback logic using REAL clients only
     let customerName = (demand.tickets as any)?.customer_name;
-    
+
     // If name is empty, generic, or null - try to get from first REAL client message
     if (!customerName || customerName === "Cliente" || customerName === "Cliente desconhecido") {
       if (ticketId && clientPhoneNumbers.length > 0) {
@@ -293,14 +399,14 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
           .order("created_at", { ascending: true })
           .limit(1)
           .maybeSingle();
-        
+
         if (firstClientMessage?.sender_name && firstClientMessage.sender_name !== "Cliente") {
           customerName = firstClientMessage.sender_name;
           console.log(`Found customer name from real client message: ${customerName}`);
         }
       }
     }
-    
+
     // Final fallback
     customerName = customerName || "Cliente desconhecido";
 
@@ -344,7 +450,7 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
 
 async function analyzeConversation(messages: Message[]): Promise<AnalysisResult> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  
+
   if (!LOVABLE_API_KEY) {
     console.error("LOVABLE_API_KEY not configured");
     throw new Error("AI configuration missing");
@@ -357,13 +463,13 @@ async function analyzeConversation(messages: Message[]): Promise<AnalysisResult>
     if (m.group_role === "cs" || m.sender_role === "cs") {
       roleDisplay = "Atendente (CS)";
     } else if (m.group_role === "traffic_manager") {
-      roleDisplay = "Gestor de Tráfego (Interno)";
+      roleDisplay = "Gestor de Tráfego (Equipe)";
     } else if (m.group_role === "client") {
       roleDisplay = "Cliente";
     } else {
       roleDisplay = m.sender_role === "cs" ? "Atendente (CS)" : "Cliente";
     }
-    
+
     const name = m.sender_name || "Desconhecido";
     const time = new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     return `[${time}] ${roleDisplay} (${name}): ${m.content}`;
@@ -371,7 +477,7 @@ async function analyzeConversation(messages: Message[]): Promise<AnalysisResult>
 
   const systemPrompt = `Você é um analista de atendimento ao cliente especializado em identificar demandas e avaliar qualidade de atendimento.
 
-Analise a conversa entre Atendentes (CS) e Clientes e identifique:
+Analise a conversa entre a Equipe de Atendimento (CS, Gestores, etc) e Clientes e identifique:
 1. APENAS demandas/pedidos/solicitações feitas por CLIENTES EXTERNOS (marcados como "Cliente" nas mensagens)
 2. O status de cada demanda: "resolved" se foi atendida/respondida, "open" se ainda está pendente
 3. A prioridade baseada na urgência aparente: "low", "normal", "high", "urgent"
@@ -385,30 +491,31 @@ Analise a conversa entre Atendentes (CS) e Clientes e identifique:
    - "feedback": Retorno sobre serviços, avaliações, sugestões de melhoria
    - "geral": APENAS quando não se encaixar em NENHUMA outra categoria
 5. Para demandas resolvidas, estime o tempo aproximado de resolução em minutos
-6. Para demandas resolvidas, identifique o NOME do Atendente (CS) que resolveu a demanda com base nas mensagens
+6. Para demandas resolvidas, identifique o NOME do membro da equipe que resolveu a demanda
 7. Gere um RESUMO ESTRUTURADO seguindo este formato:
-   "O cliente [NOME DO CLIENTE] solicitou [DESCRIÇÃO DA DEMANDA PRINCIPAL]. O atendente [NOME DO CS] [resolveu/está atendendo] a solicitação."
+   "O cliente [NOME DO CLIENTE] solicitou [DESCRIÇÃO DA DEMANDA PRINCIPAL]. O membro da equipe [NOME] [resolveu/está atendendo] a solicitação."
 
 ⚠️ REGRA CRÍTICA - QUEM PODE GERAR DEMANDAS:
 - APENAS mensagens de "Cliente" devem gerar demandas
-- IGNORE solicitações de "Atendente (CS)" - são instruções internas
-- IGNORE solicitações de "Gestor de Tráfego (Interno)" - são membros da equipe interna
-- Mensagens de membros internos (CS, Gestor de Tráfego) são apenas CONVERSAS INTERNAS, não demandas de clientes
+- IGNORE solicitações de "Atendente (CS)" ou "Gestor de Tráfego" - são instruções internas
+
+⚠️ REGRA CRÍTICA - QUEM PODE RESOLVER DEMANDAS:
+- Qualquer membro da equipe pode resolver demandas: "Atendente (CS)", "Gestor de Tráfego (Equipe)", etc.
 
 REGRAS CRÍTICAS PARA DETERMINAR STATUS (SIGA À RISCA):
 
 ⚠️ DEMANDA É "open" (PENDENTE) SE:
-- O cliente fez uma pergunta e NÃO HÁ resposta do CS para essa pergunta ESPECÍFICA
-- A última mensagem do cliente contém uma pergunta/pedido sem resposta posterior do CS
-- O CS respondeu de forma vaga/genérica sem abordar o ponto específico do cliente
-- O cliente solicitou algo e o CS não confirmou entrega ou ação
+- O cliente fez uma pergunta e NÃO HÁ resposta da equipe para essa pergunta ESPECÍFICA
+- A última mensagem do cliente contém uma pergunta/pedido sem resposta posterior da equipe
+- A equipe respondeu de forma vaga/genérica sem abordar o ponto específico do cliente
+- O cliente solicitou algo e a equipe não confirmou entrega ou ação
 
 ✅ DEMANDA É "resolved" (RESOLVIDA) SE:
-- O CS respondeu DIRETAMENTE e ESPECIFICAMENTE à pergunta do cliente
-- O CS confirmou EXPLICITAMENTE a entrega, ação ou resolução
+- Um membro da equipe respondeu DIRETAMENTE e ESPECIFICAMENTE à pergunta do cliente
+- A equipe confirmou EXPLICITAMENTE a entrega, ação ou resolução
 - O cliente demonstrou satisfação ou agradeceu APÓS receber resposta adequada
 
-🔴 REGRA DE OURO: Se não existe uma RESPOSTA DIRETA e ESPECÍFICA do CS para uma pergunta/pedido do cliente, a demanda é "open". 
+🔴 REGRA DE OURO: Se não existe uma RESPOSTA DIRETA e ESPECÍFICA da equipe para uma pergunta/pedido do cliente, a demanda é "open". 
 
 EM CASO DE DÚVIDA: Marque como "open". É preferível ter demandas falsamente pendentes do que falsamente resolvidas.
 
@@ -422,9 +529,9 @@ REGRAS DE CATEGORIZAÇÃO:
 REGRAS DO RESUMO:
 - SEMPRE comece identificando o cliente pelo nome (quem tem role = "Cliente")
 - Descreva a demanda principal de forma clara e objetiva
-- Identifique o atendente (CS) que tratou/resolveu a solicitação
+- Identifique o membro da equipe que tratou/resolveu a solicitação
 - Use "O cliente [NOME]" para quem faz a solicitação
-- Use "O atendente [NOME]" para quem resolve
+- Use "O membro da equipe [NOME]" para quem resolve
 - Se houver demandas pendentes, MENCIONE NO RESUMO
 - Máximo de 2-3 frases
 - Se não houver demandas de clientes externos, indique isso no resumo
@@ -457,17 +564,17 @@ Use a função analyze_conversation para estruturar sua resposta.`;
                 items: {
                   type: "object",
                   properties: {
-                    description: { 
+                    description: {
                       type: "string",
                       description: "Descrição clara e concisa da demanda"
                     },
-                    status: { 
-                      type: "string", 
+                    status: {
+                      type: "string",
                       enum: ["open", "resolved"],
                       description: "Status da demanda: 'resolved' se foi atendida, 'open' se pendente"
                     },
-                    priority: { 
-                      type: "string", 
+                    priority: {
+                      type: "string",
                       enum: ["low", "normal", "high", "urgent"],
                       description: "Prioridade baseada na urgência aparente"
                     },
@@ -476,7 +583,7 @@ Use a função analyze_conversation para estruturar sua resposta.`;
                       enum: ["duvida", "solicitacao", "reclamacao", "agendamento", "suporte_tecnico", "financeiro", "feedback", "geral"],
                       description: "Categoria da demanda: duvida (perguntas), solicitacao (pedidos), reclamacao (insatisfação), agendamento (datas/horários), suporte_tecnico (problemas técnicos), financeiro (pagamentos), feedback (retorno sobre serviços), geral (outros)"
                     },
-                    resolution_time_minutes: { 
+                    resolution_time_minutes: {
                       type: "number",
                       description: "Tempo estimado de resolução em minutos (apenas para resolvidas)"
                     },
@@ -488,11 +595,11 @@ Use a função analyze_conversation para estruturar sua resposta.`;
                   required: ["description", "status", "priority", "category"]
                 }
               },
-              all_resolved: { 
+              all_resolved: {
                 type: "boolean",
                 description: "true se todas as demandas foram resolvidas"
               },
-              summary: { 
+              summary: {
                 type: "string",
                 description: "Resumo estruturado no formato: 'O cliente [NOME] solicitou [DEMANDA]. O atendente [NOME CS] resolveu/está atendendo a solicitação.' Sempre identificando cliente, demanda e atendente. Máximo 2-3 frases."
               }
@@ -508,7 +615,7 @@ Use a função analyze_conversation para estruturar sua resposta.`;
   if (!response.ok) {
     const errorText = await response.text();
     console.error("AI API error:", response.status, errorText);
-    
+
     if (response.status === 429) {
       throw new Error("Rate limit exceeded");
     }
@@ -545,7 +652,7 @@ serve(async (req) => {
     // Check if this is a force resolve request
     let ticketId: string | null = null;
     let forceResolve = false;
-    
+
     if (req.method === "POST") {
       try {
         const body = await req.json();
@@ -559,7 +666,7 @@ serve(async (req) => {
     console.log(`Starting ticket analysis job... ticketId=${ticketId}, forceResolve=${forceResolve}`);
 
     let ticketsToAnalyze;
-    
+
     if (ticketId) {
       // Analyze specific ticket
       const { data, error } = await supabase
@@ -576,12 +683,12 @@ serve(async (req) => {
         `)
         .eq("id", ticketId)
         .single();
-      
+
       if (error) {
         console.error("Error fetching ticket:", error);
         throw error;
       }
-      
+
       ticketsToAnalyze = data ? [data] : [];
     } else {
       // Find tickets that need analysis (next_analysis_at <= now AND status = open)
@@ -611,7 +718,7 @@ serve(async (req) => {
         console.error("Error fetching tickets:", ticketsError);
         throw ticketsError;
       }
-      
+
       ticketsToAnalyze = data;
       console.log(`Filtered to ${ticketsToAnalyze?.length || 0} tickets from active client groups`);
     }
@@ -636,7 +743,7 @@ serve(async (req) => {
 
         // For force resolve, fetch ALL messages; otherwise only since last analysis
         const sinceTime = forceResolve ? ticket.created_at : (ticket.last_analysis_at || ticket.created_at);
-        
+
         const { data: rawMessages, error: messagesError } = await supabase
           .from("messages")
           .select("id, sender_name, sender_phone, sender_role, content, created_at")
@@ -670,7 +777,7 @@ serve(async (req) => {
             .eq("group_id", ticket.group_id)
             .eq("phone_number", m.sender_phone)
             .maybeSingle();
-          
+
           return {
             ...m,
             group_role: memberData?.role || "unknown"
@@ -678,7 +785,7 @@ serve(async (req) => {
         }));
 
         console.log(`Enriched ${messages.length} messages with group roles`);
-        
+
         // Log role distribution for debugging
         const roleDistribution = messages.reduce((acc, m) => {
           acc[m.group_role || 'unknown'] = (acc[m.group_role || 'unknown'] || 0) + 1;
@@ -689,8 +796,12 @@ serve(async (req) => {
         // Get timestamp of last message for accurate resolved_at (instead of NOW())
         const lastMessageTimestamp = messages[messages.length - 1].created_at;
 
-        // Find timestamp of last CS message for demand resolution
-        const lastCsMessageTimestamp = [...messages].reverse().find(m => m.sender_role === "cs")?.created_at || lastMessageTimestamp;
+        // Find timestamp of last Team message (CS or Traffic Manager) for demand resolution
+        const lastTeamMessage = [...messages].reverse().find(m =>
+          m.sender_role === "cs" ||
+          m.group_role === "cs" ||
+          m.group_role === "traffic_manager"
+        )?.created_at || lastMessageTimestamp;
 
         console.log(`Found ${messages.length} messages to analyze for ticket ${ticket.id}`);
 
@@ -708,28 +819,28 @@ serve(async (req) => {
         const calculateSimilarity = (str1: string, str2: string): number => {
           // Remove punctuation and convert to lowercase
           const clean = (s: string) => s.toLowerCase().replace(/[.,!?'"()]/g, '');
-          
+
           // Portuguese stopwords
           const stopwords = new Set([
-            'o', 'a', 'os', 'as', 'de', 'do', 'da', 'dos', 'das', 
-            'em', 'no', 'na', 'nos', 'nas', 'e', 'se', 'que', 'para', 
-            'por', 'com', 'sobre', 'ja', 'foram', 'foi', 'ser', 'esta', 
+            'o', 'a', 'os', 'as', 'de', 'do', 'da', 'dos', 'das',
+            'em', 'no', 'na', 'nos', 'nas', 'e', 'se', 'que', 'para',
+            'por', 'com', 'sobre', 'ja', 'foram', 'foi', 'ser', 'esta',
             'um', 'uma', 'uns', 'umas', 'ao', 'aos', 'pelo', 'pela'
           ]);
-          
+
           // Extract significant words (> 2 chars, not stopwords)
           const getWords = (s: string) => clean(s).split(/\s+/)
             .filter(w => w.length > 2 && !stopwords.has(w));
-          
+
           const words1 = getWords(str1);
           const words2 = getWords(str2);
-          
+
           if (words1.length === 0 || words2.length === 0) {
             // Fallback to substring check for very short descriptions
             return str1.toLowerCase().includes(str2.toLowerCase().slice(0, 15)) ||
-                   str2.toLowerCase().includes(str1.toLowerCase().slice(0, 15)) ? 0.6 : 0;
+              str2.toLowerCase().includes(str1.toLowerCase().slice(0, 15)) ? 0.6 : 0;
           }
-          
+
           // Count matching words (with partial matching)
           let matches = 0;
           for (const w1 of words1) {
@@ -740,7 +851,7 @@ serve(async (req) => {
               }
             }
           }
-          
+
           // Calculate similarity based on the smaller list
           const minLen = Math.min(words1.length, words2.length);
           return minLen > 0 ? matches / minLen : 0;
@@ -765,33 +876,35 @@ serve(async (req) => {
             // Update existing demand if status changed
             if (existingDemand.status !== demand.status) {
               const updates: Record<string, any> = { status: demand.status };
-              
+
               if (demand.status === "resolved") {
-                updates.resolved_at = lastCsMessageTimestamp;
+                updates.resolved_at = lastTeamMessage;
                 updates.resolution_time_minutes = demand.resolution_time_minutes || null;
-                
-                // Find CS who resolved this demand
+
+                // Find Team Member who resolved this demand
                 let resolvedByName = demand.resolved_by_name || null;
                 let resolvedByPhone: string | null = null;
-                
+
                 if (!resolvedByName) {
-                  const lastCsMessage = [...messages as Message[]].reverse().find(m => m.sender_role === "cs");
-                  if (lastCsMessage) {
-                    resolvedByName = lastCsMessage.sender_name || null;
+                  const lastTeamMsg = [...messages as Message[]].reverse().find(m =>
+                    m.sender_role === "cs" || m.group_role === "cs" || m.group_role === "traffic_manager"
+                  );
+                  if (lastTeamMsg) {
+                    resolvedByName = lastTeamMsg.sender_name || null;
                   }
                 }
-                
+
                 if (resolvedByName && messages) {
-                  const csMessage = (messages as any[]).find(m => m.sender_name === resolvedByName && m.sender_role === "cs");
-                  if (csMessage?.sender_phone) {
-                    resolvedByPhone = csMessage.sender_phone;
+                  const teamMessage = (messages as any[]).find(m => m.sender_name === resolvedByName);
+                  if (teamMessage?.sender_phone) {
+                    resolvedByPhone = teamMessage.sender_phone;
                   }
                 }
-                
+
                 updates.resolved_by_name = resolvedByName;
                 updates.resolved_by_phone = resolvedByPhone;
               }
-              
+
               // Check if SLA exceeded (demand open for more than 2 minutes - for testing)
               if (demand.status === "open") {
                 const demandAge = Date.now() - new Date(ticket.created_at).getTime();
@@ -804,12 +917,12 @@ serve(async (req) => {
                 .from("ticket_demands")
                 .update(updates)
                 .eq("id", existingDemand.id);
-              
+
               console.log(`Updated demand ${existingDemand.id} to status: ${demand.status}`);
             }
           } else {
             // Create new demand
-            
+
             // Get global SLA limit for priority calculation
             const { data: slaSettings } = await supabase
               .from("settings")
@@ -817,20 +930,23 @@ serve(async (req) => {
               .eq("key", "global_sla_minutes")
               .single();
             const slaLimitMinutes = slaSettings?.value ? parseInt(slaSettings.value) : 30;
-            
+
+            // ... existing code ...
+
             // Calculate time open from first client message
             const firstClientMsg = (messages as Message[])
               .filter(m => m.group_role === "client" || m.sender_role === "client")
               .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
-            
+
             let timeOpenMinutes = 0;
             if (firstClientMsg) {
-              timeOpenMinutes = Math.round((Date.now() - new Date(firstClientMsg.created_at).getTime()) / 60000);
+              // Use business hours for time open
+              timeOpenMinutes = calculateBusinessMinutes(new Date(firstClientMsg.created_at), new Date());
             }
-            
+
             // Check for urgency keywords in client messages
             const hasUrgency = hasUrgencyKeywords(messages as Message[]);
-            
+
             // Calculate objective priority based on criteria
             const objectivePriority = calculateObjectivePriority(
               demand.category || "geral",
@@ -838,31 +954,40 @@ serve(async (req) => {
               slaLimitMinutes,
               hasUrgency
             );
-            
-            console.log(`Priority calculation for "${demand.description.slice(0, 40)}...": ` +
-              `timeOpen=${timeOpenMinutes}min, SLA=${slaLimitMinutes}min, hasUrgency=${hasUrgency}, ` +
-              `AI=${demand.priority} -> Objective=${objectivePriority}`);
-            
-            const demandAge = Date.now() - new Date(ticket.created_at).getTime();
-            const slaExceeded = demand.status === "open" && demandAge > 2 * 60 * 1000; // 2 minutes for testing
 
-            // For resolved demands, find CS who resolved if AI didn't identify
+            console.log(`Priority calculation for "${demand.description.slice(0, 40)}...": ` +
+              `timeOpen=${timeOpenMinutes}min (business), SLA=${slaLimitMinutes}min, hasUrgency=${hasUrgency}, ` +
+              `AI=${demand.priority} -> Objective=${objectivePriority}`);
+
+            // Use business minutes for SLA check too
+            // Note: we use timeOpenMinutes calculated above which already respects business hours
+            // But if we want to check based on ticket creation for fallbacks:
+            const businessMinutesSinceCreation = calculateBusinessMinutes(new Date(ticket.created_at), new Date());
+
+            // Use timeOpenMinutes if available (more accurate as it's from first client msg), else fallback to ticket creation
+            const minutesForSla = timeOpenMinutes > 0 ? timeOpenMinutes : businessMinutesSinceCreation;
+
+            const slaExceeded = demand.status === "open" && minutesForSla > slaLimitMinutes;
+
+            // For resolved demands, find Team Member who resolved if AI didn't identify
             let resolvedByName = demand.resolved_by_name || null;
             let resolvedByPhone: string | null = null;
-            
+
             if (demand.status === "resolved" && !resolvedByName) {
-              // Fallback: find the last CS message
-              const lastCsMessage = [...messages as Message[]].reverse().find(m => m.sender_role === "cs");
-              if (lastCsMessage) {
-                resolvedByName = lastCsMessage.sender_name || null;
+              // Fallback: find the last Team message
+              const lastTeamMsg = [...messages as Message[]].reverse().find(m =>
+                m.sender_role === "cs" || m.group_role === "cs" || m.group_role === "traffic_manager"
+              );
+              if (lastTeamMsg) {
+                resolvedByName = lastTeamMsg.sender_name || null;
               }
             }
-            
-            // Find phone for the CS
+
+            // Find phone for the Team Member
             if (resolvedByName && messages) {
-              const csMessage = (messages as any[]).find(m => m.sender_name === resolvedByName && m.sender_role === "cs");
-              if (csMessage?.sender_phone) {
-                resolvedByPhone = csMessage.sender_phone;
+              const teamMessage = (messages as any[]).find(m => m.sender_name === resolvedByName);
+              if (teamMessage?.sender_phone) {
+                resolvedByPhone = teamMessage.sender_phone;
               }
             }
 
@@ -875,7 +1000,7 @@ serve(async (req) => {
                 priority: objectivePriority, // Use objective priority instead of AI priority
                 category: demand.category || "geral",
                 resolution_time_minutes: demand.status === "resolved" ? demand.resolution_time_minutes : null,
-                resolved_at: demand.status === "resolved" ? lastCsMessageTimestamp : null,
+                resolved_at: demand.status === "resolved" ? lastTeamMessage : null,
                 sla_exceeded: slaExceeded,
                 resolved_by_name: resolvedByName,
                 resolved_by_phone: resolvedByPhone,
@@ -901,50 +1026,54 @@ serve(async (req) => {
           ticketUpdates.status = "resolved";
           ticketUpdates.resolved_at = lastMessageTimestamp;
           ticketUpdates.next_analysis_at = null;
-          
-          // Find CS who resolved the ticket based on last CS message
-          const lastCsMessage = [...messages as any[]].reverse().find(m => m.sender_role === "cs");
-          if (lastCsMessage?.sender_phone) {
+
+          // Find Team Member who resolved the ticket based on last Team message
+          const lastTeamMsg = [...messages as any[]].reverse().find(m =>
+            m.sender_role === "cs" || m.group_role === "cs" || m.group_role === "traffic_manager"
+          );
+          if (lastTeamMsg?.sender_phone) {
             // Look up team_member by phone number
             const { data: teamMember } = await supabase
               .from("team_members")
               .select("id")
-              .eq("phone_number", lastCsMessage.sender_phone)
+              .eq("phone_number", lastTeamMsg.sender_phone)
               .single();
-            
+
             if (teamMember) {
               ticketUpdates.resolved_by = teamMember.id;
               console.log(`Ticket ${ticket.id} resolved_by set to team_member ${teamMember.id}`);
             } else {
-              console.log(`No team_member found for phone ${lastCsMessage.sender_phone}`);
+              console.log(`No team_member found for phone ${lastTeamMsg.sender_phone}`);
             }
           }
-          
+
           // Log open demands BEFORE cleanup (debug)
           const { data: openDemandsBeforeCleanup } = await supabase
             .from("ticket_demands")
             .select("id, description")
             .eq("ticket_id", ticket.id)
             .eq("status", "open");
-          
+
           console.log(`All demands resolved - closing ticket ${ticket.id}. Found ${openDemandsBeforeCleanup?.length || 0} orphaned open demands to close.`);
           if (openDemandsBeforeCleanup && openDemandsBeforeCleanup.length > 0) {
             console.log(`Orphaned demands: ${openDemandsBeforeCleanup.map(d => d.description.slice(0, 40)).join('; ')}`);
           }
-          
+
           // Close ALL remaining open demands (safety net for any orphaned demands)
-          const lastCsMessageForDemands = [...messages as Message[]].reverse().find(m => m.sender_role === "cs");
+          const lastTeamMsgForDemands = [...messages as Message[]].reverse().find(m =>
+            m.sender_role === "cs" || m.group_role === "cs" || m.group_role === "traffic_manager"
+          );
           const { error: updateOpenDemandsError, count: closedDemandsCount } = await supabase
             .from("ticket_demands")
             .update({
               status: "resolved",
-              resolved_at: lastCsMessageTimestamp,
-              resolved_by_name: lastCsMessageForDemands?.sender_name || null,
-              resolved_by_phone: lastCsMessageForDemands?.sender_phone || null,
+              resolved_at: lastTeamMessage,
+              resolved_by_name: lastTeamMsgForDemands?.sender_name || null,
+              resolved_by_phone: lastTeamMsgForDemands?.sender_phone || null,
             })
             .eq("ticket_id", ticket.id)
             .eq("status", "open");
-            
+
           if (updateOpenDemandsError) {
             console.error("Error closing remaining open demands:", updateOpenDemandsError);
           } else if (closedDemandsCount && closedDemandsCount > 0) {
@@ -966,7 +1095,7 @@ serve(async (req) => {
         const errorMsg = ticketError instanceof Error ? ticketError.message : "Unknown error";
         console.error(`Error analyzing ticket ${ticket.id}:`, errorMsg);
         errors.push(`Ticket ${ticket.id}: ${errorMsg}`);
-        
+
         // If rate limited, stop processing more tickets
         if (errorMsg.includes("Rate limit")) {
           console.log("Rate limited - stopping analysis job");
