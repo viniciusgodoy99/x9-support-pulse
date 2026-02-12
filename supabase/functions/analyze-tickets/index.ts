@@ -263,6 +263,16 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
     return { sent, errors };
   }
 
+  // Check if we're within business hours (Mon-Fri, 08:00-18:00 BRT)
+  const nowBRT = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const dayOfWeek = nowBRT.getDay(); // 0=Sun, 6=Sat
+  const hour = nowBRT.getHours();
+
+  if (dayOfWeek === 0 || dayOfWeek === 6 || hour < 8 || hour >= 18) {
+    console.log("Outside business hours (BRT), skipping SLA notifications");
+    return { sent, errors };
+  }
+
   // Get notification group ID
   const { data: groupIdSetting } = await supabase
     .from("settings")
