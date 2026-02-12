@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
       const success = await sendWhatsAppMessage(
         instance.api_url,
         instance.api_token,
-        targetGroupId,
+        report.group.whatsapp_id,
         message
       );
 
@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
       }
 
       // Wait 2 seconds between messages to avoid rate limiting
-      await sleep(2000);
+      await sleep(30000);
     }
 
     // Summary message removed as per client request
