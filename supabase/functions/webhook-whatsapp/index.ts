@@ -515,7 +515,7 @@ serve(async (req) => {
     let senderRole: "cs" | "client" = "client";
     if (senderMember?.role) {
       // Role definido no grupo específico tem prioridade
-      senderRole = senderMember.role === "cs" ? "cs" : "client";
+      senderRole = (senderMember.role === "cs" || senderMember.role === "traffic_manager") ? "cs" : "client";
       console.log("Using group-specific role:", senderMember.role, "->", senderRole);
     } else if (teamMember) {
       // Fallback para team_members quando não há role no grupo
