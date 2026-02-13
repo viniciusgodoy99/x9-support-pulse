@@ -1,70 +1,106 @@
 
 
-# Plano: Corrigir Sincronizacao de Membros da Equipe em Novos Grupos
+# Plano: Escalar Envio do Resumo Diario para Qualquer Quantidade de Grupos
 
-## Problema Identificado
+## Problema
 
-O sistema usa LIDs (identificadores internos do WhatsApp) para identificar participantes dos grupos. A funcao `fetch-group-participants` tenta resolver LIDs para numeros reais via endpoint `/contact/check` da UAZAPI, mas esse endpoint falha frequentemente, deixando membros com numeros tipo `232864855683198` em vez do numero real.
+A funcao `daily-report` processa os grupos sequencialmente com `sleep(30000)` (30 segundos) entre cada envio. Com 53 grupos (e crescendo), a funcao precisa de mais de 26 minutos, mas o limite de execucao de uma Edge Function e de aproximadamente 150 segundos. Resultado: apenas os 2-3 primeiros grupos recebem o resumo.
 
-Membros da equipe afetados (dados reais do banco):
+Mesmo reduzindo o sleep para 2 segundos, cada grupo precisa de ~3-5 segundos (chamada de IA + envio WhatsApp + sleep), totalizando ~160-265 segundos para 53 grupos -- ainda estouraria o limite.
 
-| LID | Numero Real | Nome | Papel |
-|-----|-------------|------|-------|
-| 232864855683198 | 558498682288 | Mateus Araujo | CS |
-| 9766789234786 | 558481408381 | Thiago Barretto | CS |
-| 229570682831044 | 558496771436 | Pablo Santos | Traffic Manager |
-| 275960289095916 | 558499470066 | Hercilio Neto | Traffic Manager |
-| 32719732002886 | 558499615044 | Victor Motta | Traffic Manager |
+## Solucao: Processamento em Lotes Auto-Invocantes
 
-Esses membros ja foram identificados corretamente em alguns grupos (quando enviaram mensagens e o webhook enriqueceu os dados), mas em novos grupos a sincronizacao nao aproveita essa informacao existente.
+A funcao vai processar grupos em lotes de 10. Ao terminar um lote, ela chama a si mesma passando o proximo lote como parametro, garantindo que funcione com qualquer quantidade de grupos.
 
-## Solucao
+```text
+Cron 17:50 BRT
+    |
+    v
+daily-report (offset=0)
+    |-- Processa grupos 1-10 (~50s)
+    |-- Chama daily-report (offset=10)
+    |       |-- Processa grupos 11-20 (~50s)
+    |       |-- Chama daily-report (offset=20)
+    |       |       |-- Processa grupos 21-30 (~50s)
+    |       |       |-- ... continua ate acabar
+    |       |       v
+    v       v
+  Todos os grupos processados
+```
 
-Adicionar uma etapa no `fetch-group-participants` que, apos falhar em resolver um LID via `/contact/check`, consulta a propria tabela `group_members` para verificar se o mesmo `whatsapp_id` ja foi resolvido em outro grupo. Se sim, copia o numero real, nome e papel.
-
-## Alteracao
+## Alteracoes
 
 | Arquivo | Modificacao |
 |---------|-------------|
-| `supabase/functions/fetch-group-participants/index.ts` | Adicionar consulta de fallback ao banco de dados apos falha do `/contact/check` |
+| `supabase/functions/daily-report/index.ts` | Reestruturar para processar em lotes de 10 com auto-invocacao |
 
-### Logica a adicionar (apos o bloco `fetchContactInfo` para LIDs, ~linha 160):
+### Detalhes tecnicos
+
+1. **Aceitar parametro `offset`**: A funcao recebe um `offset` (padrao 0) e um `batchId` para rastrear a execucao completa
+
+2. **Preparar dados uma vez**: Na primeira invocacao (offset=0), busca todos os grupos e demandas, monta os reports e filtra apenas os que tem demandas. Salva essa lista filtrada no corpo da proxima chamada
+
+3. **Processar lote**: Processa apenas 10 grupos por invocacao (AI + envio + 2s sleep entre mensagens)
+
+4. **Auto-invocar proximo lote**: Se ainda houver grupos restantes, a funcao chama a si mesma via HTTP com o proximo offset, passando os dados ja preparados (reports pre-computados)
+
+5. **Sleep reduzido**: Intervalo entre mensagens reduzido de 30s para 2s
+
+### Estrutura do codigo:
 
 ```typescript
-// Fallback: check if this LID was already resolved in another group
-if (isLid && rawPhoneNumber.length > 13) {
-  const { data: resolvedMember } = await supabase
-    .from("group_members")
-    .select("phone_number, name, role")
-    .eq("whatsapp_id", whatsappId)
-    .lt("phone_number", "99999999999999") // real phones have <= 13 digits
-    .not("phone_number", "eq", rawPhoneNumber)
-    .limit(1)
-    .maybeSingle();
+// Na primeira chamada (sem offset), prepara tudo e envia primeiro lote
+// Nas chamadas seguintes, recebe reports prontos e continua enviando
 
-  if (resolvedMember && resolvedMember.phone_number.length <= 13) {
-    console.log("Found resolved phone from other group:", resolvedMember.phone_number);
-    rawPhoneNumber = resolvedMember.phone_number;
-    if (resolvedMember.name) participantName = resolvedMember.name;
-    // Also inherit the role if it was defined
-    if (resolvedMember.role && resolvedMember.role !== "unknown") {
-      role = resolvedMember.role;
-    }
-  }
-}
+const BATCH_SIZE = 10;
+
+// Aceitar body com offset e reports pre-computados
+const body = await req.json().catch(() => ({}));
+const offset = body.offset || 0;
+const precomputedReports = body.reports || null;
+
+// Se offset=0, buscar dados e preparar reports
+// Se offset>0, usar reports recebidos no body
+
+// Processar lote atual (offset ate offset+BATCH_SIZE)
+// Sleep de 2s entre cada envio
+
+// Se ainda restam grupos, chamar a si mesmo:
+fetch(`${supabaseUrl}/functions/v1/daily-report`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${supabaseKey}`
+  },
+  body: JSON.stringify({
+    offset: offset + BATCH_SIZE,
+    reports: reportsWithDemands,
+    instanceData: { api_url, api_token },
+    dateStr
+  })
+});
 ```
 
-### Posicao no codigo
+### Calculo de tempo por lote
 
-O bloco sera adicionado apos o bloco existente que tenta `/contact/check` (linhas 154-166), antes da verificacao de `teamMemberMap` (linha 169). Isso garante que:
+- 10 grupos x (~3s AI + ~1s envio + 2s sleep) = ~60 segundos por lote
+- Bem dentro do limite de 150 segundos
 
-1. Primeiro tenta resolver via UAZAPI (`/contact/check`)
-2. Se falhar, busca no banco se outro grupo ja tem esse LID resolvido
-3. Depois faz o matching com `team_members` usando o numero real obtido
+### Escalabilidade
+
+| Grupos com demandas | Lotes necessarios | Tempo total |
+|---------------------|-------------------|-------------|
+| 10 | 1 | ~60s |
+| 30 | 3 | ~180s (3 invocacoes) |
+| 53 | 6 | ~360s (6 invocacoes) |
+| 100 | 10 | ~600s (10 invocacoes) |
+
+Cada lote roda em sua propria invocacao, sem risco de timeout.
 
 ## Resultado Esperado
 
-- Ao sincronizar um novo grupo, membros da equipe que ja foram identificados em outros grupos serao automaticamente reconhecidos com numero real, nome e papel correto
-- Reduz drasticamente a quantidade de membros "Nao definido" em novos grupos
-- Nao afeta membros que ainda nao foram identificados em nenhum grupo (continuam como "unknown" ate enviarem uma mensagem)
+- Todos os grupos com demandas recebem o resumo diario, independente da quantidade
+- Cada lote processa 10 grupos em ~60 segundos
+- Intervalo de 2 segundos entre mensagens evita rate limiting na UAZAPI
+- Logs claros indicando qual lote esta sendo processado e quantos restam
 
