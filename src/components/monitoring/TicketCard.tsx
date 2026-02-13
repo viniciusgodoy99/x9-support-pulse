@@ -48,10 +48,10 @@ function DemandItem({ demand }: { demand: TicketDemand }) {
     <div className="flex items-start gap-2 text-sm">
       <div className={cn(
         "mt-0.5 h-4 w-4 rounded-full flex items-center justify-center flex-shrink-0",
-        demand.status === "resolved" 
-          ? "bg-sla-ok/20 text-sla-ok" 
-          : demand.sla_exceeded 
-            ? "bg-sla-critical/20 text-sla-critical" 
+        demand.status === "resolved"
+          ? "bg-sla-ok/20 text-sla-ok"
+          : demand.sla_exceeded
+            ? "bg-sla-critical/20 text-sla-critical"
             : "bg-muted text-muted-foreground"
       )}>
         {demand.status === "resolved" ? (
@@ -91,7 +91,7 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
 
   useEffect(() => {
     const startTime = new Date(ticket.created_at).getTime();
-    
+
     const updateTime = () => {
       setElapsedTime(Date.now() - startTime);
     };
@@ -124,7 +124,7 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
 
   return (
     <div className={cn(
-      "relative",
+      "relative h-fit",
       slaStatus === "critical" && "ice-crystal-border ice-frost-corners"
     )}>
       {slaStatus === "critical" && (
@@ -143,141 +143,141 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
           slaStatus === "critical" && "border-sla-critical/70 bg-sla-critical/15 animate-sla-pulse"
         )}
       >
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-lg">
-              {ticket.monitored_groups?.name || "Grupo Desconhecido"}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {ticket.customer_name || ticket.customer_phone || "Cliente"}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <Badge
-              variant="outline"
-              className={cn(
-                "font-mono text-xs",
-                slaStatus === "ok" && "border-sla-ok text-sla-ok",
-                slaStatus === "warning" && "border-sla-warning text-sla-warning",
-                slaStatus === "critical" && "border-sla-critical text-sla-critical"
-              )}
-            >
-              {ticket.first_response_at ? "Em Atendimento" : "Aguardando"}
-            </Badge>
-            {hasAnalysis && (
-              <Badge variant="secondary" className="text-xs gap-1">
-                <Brain className="h-3 w-3" />
-                {ticket.analysis_count}x
-              </Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Clock className={cn(
-            "h-5 w-5",
-            slaStatus === "ok" && "text-sla-ok",
-            slaStatus === "warning" && "text-sla-warning",
-            slaStatus === "critical" && "text-sla-critical"
-          )} />
-          <span className={cn(
-            "text-2xl font-mono font-bold",
-            slaStatus === "ok" && "text-sla-ok",
-            slaStatus === "warning" && "text-sla-warning",
-            slaStatus === "critical" && "text-sla-critical"
-          )}>
-            {formatDuration(elapsedTime)}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {slaStatus === "ok" && (
-            <>
-              <CheckCircle className="h-4 w-4 text-sla-ok" />
-              <span>Dentro do SLA ({slaLimit}min)</span>
-            </>
-          )}
-          {slaStatus === "warning" && (
-            <>
-              <AlertTriangle className="h-4 w-4 text-sla-warning" />
-              <span>Aproximando do limite ({slaLimit}min)</span>
-            </>
-          )}
-          {slaStatus === "critical" && (
-            <>
-              <AlertTriangle className="h-4 w-4 text-sla-critical" />
-              <span>SLA ESTOURADO! (Limite: {slaLimit}min)</span>
-            </>
-          )}
-        </div>
-
-        {/* AI Summary */}
-        {ticket.ai_summary && (
-          <div className="p-2 rounded-md bg-muted/50 border border-border/50">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-              <Brain className="h-3 w-3" />
-              <span>Resumo IA</span>
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-lg">
+                {ticket.monitored_groups?.name || "Grupo Desconhecido"}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {ticket.customer_name || ticket.customer_phone || "Cliente"}
+              </p>
             </div>
-            <p className="text-sm">{ticket.ai_summary}</p>
-          </div>
-        )}
-
-        {/* Demands Section */}
-        {demands.length > 0 && (
-          <div className="space-y-2">
-            <button
-              onClick={() => setShowDemands(!showDemands)}
-              className="flex items-center justify-between w-full text-sm hover:bg-muted/50 p-1 rounded -mx-1"
-            >
-              <div className="flex items-center gap-2">
-                <ListTodo className="h-4 w-4" />
-                <span className="font-medium">Demandas</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {slaExceededDemands.length > 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    {slaExceededDemands.length} SLA!
-                  </Badge>
+            <div className="flex flex-col items-end gap-1">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "font-mono text-xs",
+                  slaStatus === "ok" && "border-sla-ok text-sla-ok",
+                  slaStatus === "warning" && "border-sla-warning text-sla-warning",
+                  slaStatus === "critical" && "border-sla-critical text-sla-critical"
                 )}
-                <Badge variant="outline" className="text-xs">
-                  {openDemands.length} abertas / {resolvedDemands.length} resolvidas
+              >
+                {ticket.first_response_at ? "Em Atendimento" : "Aguardando"}
+              </Badge>
+              {hasAnalysis && (
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <Brain className="h-3 w-3" />
+                  {ticket.analysis_count}x
                 </Badge>
-              </div>
-            </button>
-            
-            {showDemands && (
-              <div className="space-y-2 pt-2 border-t border-border/50">
-                {demands.map(demand => (
-                  <DemandItem key={demand.id} demand={demand} />
-                ))}
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        )}
-
-        {/* Next Analysis Indicator */}
-        {ticket.next_analysis_at && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Brain className="h-3 w-3" />
-            <span>
-              Próxima análise: {new Date(ticket.next_analysis_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Clock className={cn(
+              "h-5 w-5",
+              slaStatus === "ok" && "text-sla-ok",
+              slaStatus === "warning" && "text-sla-warning",
+              slaStatus === "critical" && "text-sla-critical"
+            )} />
+            <span className={cn(
+              "text-2xl font-mono font-bold",
+              slaStatus === "ok" && "text-sla-ok",
+              slaStatus === "warning" && "text-sla-warning",
+              slaStatus === "critical" && "text-sla-critical"
+            )}>
+              {formatDuration(elapsedTime)}
             </span>
           </div>
-        )}
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={handleResolve}
-          disabled={isResolving}
-        >
-          {isResolving ? "Resolvendo..." : "Forçar Resolução"}
-        </Button>
-      </CardContent>
-    </Card>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {slaStatus === "ok" && (
+              <>
+                <CheckCircle className="h-4 w-4 text-sla-ok" />
+                <span>Dentro do SLA ({slaLimit}min)</span>
+              </>
+            )}
+            {slaStatus === "warning" && (
+              <>
+                <AlertTriangle className="h-4 w-4 text-sla-warning" />
+                <span>Aproximando do limite ({slaLimit}min)</span>
+              </>
+            )}
+            {slaStatus === "critical" && (
+              <>
+                <AlertTriangle className="h-4 w-4 text-sla-critical" />
+                <span>SLA ESTOURADO! (Limite: {slaLimit}min)</span>
+              </>
+            )}
+          </div>
+
+          {/* AI Summary */}
+          {ticket.ai_summary && (
+            <div className="p-2 rounded-md bg-muted/50 border border-border/50">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                <Brain className="h-3 w-3" />
+                <span>Resumo IA</span>
+              </div>
+              <p className="text-sm">{ticket.ai_summary}</p>
+            </div>
+          )}
+
+          {/* Demands Section */}
+          {demands.length > 0 && (
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowDemands(!showDemands)}
+                className="flex items-center justify-between w-full text-sm hover:bg-muted/50 p-1 rounded -mx-1"
+              >
+                <div className="flex items-center gap-2">
+                  <ListTodo className="h-4 w-4" />
+                  <span className="font-medium">Demandas</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {slaExceededDemands.length > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {slaExceededDemands.length} SLA!
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="text-xs">
+                    {openDemands.length} abertas / {resolvedDemands.length} resolvidas
+                  </Badge>
+                </div>
+              </button>
+
+              {showDemands && (
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  {demands.map(demand => (
+                    <DemandItem key={demand.id} demand={demand} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Next Analysis Indicator */}
+          {ticket.next_analysis_at && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Brain className="h-3 w-3" />
+              <span>
+                Próxima análise: {new Date(ticket.next_analysis_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={handleResolve}
+            disabled={isResolving}
+          >
+            {isResolving ? "Resolvendo..." : "Forçar Resolução"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

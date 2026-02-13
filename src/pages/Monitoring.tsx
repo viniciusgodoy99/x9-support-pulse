@@ -1,13 +1,30 @@
-import { Radio, RefreshCw } from "lucide-react";
+import { Radio, RefreshCw, ArrowUpDown } from "lucide-react";
+import { useState, useMemo } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { TicketCard } from "@/components/monitoring/TicketCard";
 import { useTickets } from "@/hooks/useTickets";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Monitoring() {
   const { tickets, loading, refetch, resolveTicket } = useTickets("open");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  const sortedTickets = useMemo(() => {
+    return [...tickets].sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+    });
+  }, [tickets, sortOrder]);
 
   const handleResolve = async (ticketId: string) => {
     try {
@@ -48,22 +65,35 @@ export default function Monitoring() {
               <span className="font-semibold text-foreground">{tickets.length}</span> tickets abertos
             </span>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={loading}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-                Atualizar
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Atualizar lista de tickets</p>
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-2">
+            <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
+              <SelectTrigger className="w-[180px] h-9">
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Mais Antigo (SLA)</SelectItem>
+                <SelectItem value="desc">Mais Recente</SelectItem>
+              </SelectContent>
+            </Select>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={loading}
+                  className="h-9"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                  Atualizar
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Atualizar lista de tickets</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         {loading ? (
@@ -78,7 +108,7 @@ export default function Monitoring() {
           </div>
         ) : (
           <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {tickets.map((ticket) => (
+            {sortedTickets.map((ticket) => (
               <TicketCard
                 key={ticket.id}
                 ticket={ticket}
