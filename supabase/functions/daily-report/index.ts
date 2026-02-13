@@ -6,6 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const BATCH_SIZE = 10;
+
 interface MonitoredGroup {
   id: string;
   name: string;
@@ -32,7 +34,13 @@ interface GroupReport {
   avgResolutionTime: number | null;
 }
 
-// Normalize API URL to include https://
+interface BatchPayload {
+  offset: number;
+  reports: GroupReport[];
+  instanceData: { api_url: string; api_token: string };
+  dateStr: string;
+}
+
 function normalizeApiUrl(url: string): string {
   if (!url) return url;
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
@@ -41,14 +49,12 @@ function normalizeApiUrl(url: string): string {
   return url;
 }
 
-// Format date as DD/MM
 function formatDate(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   return `${day}/${month}`;
 }
 
-// Generate humanized narrative using Lovable AI
 async function generateNarrativeSummary(
   groupName: string,
   demands: TicketDemand[]
@@ -135,14 +141,11 @@ NÃO inclua cabeçalho, data ou despedida - apenas o texto narrativo.`;
   }
 }
 
-// Format individual group message - Humanized narrative format
 async function formatGroupMessage(
   report: GroupReport,
   dateStr: string
 ): Promise<string> {
   const groupName = report.group.name.toUpperCase();
-
-  // Generate humanized narrative via AI
   const narrative = await generateNarrativeSummary(groupName, report.demands);
 
   return `📋 ${groupName}
@@ -153,45 +156,6 @@ ${narrative}
 Até amanhã! 👋`;
 }
 
-// Format general summary message - Corporate format for clients
-function formatSummaryMessage(reports: GroupReport[], dateStr: string): string {
-  const totalDemands = reports.reduce((sum, r) => sum + r.totalDemands, 0);
-  const totalResolved = reports.reduce((sum, r) => sum + r.resolvedCount, 0);
-  const totalPending = reports.reduce((sum, r) => sum + r.pendingCount, 0);
-
-  // Find highlight groups (100% resolved)
-  const highlightGroups = reports
-    .filter((r) => r.totalDemands > 0 && r.resolvedCount === r.totalDemands)
-    .map((r) => `• ${r.group.name}: 100% concluído`);
-
-  let message = `RESUMO GERAL DE ATENDIMENTOS - ${dateStr}
-
-Prezados parceiros,
-
-Segue o consolidado das atividades do dia:
-
-• Total de demandas atendidas: ${totalDemands}
-• Demandas finalizadas: ${totalResolved}
-• Em acompanhamento: ${totalPending}`;
-
-  if (highlightGroups.length > 0) {
-    message += `
-
-DESTAQUES DO DIA
-
-${highlightGroups.join("\n")}`;
-  }
-
-  message += `
-
-Agradecemos a confiança e seguimos à disposição!
-
-Equipe de Atendimento`;
-
-  return message;
-}
-
-// Send message via UAZAPI
 async function sendWhatsAppMessage(
   apiUrl: string,
   token: string,
@@ -230,161 +194,110 @@ async function sendWhatsAppMessage(
   }
 }
 
-// Sleep helper
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-Deno.serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+// Prepare all reports (only on first invocation)
+async function prepareReports(supabase: ReturnType<typeof createClient>): Promise<{
+  reports: GroupReport[];
+  dateStr: string;
+  instance: { api_url: string; api_token: string };
+} | null> {
+  // Check if daily report is enabled
+  const { data: enabledSetting } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", "daily_report_enabled")
+    .single();
+
+  if (enabledSetting?.value === "false") {
+    console.log("Daily report is disabled");
+    return null;
   }
 
-  try {
-    console.log("Starting daily report generation...");
+  // Get default WhatsApp instance
+  const { data: instance, error: instanceError } = await supabase
+    .from("whatsapp_instances")
+    .select("*")
+    .eq("is_default", true)
+    .single();
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+  if (instanceError || !instance) {
+    console.error("No default WhatsApp instance found:", instanceError);
+    return null;
+  }
 
-    // Check if daily report is enabled
-    const { data: enabledSetting } = await supabase
-      .from("settings")
-      .select("value")
-      .eq("key", "daily_report_enabled")
-      .single();
+  // Get all active client groups
+  const { data: groups, error: groupsError } = await supabase
+    .from("monitored_groups")
+    .select("id, name, whatsapp_id")
+    .eq("is_client_group", true)
+    .eq("is_active", true)
+    .eq("is_archived", false)
+    .order("name");
 
-    if (enabledSetting?.value === "false") {
-      console.log("Daily report is disabled");
-      return new Response(
-        JSON.stringify({ success: true, message: "Daily report is disabled" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  if (groupsError || !groups || groups.length === 0) {
+    console.log("No active client groups found");
+    return null;
+  }
 
-    // Get target group ID
-    const { data: groupIdSetting } = await supabase
-      .from("settings")
-      .select("value")
-      .eq("key", "daily_report_group_id")
-      .single();
+  console.log(`Found ${groups.length} active client groups`);
 
-    const targetGroupId = groupIdSetting?.value || "120363422213957419@g.us";
+  // Calculate today's date range (BRT timezone - UTC-3)
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setUTCHours(3, 0, 0, 0);
 
-    // Check if summary should be included
-    const { data: includeSummarySetting } = await supabase
-      .from("settings")
-      .select("value")
-      .eq("key", "daily_report_include_summary")
-      .single();
+  if (now.getUTCHours() < 3) {
+    todayStart.setDate(todayStart.getDate() - 1);
+  }
 
-    const includeSummary = includeSummarySetting?.value !== "false";
+  const todayStartISO = todayStart.toISOString();
+  const dateStr = formatDate(new Date(todayStart.getTime() - 3 * 60 * 60 * 1000));
 
-    // Get default WhatsApp instance
-    const { data: instance, error: instanceError } = await supabase
-      .from("whatsapp_instances")
-      .select("*")
-      .eq("is_default", true)
-      .single();
+  console.log(`Fetching demands from ${todayStartISO} (${dateStr})`);
 
-    if (instanceError || !instance) {
-      console.error("No default WhatsApp instance found:", instanceError);
-      return new Response(
-        JSON.stringify({ success: false, error: "No default WhatsApp instance" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  // Fetch demands
+  const groupIds = groups.map((g) => g.id);
 
-    // Get all active client groups
-    const { data: groups, error: groupsError } = await supabase
-      .from("monitored_groups")
-      .select("id, name, whatsapp_id")
-      .eq("is_client_group", true)
-      .eq("is_active", true)
-      .eq("is_archived", false)
-      .order("name");
+  const { data: allTickets, error: ticketsError } = await supabase
+    .from("tickets")
+    .select("id, group_id")
+    .in("group_id", groupIds);
 
-    if (groupsError) {
-      console.error("Error fetching groups:", groupsError);
-      throw groupsError;
-    }
+  if (ticketsError) throw ticketsError;
 
-    if (!groups || groups.length === 0) {
-      console.log("No active client groups found");
-      return new Response(
-        JSON.stringify({ success: true, message: "No active client groups" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  const ticketIds = allTickets?.map((t) => t.id) || [];
+  const ticketGroupMap = new Map(allTickets?.map((t) => [t.id, t.group_id]) || []);
 
-    console.log(`Found ${groups.length} active client groups`);
+  let allDemands: TicketDemand[] = [];
+  if (ticketIds.length > 0) {
+    const { data: demands, error: demandsError } = await supabase
+      .from("ticket_demands")
+      .select("id, description, status, resolution_time_minutes, sla_exceeded, created_at, ticket_id")
+      .in("ticket_id", ticketIds)
+      .gte("created_at", todayStartISO)
+      .order("created_at", { ascending: true });
 
-    // Calculate today's date range (BRT timezone - UTC-3)
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setUTCHours(3, 0, 0, 0); // 00:00 BRT = 03:00 UTC
+    if (demandsError) throw demandsError;
+    allDemands = demands || [];
+  }
 
-    // If current UTC time is before 03:00, we need yesterday's BRT date
-    if (now.getUTCHours() < 3) {
-      todayStart.setDate(todayStart.getDate() - 1);
-    }
+  console.log(`Found ${allDemands.length} demands for today`);
 
-    const todayStartISO = todayStart.toISOString();
-    const dateStr = formatDate(new Date(todayStart.getTime() - 3 * 60 * 60 * 1000)); // Convert to BRT for display
-
-    console.log(`Fetching demands from ${todayStartISO} (${dateStr})`);
-
-    // Fetch demands for all groups in one query
-    const groupIds = groups.map((g) => g.id);
-
-    const { data: allTickets, error: ticketsError } = await supabase
-      .from("tickets")
-      .select("id, group_id")
-      .in("group_id", groupIds);
-
-    if (ticketsError) {
-      console.error("Error fetching tickets:", ticketsError);
-      throw ticketsError;
-    }
-
-    const ticketIds = allTickets?.map((t) => t.id) || [];
-    const ticketGroupMap = new Map(allTickets?.map((t) => [t.id, t.group_id]) || []);
-
-    let allDemands: TicketDemand[] = [];
-    if (ticketIds.length > 0) {
-      const { data: demands, error: demandsError } = await supabase
-        .from("ticket_demands")
-        .select("id, description, status, resolution_time_minutes, sla_exceeded, created_at, ticket_id")
-        .in("ticket_id", ticketIds)
-        .gte("created_at", todayStartISO)
-        .order("created_at", { ascending: true });
-
-      if (demandsError) {
-        console.error("Error fetching demands:", demandsError);
-        throw demandsError;
-      }
-
-      allDemands = demands || [];
-    }
-
-    console.log(`Found ${allDemands.length} demands for today`);
-
-    // Build reports for each group
-    const reports: GroupReport[] = groups.map((group) => {
+  // Build reports and filter only groups with demands
+  const reports: GroupReport[] = groups
+    .map((group) => {
       const groupDemands = allDemands.filter(
         (d) => ticketGroupMap.get(d.ticket_id) === group.id
       );
-
       const resolvedDemands = groupDemands.filter((d) => d.status === "resolved");
       const pendingDemands = groupDemands.filter((d) => d.status === "open");
       const slaExceeded = groupDemands.filter((d) => d.sla_exceeded);
-
       const resolutionTimes = resolvedDemands
         .filter((d) => d.resolution_time_minutes)
         .map((d) => d.resolution_time_minutes!);
-
       const avgResolutionTime =
         resolutionTimes.length > 0
           ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length
@@ -399,50 +312,129 @@ Deno.serve(async (req) => {
         slaExceededCount: slaExceeded.length,
         avgResolutionTime,
       };
-    });
+    })
+    .filter((r) => r.totalDemands > 0);
 
-    // Send individual messages for each group
+  console.log(`${reports.length} groups have demands today`);
+
+  return {
+    reports,
+    dateStr,
+    instance: { api_url: instance.api_url, api_token: instance.api_token },
+  };
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Parse body for batch parameters
+    const body: Partial<BatchPayload> = await req.json().catch(() => ({}));
+    const offset = body.offset || 0;
+    const precomputedReports = body.reports || null;
+    const precomputedInstance = body.instanceData || null;
+    const precomputedDateStr = body.dateStr || null;
+
+    let reports: GroupReport[];
+    let instanceData: { api_url: string; api_token: string };
+    let dateStr: string;
+
+    if (offset === 0 && !precomputedReports) {
+      // First invocation: prepare all data
+      console.log("Starting daily report generation (first batch)...");
+      const prepared = await prepareReports(supabase);
+
+      if (!prepared) {
+        return new Response(
+          JSON.stringify({ success: true, message: "No reports to send" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      reports = prepared.reports;
+      instanceData = prepared.instance;
+      dateStr = prepared.dateStr;
+
+      console.log(`Total groups with demands: ${reports.length}, processing in batches of ${BATCH_SIZE}`);
+    } else {
+      // Subsequent invocation: use precomputed data
+      reports = precomputedReports!;
+      instanceData = precomputedInstance!;
+      dateStr = precomputedDateStr!;
+      console.log(`Continuing batch at offset ${offset}, ${reports.length} total groups`);
+    }
+
+    // Process current batch
+    const batch = reports.slice(offset, offset + BATCH_SIZE);
+    console.log(`Processing batch: groups ${offset + 1}-${offset + batch.length} of ${reports.length}`);
+
     let sentCount = 0;
     let failedCount = 0;
 
-    for (const report of reports) {
-      // Skip groups with no topics
-      if (report.totalDemands === 0) {
-        continue;
-      }
-
-      // Generate humanized message with AI (async)
+    for (const report of batch) {
       const message = await formatGroupMessage(report, dateStr);
       const success = await sendWhatsAppMessage(
-        instance.api_url,
-        instance.api_token,
+        instanceData.api_url,
+        instanceData.api_token,
         report.group.whatsapp_id,
         message
       );
 
-      if (success) {
-        sentCount++;
-      } else {
-        failedCount++;
-      }
+      if (success) sentCount++;
+      else failedCount++;
 
-      // Wait 2 seconds between messages to avoid rate limiting
-      await sleep(30000);
+      // 2s between messages to avoid rate limiting
+      await sleep(2000);
     }
 
-    // Summary message removed as per client request
+    console.log(`Batch done: ${sentCount} sent, ${failedCount} failed`);
 
-    console.log(`Daily report completed: ${sentCount} sent, ${failedCount} failed`);
+    // If more groups remain, self-invoke for next batch
+    const nextOffset = offset + BATCH_SIZE;
+    if (nextOffset < reports.length) {
+      console.log(`Invoking next batch at offset ${nextOffset} (${reports.length - nextOffset} groups remaining)`);
+
+      const selfInvokeResponse = await fetch(
+        `${supabaseUrl}/functions/v1/daily-report`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            offset: nextOffset,
+            reports,
+            instanceData,
+            dateStr,
+          } as BatchPayload),
+        }
+      );
+
+      // Consume response body to avoid resource leak
+      const selfResult = await selfInvokeResponse.text();
+      console.log(`Next batch invoked, status: ${selfInvokeResponse.status}`);
+    } else {
+      console.log("All batches completed!");
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Daily report sent: ${sentCount} messages`,
+        message: `Batch ${Math.floor(offset / BATCH_SIZE) + 1} complete`,
         details: {
-          groupsProcessed: groups.length,
+          batchOffset: offset,
+          batchSize: batch.length,
+          totalGroups: reports.length,
           messagesSent: sentCount,
           messagesFailed: failedCount,
-          totalDemands: allDemands.length,
+          hasMoreBatches: nextOffset < reports.length,
           date: dateStr,
         },
       }),
