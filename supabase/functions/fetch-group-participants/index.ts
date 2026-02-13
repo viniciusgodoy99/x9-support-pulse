@@ -208,6 +208,26 @@ serve(async (req) => {
         }
       }
 
+      // Fallback: check if this LID was already resolved in another group
+      if (isLid && rawPhoneNumber.length > 13) {
+        const { data: resolvedMember } = await supabase
+          .from("group_members")
+          .select("phone_number, name, role")
+          .eq("whatsapp_id", whatsappId)
+          .neq("phone_number", rawPhoneNumber)
+          .limit(1)
+          .maybeSingle();
+
+        if (resolvedMember && resolvedMember.phone_number.length <= 13) {
+          console.log("Found resolved phone from other group:", resolvedMember.phone_number, "for LID:", rawPhoneNumber);
+          rawPhoneNumber = resolvedMember.phone_number;
+          if (resolvedMember.name) participantName = resolvedMember.name;
+          if (resolvedMember.role && resolvedMember.role !== "unknown") {
+            role = resolvedMember.role;
+          }
+        }
+      }
+
       // Determine correct role based on team_members
       const normalizedPhone = normalizePhoneNumber(rawPhoneNumber);
       const teamMember = teamMemberMap.get(normalizedPhone);
