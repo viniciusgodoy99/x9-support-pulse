@@ -248,18 +248,18 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
                   onClick={() => setShowDemands(!showDemands)}
                   className="flex items-center justify-between w-full text-sm hover:bg-muted/50 p-1 rounded -mx-1"
                 >
-                  <div className="flex items-center gap-2">
-                    <ListTodo className="h-4 w-4" />
-                    <span className="font-medium">Demandas</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ListTodo className="h-4 w-4 shrink-0" />
+                    <span className="font-medium truncate">Demandas</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5 justify-end ml-auto">
                     {slaExceededDemands.length > 0 && (
-                      <Badge variant="destructive" className="text-xs">
+                      <Badge variant="destructive" className="whitespace-nowrap text-[10px] sm:text-xs px-1 sm:px-2">
                         {slaExceededDemands.length} SLA!
                       </Badge>
                     )}
-                    <Badge variant="outline" className="text-xs">
-                      {openDemands.length} abertas / {resolvedDemands.length} resolvidas
+                    <Badge variant="outline" className="whitespace-nowrap text-[10px] sm:text-xs px-1 sm:px-2">
+                      {openDemands.length} / {resolvedDemands.length}
                     </Badge>
                   </div>
                 </button>
