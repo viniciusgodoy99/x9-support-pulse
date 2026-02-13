@@ -1,47 +1,70 @@
 
 
-# Plano: Notificacoes de SLA do Final de Semana na Segunda-Feira
+# Plano: Corrigir Sincronizacao de Membros da Equipe em Novos Grupos
 
-## Problema
+## Problema Identificado
 
-Atualmente, a funcao `sendSlaBreachNotifications` roda a cada hora (cron `0 * * * *`) e envia notificacoes imediatamente quando detecta estouro de SLA. Porem, no final de semana (sabado/domingo), nao ha equipe para atender. As notificacoes de demandas que estourarem o SLA no fim de semana devem ser enviadas apenas na segunda-feira, dentro do horario comercial.
+O sistema usa LIDs (identificadores internos do WhatsApp) para identificar participantes dos grupos. A funcao `fetch-group-participants` tenta resolver LIDs para numeros reais via endpoint `/contact/check` da UAZAPI, mas esse endpoint falha frequentemente, deixando membros com numeros tipo `232864855683198` em vez do numero real.
+
+Membros da equipe afetados (dados reais do banco):
+
+| LID | Numero Real | Nome | Papel |
+|-----|-------------|------|-------|
+| 232864855683198 | 558498682288 | Mateus Araujo | CS |
+| 9766789234786 | 558481408381 | Thiago Barretto | CS |
+| 229570682831044 | 558496771436 | Pablo Santos | Traffic Manager |
+| 275960289095916 | 558499470066 | Hercilio Neto | Traffic Manager |
+| 32719732002886 | 558499615044 | Victor Motta | Traffic Manager |
+
+Esses membros ja foram identificados corretamente em alguns grupos (quando enviaram mensagens e o webhook enriqueceu os dados), mas em novos grupos a sincronizacao nao aproveita essa informacao existente.
 
 ## Solucao
 
-Adicionar uma verificacao de horario comercial na funcao `sendSlaBreachNotifications` em `analyze-tickets/index.ts`. Se estiver fora do horario comercial (fora de seg-sex 08:00-18:00 BRT), as notificacoes simplesmente nao sao enviadas naquele momento. Na segunda-feira as 08:00, o cron roda novamente e, como as demandas ainda estao com `sla_exceeded = true` e `status = open` sem registro em `sla_notifications`, elas serao notificadas normalmente.
-
-O mecanismo ja funciona corretamente para esse cenario porque:
-- A verificacao de duplicatas usa a tabela `sla_notifications` (so marca como notificado apos envio bem-sucedido)
-- Se a notificacao nao foi enviada no fim de semana, nao ha registro, entao sera enviada na segunda
+Adicionar uma etapa no `fetch-group-participants` que, apos falhar em resolver um LID via `/contact/check`, consulta a propria tabela `group_members` para verificar se o mesmo `whatsapp_id` ja foi resolvido em outro grupo. Se sim, copia o numero real, nome e papel.
 
 ## Alteracao
 
-| Arquivo | Local | Modificacao |
-|---------|-------|-------------|
-| `supabase/functions/analyze-tickets/index.ts` | Inicio da funcao `sendSlaBreachNotifications` (~linha 250) | Adicionar verificacao de horario comercial BRT |
+| Arquivo | Modificacao |
+|---------|-------------|
+| `supabase/functions/fetch-group-participants/index.ts` | Adicionar consulta de fallback ao banco de dados apos falha do `/contact/check` |
 
-### Codigo a adicionar (apos a verificacao de `enabledSetting`, antes de buscar demandas):
+### Logica a adicionar (apos o bloco `fetchContactInfo` para LIDs, ~linha 160):
 
 ```typescript
-// Check if we're within business hours (Mon-Fri, 08:00-18:00 BRT)
-const nowBRT = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-const dayOfWeek = nowBRT.getDay(); // 0=Sun, 6=Sat
-const hour = nowBRT.getHours();
+// Fallback: check if this LID was already resolved in another group
+if (isLid && rawPhoneNumber.length > 13) {
+  const { data: resolvedMember } = await supabase
+    .from("group_members")
+    .select("phone_number, name, role")
+    .eq("whatsapp_id", whatsappId)
+    .lt("phone_number", "99999999999999") // real phones have <= 13 digits
+    .not("phone_number", "eq", rawPhoneNumber)
+    .limit(1)
+    .maybeSingle();
 
-if (dayOfWeek === 0 || dayOfWeek === 6 || hour < 8 || hour >= 18) {
-  console.log("Outside business hours (BRT), skipping SLA notifications");
-  return { sent, errors };
+  if (resolvedMember && resolvedMember.phone_number.length <= 13) {
+    console.log("Found resolved phone from other group:", resolvedMember.phone_number);
+    rawPhoneNumber = resolvedMember.phone_number;
+    if (resolvedMember.name) participantName = resolvedMember.name;
+    // Also inherit the role if it was defined
+    if (resolvedMember.role && resolvedMember.role !== "unknown") {
+      role = resolvedMember.role;
+    }
+  }
 }
 ```
 
-## Resultado esperado
+### Posicao no codigo
 
-- Sexta 18:01+: Notificacoes pausadas
-- Sabado/Domingo: Nenhuma notificacao enviada
-- Segunda 08:00: Todas as demandas que estouraram SLA no fim de semana sao notificadas de uma vez
-- Seg-Sex 08:00-18:00: Comportamento normal, notificacoes enviadas em tempo real
+O bloco sera adicionado apos o bloco existente que tenta `/contact/check` (linhas 154-166), antes da verificacao de `teamMemberMap` (linha 169). Isso garante que:
 
-## Riscos
+1. Primeiro tenta resolver via UAZAPI (`/contact/check`)
+2. Se falhar, busca no banco se outro grupo ja tem esse LID resolvido
+3. Depois faz o matching com `team_members` usando o numero real obtido
 
-Nenhum. A verificacao e adicionada no inicio da funcao, antes de qualquer processamento. Se estiver fora do horario, a funcao retorna imediatamente sem efeitos colaterais.
+## Resultado Esperado
+
+- Ao sincronizar um novo grupo, membros da equipe que ja foram identificados em outros grupos serao automaticamente reconhecidos com numero real, nome e papel correto
+- Reduz drasticamente a quantidade de membros "Nao definido" em novos grupos
+- Nao afeta membros que ainda nao foram identificados em nenhum grupo (continuam como "unknown" ate enviarem uma mensagem)
 
