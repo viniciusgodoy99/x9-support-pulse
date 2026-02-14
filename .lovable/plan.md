@@ -1,106 +1,67 @@
 
 
-# Plano: Escalar Envio do Resumo Diario para Qualquer Quantidade de Grupos
+# Plano: Blindar a Cadeia de Lotes do Resumo Diario
 
-## Problema
+## Problemas no Codigo Atual
 
-A funcao `daily-report` processa os grupos sequencialmente com `sleep(30000)` (30 segundos) entre cada envio. Com 53 grupos (e crescendo), a funcao precisa de mais de 26 minutos, mas o limite de execucao de uma Edge Function e de aproximadamente 150 segundos. Resultado: apenas os 2-3 primeiros grupos recebem o resumo.
+Revisando o arquivo `supabase/functions/daily-report/index.ts`, identifiquei 2 problemas principais:
 
-Mesmo reduzindo o sleep para 2 segundos, cada grupo precisa de ~3-5 segundos (chamada de IA + envio WhatsApp + sleep), totalizando ~160-265 segundos para 53 grupos -- ainda estouraria o limite.
+1. **Loop sem protecao**: O `for` que processa cada grupo (linhas 380-394) nao tem `try/catch` individual. Se `formatGroupMessage` (que chama a IA) lancar uma excecao inesperada, o loop inteiro morre e o lote para ali -- sem invocar o proximo lote.
 
-## Solucao: Processamento em Lotes Auto-Invocantes
+2. **Sem validacao da auto-invocacao**: Apos o `fetch` recursivo (linha 403), o codigo nao verifica `selfInvokeResponse.ok`. Se a chamada falhar (ex: 500, timeout de rede), a cadeia e silenciosamente interrompida sem nenhum erro nos logs.
 
-A funcao vai processar grupos em lotes de 10. Ao terminar um lote, ela chama a si mesma passando o proximo lote como parametro, garantindo que funcione com qualquer quantidade de grupos.
-
-```text
-Cron 17:50 BRT
-    |
-    v
-daily-report (offset=0)
-    |-- Processa grupos 1-10 (~50s)
-    |-- Chama daily-report (offset=10)
-    |       |-- Processa grupos 11-20 (~50s)
-    |       |-- Chama daily-report (offset=20)
-    |       |       |-- Processa grupos 21-30 (~50s)
-    |       |       |-- ... continua ate acabar
-    |       |       v
-    v       v
-  Todos os grupos processados
-```
+O `await` no fetch ja existe (linha 403) e o header de Authorization tambem (linha 409), entao esses pontos ja estao corretos.
 
 ## Alteracoes
 
 | Arquivo | Modificacao |
 |---------|-------------|
-| `supabase/functions/daily-report/index.ts` | Reestruturar para processar em lotes de 10 com auto-invocacao |
+| `supabase/functions/daily-report/index.ts` | Blindar loop com try/catch individual + validar resposta da auto-invocacao |
 
-### Detalhes tecnicos
+### Detalhes
 
-1. **Aceitar parametro `offset`**: A funcao recebe um `offset` (padrao 0) e um `batchId` para rastrear a execucao completa
+**1. Try/catch individual no loop (linhas 380-394)**
 
-2. **Preparar dados uma vez**: Na primeira invocacao (offset=0), busca todos os grupos e demandas, monta os reports e filtra apenas os que tem demandas. Salva essa lista filtrada no corpo da proxima chamada
-
-3. **Processar lote**: Processa apenas 10 grupos por invocacao (AI + envio + 2s sleep entre mensagens)
-
-4. **Auto-invocar proximo lote**: Se ainda houver grupos restantes, a funcao chama a si mesma via HTTP com o proximo offset, passando os dados ja preparados (reports pre-computados)
-
-5. **Sleep reduzido**: Intervalo entre mensagens reduzido de 30s para 2s
-
-### Estrutura do codigo:
+Envolver `formatGroupMessage` + `sendWhatsAppMessage` em try/catch para que a falha de um grupo nao interrompa os demais:
 
 ```typescript
-// Na primeira chamada (sem offset), prepara tudo e envia primeiro lote
-// Nas chamadas seguintes, recebe reports prontos e continua enviando
-
-const BATCH_SIZE = 10;
-
-// Aceitar body com offset e reports pre-computados
-const body = await req.json().catch(() => ({}));
-const offset = body.offset || 0;
-const precomputedReports = body.reports || null;
-
-// Se offset=0, buscar dados e preparar reports
-// Se offset>0, usar reports recebidos no body
-
-// Processar lote atual (offset ate offset+BATCH_SIZE)
-// Sleep de 2s entre cada envio
-
-// Se ainda restam grupos, chamar a si mesmo:
-fetch(`${supabaseUrl}/functions/v1/daily-report`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${supabaseKey}`
-  },
-  body: JSON.stringify({
-    offset: offset + BATCH_SIZE,
-    reports: reportsWithDemands,
-    instanceData: { api_url, api_token },
-    dateStr
-  })
-});
+for (const report of batch) {
+  try {
+    const message = await formatGroupMessage(report, dateStr);
+    const success = await sendWhatsAppMessage(...);
+    if (success) sentCount++;
+    else failedCount++;
+  } catch (error) {
+    console.error(`Erro ao enviar para o grupo ${report.group.whatsapp_id} (${report.group.name}): ${error}`);
+    failedCount++;
+  }
+  await sleep(2000);
+}
 ```
 
-### Calculo de tempo por lote
+**2. Validacao da resposta recursiva (linhas 420-422)**
 
-- 10 grupos x (~3s AI + ~1s envio + 2s sleep) = ~60 segundos por lote
-- Bem dentro do limite de 150 segundos
+Apos o fetch, verificar se a resposta foi bem-sucedida e logar erro caso contrario:
 
-### Escalabilidade
+```typescript
+const selfResult = await selfInvokeResponse.text();
+if (!selfInvokeResponse.ok) {
+  console.error(`Erro na chamada recursiva para offset ${nextOffset}: ${selfInvokeResponse.status} - ${selfResult}`);
+  throw new Error(`Recursive call failed for offset ${nextOffset}: ${selfInvokeResponse.status}`);
+}
+console.log(`Proximo lote acionado com sucesso: Offset ${nextOffset}`);
+```
 
-| Grupos com demandas | Lotes necessarios | Tempo total |
-|---------------------|-------------------|-------------|
-| 10 | 1 | ~60s |
-| 30 | 3 | ~180s (3 invocacoes) |
-| 53 | 6 | ~360s (6 invocacoes) |
-| 100 | 10 | ~600s (10 invocacoes) |
+**3. Logs em portugues mais descritivos (linhas 375, 396, 401)**
 
-Cada lote roda em sua propria invocacao, sem risco de timeout.
+Atualizar mensagens de log para o padrao solicitado:
+- "Iniciando processamento do lote: Offset X a Y de Z grupos"
+- "Lote finalizado: X enviados, Y falharam"
+- "Proximo lote acionado com sucesso: Offset X"
 
 ## Resultado Esperado
 
-- Todos os grupos com demandas recebem o resumo diario, independente da quantidade
-- Cada lote processa 10 grupos em ~60 segundos
-- Intervalo de 2 segundos entre mensagens evita rate limiting na UAZAPI
-- Logs claros indicando qual lote esta sendo processado e quantos restam
+- Se a geracao de IA falhar para 1 grupo, os outros 9 do lote continuam normalmente
+- Se a auto-invocacao falhar, o erro fica registrado nos logs com status e corpo da resposta
+- Logs claros em portugues para facilitar depuracao
 
