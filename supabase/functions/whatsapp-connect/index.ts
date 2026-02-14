@@ -442,10 +442,9 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('WhatsApp Connect error:', errorMessage);
+    console.error('WhatsApp Connect error:', error);
     return new Response(
-      JSON.stringify({ error: errorMessage, details: String(error) }),
+      JSON.stringify({ error: 'An internal error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

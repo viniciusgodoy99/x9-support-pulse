@@ -450,9 +450,8 @@ Deno.serve(async (req) => {
     );
   } catch (error: unknown) {
     console.error("Error generating daily report:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: "An internal error occurred" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
