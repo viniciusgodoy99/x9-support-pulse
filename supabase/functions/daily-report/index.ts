@@ -372,28 +372,33 @@ Deno.serve(async (req) => {
 
     // Process current batch
     const batch = reports.slice(offset, offset + BATCH_SIZE);
-    console.log(`Processing batch: groups ${offset + 1}-${offset + batch.length} of ${reports.length}`);
+    console.log(`Iniciando processamento do lote: Offset ${offset + 1} a ${offset + batch.length} de ${reports.length} grupos`);
 
     let sentCount = 0;
     let failedCount = 0;
 
     for (const report of batch) {
-      const message = await formatGroupMessage(report, dateStr);
-      const success = await sendWhatsAppMessage(
-        instanceData.api_url,
-        instanceData.api_token,
-        report.group.whatsapp_id,
-        message
-      );
+      try {
+        const message = await formatGroupMessage(report, dateStr);
+        const success = await sendWhatsAppMessage(
+          instanceData.api_url,
+          instanceData.api_token,
+          report.group.whatsapp_id,
+          message
+        );
 
-      if (success) sentCount++;
-      else failedCount++;
+        if (success) sentCount++;
+        else failedCount++;
+      } catch (error) {
+        console.error(`Erro ao enviar para o grupo ${report.group.whatsapp_id} (${report.group.name}): ${error}`);
+        failedCount++;
+      }
 
       // 2s between messages to avoid rate limiting
       await sleep(2000);
     }
 
-    console.log(`Batch done: ${sentCount} sent, ${failedCount} failed`);
+    console.log(`Lote finalizado: ${sentCount} enviados, ${failedCount} falharam`);
 
     // If more groups remain, self-invoke for next batch
     const nextOffset = offset + BATCH_SIZE;
@@ -417,9 +422,12 @@ Deno.serve(async (req) => {
         }
       );
 
-      // Consume response body to avoid resource leak
       const selfResult = await selfInvokeResponse.text();
-      console.log(`Next batch invoked, status: ${selfInvokeResponse.status}`);
+      if (!selfInvokeResponse.ok) {
+        console.error(`Erro na chamada recursiva para offset ${nextOffset}: ${selfInvokeResponse.status} - ${selfResult}`);
+        throw new Error(`Recursive call failed for offset ${nextOffset}: ${selfInvokeResponse.status}`);
+      }
+      console.log(`Proximo lote acionado com sucesso: Offset ${nextOffset}`);
     } else {
       console.log("All batches completed!");
     }
