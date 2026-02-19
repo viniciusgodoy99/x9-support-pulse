@@ -1,81 +1,137 @@
 
-# Criar Primeiro Usuário Admin
+# Narrativa por IA para Grupos com Apenas Interações (sem demandas)
 
 ## Situação Atual
 
-- Não existe nenhum usuário cadastrado no sistema
-- A tela de Auth só tem login (sem opção de cadastro)
-- A tabela `user_roles` está vazia
-- A tabela `user_roles` tem RLS: apenas admins podem gerenciar roles, e usuários só veem as próprias
+- Grupos **com demandas**: IA gera narrativa baseada nas descrições das demandas
+- Grupos **sem demandas (só interações)**: mensagem fixa `"Hoje passamos por aqui e mantivemos o contato em dia. 😊"`
 
 ## Objetivo
 
-Permitir que o primeiro usuário se cadastre e seja promovido a admin para que possa gerenciar permissões dentro do app.
+Usar a IA para gerar uma narrativa humanizada também para grupos sem demandas formais, baseando-se no conteúdo real das mensagens trocadas no dia.
 
-## Estratégia
+## Dados Disponíveis para a IA
 
-Como não há usuários ainda, a forma mais segura e direta é:
+A tabela `messages` tem os campos:
+- `content` — texto da mensagem
+- `sender_name` — nome de quem enviou
+- `sender_role` — papel do remetente (cliente, atendente, etc.)
+- `created_at` — horário da mensagem
 
-1. Adicionar temporariamente um botão de "Criar conta" na tela de Auth, para o primeiro cadastro
-2. Após o cadastro, rodar um SQL no backend para inserir o papel de `admin` na tabela `user_roles` para esse usuário
-3. Remover o botão de cadastro (ou deixá-lo oculto para que apenas admins possam convidar novos usuários)
+Esses campos permitem à IA entender o tom e o conteúdo das trocas do dia, mesmo sem demandas identificadas.
 
 ## Mudanças no Código
 
-### 1. Atualizar `src/pages/Auth.tsx`
+### Arquivo: `supabase/functions/daily-report/index.ts`
 
-Adicionar um modo de toggle entre Login e Cadastro na mesma tela:
+### 1. Buscar mensagens do dia por grupo (em `prepareReports`)
 
-- Campo de email + senha + confirmação de senha
-- Botão "Criar conta" que chama `supabase.auth.signUp()`
-- Após cadastro bem-sucedido, exibir mensagem orientando o próximo passo (atribuição de admin)
-- Manter o modo login como padrão
+Adicionar uma query que traga as mensagens de hoje dos grupos que serão processados, limitando a 20 mensagens por grupo para não sobrecarregar o contexto da IA:
 
-### 2. SQL de promoção a Admin (após cadastro)
-
-Após o usuário criar a conta, rodar via backend o seguinte SQL para promovê-lo a admin:
-
-```sql
-INSERT INTO public.user_roles (user_id, role)
-SELECT id, 'admin'
-FROM auth.users
-WHERE email = 'seu@email.com';
+```typescript
+// Fetch messages for groups with no demands (for AI narrative context)
+const { data: todayMessages } = await supabase
+  .from("messages")
+  .select("group_id, content, sender_name, sender_role, created_at")
+  .in("group_id", groupIds)
+  .gte("created_at", todayStartISO)
+  .order("created_at", { ascending: true });
 ```
 
-Esse SQL será apresentado ao usuário para rodar pelo painel do Lovable Cloud (backend view → Run SQL).
+Organizar por grupo em um Map:
+```typescript
+const messagesByGroup = new Map<string, typeof todayMessages>();
+for (const msg of todayMessages || []) {
+  if (!messagesByGroup.has(msg.group_id)) messagesByGroup.set(msg.group_id, []);
+  messagesByGroup.get(msg.group_id)!.push(msg);
+}
+```
 
-### 3. Tela de Gerenciamento de Usuários (opcional, fase 2)
+### 2. Adicionar `messages` ao `GroupReport`
 
-Uma tela dentro do app para o admin:
-- Ver todos os usuários cadastrados
-- Atribuir ou remover roles (admin, etc.)
-- Convidar novos membros por email
+Incluir as mensagens do dia no interface e no objeto de report:
 
-## Fluxo Completo
+```typescript
+interface GroupReport {
+  group: MonitoredGroup;
+  demands: TicketDemand[];
+  messages: { content: string; sender_name: string; sender_role: string }[];
+  // ... demais campos
+}
+```
+
+### 3. Atualizar `generateNarrativeSummary`
+
+Remover o early return fixo para grupos sem demandas. Em vez disso, passar as mensagens como contexto alternativo:
+
+**Antes:**
+```typescript
+// No demands today — use a fixed friendly message, skip AI
+if (!hasDemands) {
+  return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
+}
+```
+
+**Depois:**
+```typescript
+// Grupos sem demandas: usar conteúdo das mensagens como contexto
+if (!hasDemands) {
+  if (!messages || messages.length === 0) {
+    return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
+  }
+  // gerar narrativa com base nas mensagens
+}
+```
+
+Para grupos **sem demandas**, o prompt para a IA será diferente:
+
+- **Input**: lista das mensagens do dia (sender_name, sender_role, content), truncadas se necessário
+- **Instrução adicional**: "Não há demandas formais registradas. Baseie-se nas mensagens abaixo para descrever brevemente o que foi conversado no dia, de forma humanizada e focada no relacionamento."
+- **Fallback**: se a IA falhar, usar a mensagem fixa atual
+
+### 4. Atualizar `formatGroupMessage` e `generateNarrativeSummary`
+
+Assinar a função com o parâmetro `messages`:
+```typescript
+async function generateNarrativeSummary(
+  groupName: string,
+  demands: TicketDemand[],
+  messages: { content: string; sender_name: string; sender_role: string }[],
+  hasDemands: boolean
+): Promise<string>
+```
+
+## Fluxo Atualizado
 
 ```text
-Usuário acessa /auth
-       |
-       v
-Clica "Criar conta"
-       |
-       v
-Preenche email + senha
-       |
-       v
-Conta criada (auth.users)
-       |
-       v
-Admin roda SQL INSERT INTO user_roles
-       |
-       v
-Usuário agora é admin e tem acesso total
+Grupo tem interação no dia?
+        |
+        v
+    Sim → Vai receber relatório
+        |
+        v
+Tem ticket_demands hoje?
+   /          \
+  Sim          Não
+   |            |
+   v            v
+Narrativa     Busca mensagens do dia
+baseada em    e envia para IA gerar
+demandas      narrativa baseada no
+              conteúdo das mensagens
 ```
 
-## Arquivos a Modificar
+## Comportamento do Fallback
 
-- `src/pages/Auth.tsx` — adicionar fluxo de signup com toggle login/cadastro
+- Se a IA falhar (API indisponível, erro de rede): usa a mensagem fixa atual como fallback
+- Se o grupo não tiver mensagens com conteúdo suficiente: usa a mensagem fixa como fallback
 
-## Importante
+## Arquivo Modificado
 
-A página de signup será temporária para o primeiro acesso. Após a criação do primeiro admin, o fluxo de convite de novos usuários pode ser controlado dentro do app — evitando que qualquer pessoa crie uma conta livremente.
+- `supabase/functions/daily-report/index.ts`
+
+## Impacto
+
+- Grupos com apenas interações passam a receber uma narrativa gerada por IA, coerente com o que foi realmente conversado no dia
+- O custo de chamadas à IA aumenta proporcionalmente — grupos sem demandas antes não consumiam tokens, agora consumirão
+- A resiliência (batching, try/catch, fallback) permanece intacta
