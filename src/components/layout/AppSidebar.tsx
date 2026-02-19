@@ -1,9 +1,11 @@
-import { LayoutDashboard, Radio, Users, MessageSquare, Snowflake, Clock, Smartphone, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Radio, Users, MessageSquare, Snowflake, Clock, Smartphone, ClipboardList, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import logoArttico from "@/assets/logo-arttico.webp";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 const navigationItems = [{
   title: "Dashboard",
@@ -119,7 +121,18 @@ export function AppSidebar() {
     <SidebarFooter className="p-4 border-t border-sidebar-border">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">Tema</span>
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={() => supabase.auth.signOut()}
+            title="Sair"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </SidebarFooter>
   </Sidebar>;
