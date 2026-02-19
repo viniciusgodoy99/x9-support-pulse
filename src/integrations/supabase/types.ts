@@ -373,6 +373,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_instances: {
         Row: {
           api_token: string
@@ -424,6 +445,11 @@ export type Database = {
     }
     Functions: {
       archive_old_pending_groups: { Args: never; Returns: undefined }
+      is_authenticated_member: { Args: never; Returns: boolean }
+      user_has_role: {
+        Args: { _role: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       group_member_role: "cs" | "client" | "traffic_manager" | "unknown"

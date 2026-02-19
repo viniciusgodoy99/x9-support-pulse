@@ -105,34 +105,36 @@ export function useTickets(status?: "open" | "resolved") {
 
   const resolveTicket = async (ticketId: string) => {
     try {
-      // First, trigger AI analysis with force resolve
+      // Get current session token for authenticated request
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) throw new Error("Não autenticado");
+
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      
+
       console.log(`Force resolving ticket ${ticketId} with AI analysis...`);
-      
+
       const response = await fetch(`${supabaseUrl}/functions/v1/analyze-tickets`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "apikey": supabaseKey,
-          "Authorization": `Bearer ${supabaseKey}`,
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           ticketId,
           forceResolve: true,
         }),
       });
-      
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error calling analyze-tickets:", errorText);
+        console.error("Error calling analyze-tickets:", response.status);
         throw new Error("Erro ao analisar ticket");
       }
-      
+
       const result = await response.json();
       console.log("Analysis result:", result);
-      
+
       await fetchTickets();
     } catch (err) {
       console.error("Error resolving ticket:", err);
