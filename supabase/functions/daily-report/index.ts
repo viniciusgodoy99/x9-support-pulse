@@ -57,8 +57,14 @@ function formatDate(date: Date): string {
 
 async function generateNarrativeSummary(
   groupName: string,
-  demands: TicketDemand[]
+  demands: TicketDemand[],
+  hasDemands: boolean
 ): Promise<string> {
+  // No demands today — use a fixed friendly message, skip AI
+  if (!hasDemands) {
+    return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
+  }
+
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
   if (!LOVABLE_API_KEY) {
@@ -95,7 +101,7 @@ Retorne APENAS o corpo da mensagem (2-3 linhas sobre o que foi conversado/alinha
 NÃO inclua cabeçalho, data ou despedida - apenas o texto narrativo.`;
 
   try {
-    console.log(`Generating narrative for ${groupName} with ${demands.length} topics...`);
+    console.log(`Generating narrative for ${groupName} with ${demands.length} demands...`);
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -146,7 +152,8 @@ async function formatGroupMessage(
   dateStr: string
 ): Promise<string> {
   const groupName = report.group.name.toUpperCase();
-  const narrative = await generateNarrativeSummary(groupName, report.demands);
+  const hasDemands = report.totalDemands > 0;
+  const narrative = await generateNarrativeSummary(groupName, report.demands, hasDemands);
 
   return `📋 ${groupName}
 Resumo do dia ${dateStr}
@@ -256,11 +263,26 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
   const todayStartISO = todayStart.toISOString();
   const dateStr = formatDate(new Date(todayStart.getTime() - 3 * 60 * 60 * 1000));
 
-  console.log(`Fetching demands from ${todayStartISO} (${dateStr})`);
+  console.log(`Fetching interactions from ${todayStartISO} (${dateStr})`);
 
-  // Fetch demands
   const groupIds = groups.map((g) => g.id);
 
+  // Fetch groups with any message today (primary filter)
+  const { data: messagesData, error: messagesError } = await supabase
+    .from("messages")
+    .select("group_id")
+    .in("group_id", groupIds)
+    .gte("created_at", todayStartISO);
+
+  if (messagesError) throw messagesError;
+
+  const groupsWithMessages = new Set<string>(
+    (messagesData || []).map((m) => m.group_id)
+  );
+
+  console.log(`Found ${groupsWithMessages.size} groups with messages today (filtering by any interaction)`);
+
+  // Fetch demands as optional enrichment data
   const { data: allTickets, error: ticketsError } = await supabase
     .from("tickets")
     .select("id, group_id")
@@ -284,9 +306,9 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
     allDemands = demands || [];
   }
 
-  console.log(`Found ${allDemands.length} demands for today`);
+  console.log(`Found ${allDemands.length} demands for today (used as narrative enrichment)`);
 
-  // Build reports and filter only groups with demands
+  // Build reports and filter by groups with any message today
   const reports: GroupReport[] = groups
     .map((group) => {
       const groupDemands = allDemands.filter(
@@ -313,9 +335,9 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
         avgResolutionTime,
       };
     })
-    .filter((r) => r.totalDemands > 0);
+    .filter((r) => groupsWithMessages.has(r.group.id));
 
-  console.log(`${reports.length} groups have demands today`);
+  console.log(`${reports.length} groups will receive report today (${reports.filter(r => r.totalDemands > 0).length} with demands, ${reports.filter(r => r.totalDemands === 0).length} interaction-only)`);
 
   return {
     reports,
@@ -361,7 +383,7 @@ Deno.serve(async (req) => {
       instanceData = prepared.instance;
       dateStr = prepared.dateStr;
 
-      console.log(`Total groups with demands: ${reports.length}, processing in batches of ${BATCH_SIZE}`);
+      console.log(`Total groups with interactions today: ${reports.length}, processing in batches of ${BATCH_SIZE}`);
     } else {
       // Subsequent invocation: use precomputed data
       reports = precomputedReports!;
