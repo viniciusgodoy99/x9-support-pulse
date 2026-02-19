@@ -1,67 +1,76 @@
 
+# Ajuste na Lógica do Relatório Diário: Interações ao invés de Demandas
 
-# Plano: Blindar a Cadeia de Lotes do Resumo Diario
+## Situação Atual vs. Nova Regra
 
-## Problemas no Codigo Atual
+| Critério | Atual | Novo |
+|---|---|---|
+| Gatilho de envio | Grupo com `ticket_demands` no dia | Grupo com qualquer `message` no dia |
+| Grupos afetados hoje | 11 | 23 |
+| Narrativa da IA | Baseada nas demandas identificadas | Baseada nas demandas (se houver) ou numa mensagem padrão |
 
-Revisando o arquivo `supabase/functions/daily-report/index.ts`, identifiquei 2 problemas principais:
+## Arquivo a Modificar
 
-1. **Loop sem protecao**: O `for` que processa cada grupo (linhas 380-394) nao tem `try/catch` individual. Se `formatGroupMessage` (que chama a IA) lancar uma excecao inesperada, o loop inteiro morre e o lote para ali -- sem invocar o proximo lote.
+`supabase/functions/daily-report/index.ts`
 
-2. **Sem validacao da auto-invocacao**: Apos o `fetch` recursivo (linha 403), o codigo nao verifica `selfInvokeResponse.ok`. Se a chamada falhar (ex: 500, timeout de rede), a cadeia e silenciosamente interrompida sem nenhum erro nos logs.
+## Mudanças Técnicas Detalhadas
 
-O `await` no fetch ja existe (linha 403) e o header de Authorization tambem (linha 409), entao esses pontos ja estao corretos.
+### 1. Buscar grupos com mensagens no dia (tabela `messages`)
 
-## Alteracoes
+Substituir a lógica que busca `ticket_demands` para filtrar grupos pela lógica que busca `messages`. A query ficará:
 
-| Arquivo | Modificacao |
-|---------|-------------|
-| `supabase/functions/daily-report/index.ts` | Blindar loop com try/catch individual + validar resposta da auto-invocacao |
-
-### Detalhes
-
-**1. Try/catch individual no loop (linhas 380-394)**
-
-Envolver `formatGroupMessage` + `sendWhatsAppMessage` em try/catch para que a falha de um grupo nao interrompa os demais:
-
-```typescript
-for (const report of batch) {
-  try {
-    const message = await formatGroupMessage(report, dateStr);
-    const success = await sendWhatsAppMessage(...);
-    if (success) sentCount++;
-    else failedCount++;
-  } catch (error) {
-    console.error(`Erro ao enviar para o grupo ${report.group.whatsapp_id} (${report.group.name}): ${error}`);
-    failedCount++;
-  }
-  await sleep(2000);
-}
+```sql
+SELECT DISTINCT group_id
+FROM messages
+WHERE group_id IN (ids dos grupos clientes)
+  AND created_at >= todayStartISO
 ```
 
-**2. Validacao da resposta recursiva (linhas 420-422)**
+Isso retorna os IDs dos grupos que tiveram qualquer mensagem (de cliente, membro da equipe ou bot) no dia.
 
-Apos o fetch, verificar se a resposta foi bem-sucedida e logar erro caso contrario:
+### 2. Manter o enriquecimento de demandas como dado adicional
 
+As `ticket_demands` continuam sendo buscadas para enriquecer a narrativa da IA quando existirem. A diferença é que elas não são mais o critério de inclusão — apenas um dado de contexto opcional.
+
+### 3. Ajustar o filtro de reports
+
+Linha atual:
 ```typescript
-const selfResult = await selfInvokeResponse.text();
-if (!selfInvokeResponse.ok) {
-  console.error(`Erro na chamada recursiva para offset ${nextOffset}: ${selfInvokeResponse.status} - ${selfResult}`);
-  throw new Error(`Recursive call failed for offset ${nextOffset}: ${selfInvokeResponse.status}`);
-}
-console.log(`Proximo lote acionado com sucesso: Offset ${nextOffset}`);
+.filter((r) => r.totalDemands > 0)
 ```
 
-**3. Logs em portugues mais descritivos (linhas 375, 396, 401)**
+Nova lógica:
+```typescript
+.filter((r) => groupsWithMessages.has(r.group.id))
+```
 
-Atualizar mensagens de log para o padrao solicitado:
-- "Iniciando processamento do lote: Offset X a Y de Z grupos"
-- "Lote finalizado: X enviados, Y falharam"
-- "Proximo lote acionado com sucesso: Offset X"
+Onde `groupsWithMessages` é o `Set<string>` dos IDs dos grupos que tiveram mensagens.
 
-## Resultado Esperado
+### 4. Ajustar a geração da narrativa da IA
 
-- Se a geracao de IA falhar para 1 grupo, os outros 9 do lote continuam normalmente
-- Se a auto-invocacao falhar, o erro fica registrado nos logs com status e corpo da resposta
-- Logs claros em portugues para facilitar depuracao
+A função `generateNarrativeSummary` receberá uma flag indicando se há demandas formais ou não:
 
+- **Com demandas**: comportamento atual — narrativa baseada nas descrições das demandas.
+- **Sem demandas (apenas interações)**: a IA recebe uma instrução diferente, gerando uma mensagem como: _"Hoje tivemos uma troca de mensagens por aqui. Até amanhã! 👋"_ — simples e sem inventar tópicos.
+
+Alternativamente (mais simples e seguro): se não há demandas, pular a IA e usar uma mensagem padrão fixa:
+
+```
+📋 NOME DO GRUPO
+Resumo do dia DD/MM
+
+Hoje passamos por aqui e mantivemos o contato em dia. 😊
+
+Até amanhã! 👋
+```
+
+### 5. Logs atualizados
+
+- `"Found X groups with messages today (filtering by any interaction)"`
+- `"Group [nome]: X demands, Y messages"`
+
+## Impacto
+
+- Grupos que hoje têm conversa mas nenhuma demanda formalizada passarão a receber o resumo
+- O volume de relatórios enviados hoje subiria de 11 para 23 grupos
+- A cadeia de lotes (batching) e a resiliência já implementadas continuam funcionando normalmente
