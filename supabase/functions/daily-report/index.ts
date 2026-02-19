@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const BATCH_SIZE = 10;
+const MAX_MESSAGES_PER_GROUP = 20;
 
 interface MonitoredGroup {
   id: string;
@@ -24,9 +25,16 @@ interface TicketDemand {
   ticket_id: string;
 }
 
+interface GroupMessage {
+  content: string;
+  sender_name: string | null;
+  sender_role: string;
+}
+
 interface GroupReport {
   group: MonitoredGroup;
   demands: TicketDemand[];
+  messages: GroupMessage[];
   totalDemands: number;
   resolvedCount: number;
   pendingCount: number;
@@ -58,21 +66,23 @@ function formatDate(date: Date): string {
 async function generateNarrativeSummary(
   groupName: string,
   demands: TicketDemand[],
+  messages: GroupMessage[],
   hasDemands: boolean
 ): Promise<string> {
-  // No demands today — use a fixed friendly message, skip AI
-  if (!hasDemands) {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+  // No demands and no messages — use fixed fallback, skip AI
+  if (!hasDemands && (!messages || messages.length === 0)) {
     return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
   if (!LOVABLE_API_KEY) {
     console.log("LOVABLE_API_KEY not configured, using fallback");
-    return demands.map((d) => d.description).join(". ") + ".";
+    if (hasDemands) {
+      return demands.map((d) => d.description).join(". ") + ".";
+    }
+    return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
   }
-
-  const topicsList = demands.map((d) => `- ${d.description}`).join("\n");
 
   const systemPrompt = `Você é um especialista em copywriting responsável por criar resumos diários de conversas com clientes. Seu objetivo é transformar interações e acontecimentos do dia em mensagens humanizadas, fluidas e focadas em progresso.
 
@@ -100,8 +110,28 @@ Retorne APENAS o corpo da mensagem (2-3 linhas sobre o que foi conversado/alinha
 
 NÃO inclua cabeçalho, data ou despedida - apenas o texto narrativo.`;
 
+  let userContent: string;
+
+  if (hasDemands) {
+    const topicsList = demands.map((d) => `- ${d.description}`).join("\n");
+    userContent = `Cliente: ${groupName}\n\nTópicos do dia:\n${topicsList}`;
+  } else {
+    // Use actual messages as context for groups without formal demands
+    const limitedMessages = messages.slice(0, MAX_MESSAGES_PER_GROUP);
+    const messagesList = limitedMessages
+      .map((m) => {
+        const sender = m.sender_name || m.sender_role;
+        return `[${sender}]: ${m.content}`;
+      })
+      .join("\n");
+
+    userContent = `Cliente: ${groupName}\n\nNão há demandas formais registradas hoje. Baseie-se nas mensagens abaixo para descrever brevemente o que foi conversado no dia, de forma humanizada e focada no relacionamento.\n\nMensagens do dia:\n${messagesList}`;
+  }
+
   try {
-    console.log(`Generating narrative for ${groupName} with ${demands.length} demands...`);
+    console.log(
+      `Generating narrative for ${groupName} — ${hasDemands ? `${demands.length} demands` : `${messages.length} messages (no demands)`}...`
+    );
 
     const response = await fetch(
       "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -115,10 +145,7 @@ NÃO inclua cabeçalho, data ou despedida - apenas o texto narrativo.`;
           model: "google/gemini-3-flash-preview",
           messages: [
             { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `Cliente: ${groupName}\n\nTópicos do dia:\n${topicsList}`,
-            },
+            { role: "user", content: userContent },
           ],
           temperature: 0.7,
         }),
@@ -128,7 +155,10 @@ NÃO inclua cabeçalho, data ou despedida - apenas o texto narrativo.`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`AI API error: ${response.status} - ${errorText}`);
-      return demands.map((d) => d.description).join(". ") + ".";
+      if (hasDemands) {
+        return demands.map((d) => d.description).join(". ") + ".";
+      }
+      return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
     }
 
     const data = await response.json();
@@ -136,14 +166,20 @@ NÃO inclua cabeçalho, data ou despedida - apenas o texto narrativo.`;
 
     if (!narrative) {
       console.error("Empty narrative from AI, using fallback");
-      return demands.map((d) => d.description).join(". ") + ".";
+      if (hasDemands) {
+        return demands.map((d) => d.description).join(". ") + ".";
+      }
+      return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
     }
 
     console.log(`Generated narrative: ${narrative.substring(0, 100)}...`);
     return narrative;
   } catch (error) {
     console.error(`Error generating narrative: ${error}`);
-    return demands.map((d) => d.description).join(". ") + ".";
+    if (hasDemands) {
+      return demands.map((d) => d.description).join(". ") + ".";
+    }
+    return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
   }
 }
 
@@ -153,7 +189,12 @@ async function formatGroupMessage(
 ): Promise<string> {
   const groupName = report.group.name.toUpperCase();
   const hasDemands = report.totalDemands > 0;
-  const narrative = await generateNarrativeSummary(groupName, report.demands, hasDemands);
+  const narrative = await generateNarrativeSummary(
+    groupName,
+    report.demands,
+    report.messages,
+    hasDemands
+  );
 
   return `📋 ${groupName}
 Resumo do dia ${dateStr}
@@ -267,12 +308,13 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
 
   const groupIds = groups.map((g) => g.id);
 
-  // Fetch groups with any message today (primary filter)
+  // Fetch all messages of today for all groups (used for filtering and AI context)
   const { data: messagesData, error: messagesError } = await supabase
     .from("messages")
-    .select("group_id")
+    .select("group_id, content, sender_name, sender_role, created_at")
     .in("group_id", groupIds)
-    .gte("created_at", todayStartISO);
+    .gte("created_at", todayStartISO)
+    .order("created_at", { ascending: true });
 
   if (messagesError) throw messagesError;
 
@@ -280,7 +322,23 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
     (messagesData || []).map((m) => m.group_id)
   );
 
-  console.log(`Found ${groupsWithMessages.size} groups with messages today (filtering by any interaction)`);
+  console.log(`Found ${groupsWithMessages.size} groups with messages today`);
+
+  // Organize messages by group (capped at MAX_MESSAGES_PER_GROUP)
+  const messagesByGroup = new Map<string, GroupMessage[]>();
+  for (const msg of messagesData || []) {
+    if (!messagesByGroup.has(msg.group_id)) {
+      messagesByGroup.set(msg.group_id, []);
+    }
+    const groupMsgs = messagesByGroup.get(msg.group_id)!;
+    if (groupMsgs.length < MAX_MESSAGES_PER_GROUP) {
+      groupMsgs.push({
+        content: msg.content,
+        sender_name: msg.sender_name,
+        sender_role: msg.sender_role,
+      });
+    }
+  }
 
   // Fetch demands as optional enrichment data
   const { data: allTickets, error: ticketsError } = await supabase
@@ -306,7 +364,7 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
     allDemands = demands || [];
   }
 
-  console.log(`Found ${allDemands.length} demands for today (used as narrative enrichment)`);
+  console.log(`Found ${allDemands.length} demands for today`);
 
   // Build reports and filter by groups with any message today
   const reports: GroupReport[] = groups
@@ -328,6 +386,7 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
       return {
         group,
         demands: groupDemands,
+        messages: messagesByGroup.get(group.id) || [],
         totalDemands: groupDemands.length,
         resolvedCount: resolvedDemands.length,
         pendingCount: pendingDemands.length,
@@ -337,7 +396,11 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
     })
     .filter((r) => groupsWithMessages.has(r.group.id));
 
-  console.log(`${reports.length} groups will receive report today (${reports.filter(r => r.totalDemands > 0).length} with demands, ${reports.filter(r => r.totalDemands === 0).length} interaction-only)`);
+  console.log(
+    `${reports.length} groups will receive report today ` +
+    `(${reports.filter((r) => r.totalDemands > 0).length} with demands, ` +
+    `${reports.filter((r) => r.totalDemands === 0).length} interaction-only — AI narrative)`
+  );
 
   return {
     reports,
