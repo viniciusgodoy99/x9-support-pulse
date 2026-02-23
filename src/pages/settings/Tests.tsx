@@ -50,6 +50,12 @@ export default function Tests() {
     fetchClientGroups();
   }, []);
 
+  useEffect(() => {
+    if (instances.length === 1 && !drInstance) {
+      setDrInstance(instances[0].id);
+    }
+  }, [instances]);
+
   async function fetchClientGroups() {
     const { data } = await supabase
       .from("monitored_groups")
