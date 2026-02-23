@@ -56,6 +56,8 @@ export function usePendingDemands() {
         `)
         .eq("status", "open")
         .gte("created_at", sevenDaysAgoISO)
+        .eq("tickets.monitored_groups.is_client_group", true)
+        .eq("tickets.monitored_groups.is_active", true)
         .order("created_at", { ascending: true });
 
       if (demandsError) throw demandsError;
