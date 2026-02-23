@@ -513,8 +513,8 @@ serve(async (req) => {
     // Determinar sender_role: role do grupo tem PRIORIDADE sobre team_members
     // Isso permite que uma pessoa seja CS em um grupo e Cliente em outro
     let senderRole: "cs" | "client" = "client";
-    if (senderMember?.role) {
-      // Role definido no grupo específico tem prioridade
+    if (senderMember?.role && senderMember.role !== "unknown") {
+      // Role definido no grupo específico tem prioridade (exceto unknown)
       senderRole = (senderMember.role === "cs" || senderMember.role === "traffic_manager") ? "cs" : "client";
       console.log("Using group-specific role:", senderMember.role, "->", senderRole);
     } else if (teamMember) {

@@ -846,9 +846,22 @@ serve(async (req) => {
             .eq("phone_number", m.sender_phone)
             .maybeSingle();
 
+          let role = memberData?.role || "unknown";
+
+          // Se role é unknown, verificar se é membro da equipe como fallback
+          if (role === "unknown") {
+            const { data: tmData } = await supabase
+              .from("team_members")
+              .select("id")
+              .eq("phone_number", m.sender_phone)
+              .eq("is_active", true)
+              .maybeSingle();
+            if (tmData) role = "cs";
+          }
+
           return {
             ...m,
-            group_role: memberData?.role || "unknown"
+            group_role: role
           } as Message;
         }));
 
