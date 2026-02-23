@@ -1,114 +1,73 @@
 
 
-# Redesenhar Pagina de Testes com Cards de Grupos e Preview de Mensagem
+# Corrigir Envio de Notificacoes de Estouro de SLA
 
-## Objetivo
+## Problemas Identificados
 
-Ao selecionar uma instancia na pagina de Testes, exibir todos os grupos de cliente como cards. Cada card tera um botao para visualizar a mensagem que seria enviada (preview), sem efetivamente enviar.
+Ao investigar os logs e o codigo, foram encontrados **3 problemas** que impedem o envio de alertas de SLA:
 
-## Mudancas
+### Problema 1: Autenticacao bloqueia o cron job
+A funcao `analyze-tickets` valida o token usando `getClaims()` (que espera um JWT de usuario autenticado). Porem, o cron job envia o **anon key** como Bearer token, que nao e um JWT de usuario valido. Resultado: a funcao retorna 401 silenciosamente e nunca executa a partir do cron.
 
-### 1. Edge Function `daily-report/index.ts`
+### Problema 2: Hoje e domingo
+A funcao `sendSlaBreachNotifications` verifica horario comercial (segunda a sexta, 08-18h BRT) antes de enviar alertas. Como hoje e domingo, mesmo quando a funcao roda (via teste manual), as notificacoes sao bloqueadas.
 
-Adicionar suporte ao parametro `previewOnly: true` no body da requisicao:
+### Problema 3: testMode nao esta implementado
+A pagina de Testes envia `{ testMode: true }` mas a funcao `analyze-tickets` nao reconhece esse parametro — nao existe logica para ignorar a checagem de horario comercial no modo de teste.
 
-- Quando `previewOnly` estiver ativo, a funcao gera as mensagens normalmente (incluindo narrativa via IA) mas **nao envia** pelo WhatsApp
-- Retorna um array com `{ groupId, groupName, message }` para cada grupo
-- Suporte opcional a `targetGroupId` para preview de um grupo especifico
+## Solucao
 
-Trecho relevante no handler principal:
+### Arquivo: `supabase/functions/analyze-tickets/index.ts`
+
+1. **Remover validacao por `getClaims`**: Substituir por validacao simples do token JWT (verificar se o token e o anon key ou um token de usuario valido). Isso permite que tanto o cron job quanto chamadas do frontend funcionem.
+
+2. **Adicionar suporte ao parametro `testMode`**: Quando `testMode: true`, pular a verificacao de horario comercial na funcao `sendSlaBreachNotifications`, permitindo testar alertas a qualquer hora/dia.
+
+3. **Adicionar suporte ao parametro `groupId` no modo teste**: Permitir filtrar demandas de um grupo especifico para simulacao.
+
+## Detalhes Tecnicos
+
+### Mudanca na autenticacao (linhas 656-684)
+
+Remover o bloco `getClaims` e substituir por uma validacao que aceita tanto o anon key quanto tokens de usuario:
+
 ```typescript
-const previewOnly = body.previewOnly === true;
+// Aceitar tanto anon key quanto user JWT
+const token = authHeader.replace("Bearer ", "");
+const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
-// ... gera reports normalmente ...
-
-if (previewOnly) {
-  // Gera mensagens sem enviar
-  const previews = [];
-  for (const report of batch) {
-    const message = await formatGroupMessage(report, dateStr);
-    previews.push({
-      groupId: report.group.id,
-      groupName: report.group.name,
-      whatsappId: report.group.whatsapp_id,
-      hasDemands: report.totalDemands > 0,
-      demandsCount: report.totalDemands,
-      messagesCount: report.messages.length,
-      message,
-    });
+// Se nao e o anon key, verificar se e um user JWT valido
+if (token !== anonKey) {
+  const supabaseAnon = createClient(supabaseUrl, anonKey!);
+  const { data: { user }, error } = await supabaseAnon.auth.getUser(token);
+  if (error || !user) {
+    return 401 response;
   }
-  return Response with previews array;
 }
 ```
 
-### 2. Pagina `src/pages/settings/Tests.tsx` — Redesenho completo
+### Mudanca na funcao sendSlaBreachNotifications (linhas 250-458)
 
-**Novo fluxo do card "Resumo Diario":**
+Adicionar parametro `testMode: boolean` que, quando ativo:
+- Pula a verificacao de horario comercial (dia da semana e hora)
+- Permite envio a qualquer momento
 
-1. Usuario seleciona a instancia WhatsApp (dropdown)
-2. Ao selecionar, automaticamente carrega e exibe todos os grupos de cliente como cards (grid responsivo)
-3. Cada card de grupo mostra:
-   - Nome do grupo
-   - Badge indicando se tem demandas ou apenas interacoes
-   - Quantidade de demandas/mensagens do dia
-   - Botao "Visualizar Mensagem" (icone Eye)
-   - Botao "Enviar" (icone Send) para envio individual
-4. Botao global "Disparar para Todos" continua existindo no topo
-5. Botao "Carregar Previews" que chama a edge function com `previewOnly: true` e preenche os cards com as mensagens geradas
+### Mudanca no handler principal (linhas 697-705)
 
-**Modal de Preview:**
-- Dialog/modal que abre ao clicar "Visualizar Mensagem"
-- Mostra o nome do grupo no titulo
-- Corpo da mensagem formatada (como seria enviada no WhatsApp)
-- Botoes: "Fechar" e "Enviar esta mensagem" (opcional)
-
-**Card "Estouro de SLA"** permanece igual.
-
-### 3. Estrutura dos componentes
-
-Criar um componente auxiliar `GroupPreviewCard` dentro do mesmo arquivo (ou inline) para cada grupo:
+Extrair `testMode` e `groupId` do body e passar para `sendSlaBreachNotifications`:
 
 ```typescript
-interface GroupPreview {
-  groupId: string;
-  groupName: string;
-  whatsappId: string;
-  hasDemands: boolean;
-  demandsCount: number;
-  messagesCount: number;
-  message: string | null; // null = ainda nao gerou preview
-}
+const body = await req.json();
+const testMode = body.testMode === true;
+const targetGroupId = body.groupId || null;
 ```
 
-## Arquivos modificados
+### Arquivo modificado
+- `supabase/functions/analyze-tickets/index.ts`
 
-- `supabase/functions/daily-report/index.ts` — adicionar suporte a `previewOnly`
-- `src/pages/settings/Tests.tsx` — redesenho com cards de grupos e modal de preview
+## Resultado Esperado
 
-## Fluxo
-
-```text
-Seleciona instancia
-      |
-      v
-Carrega grupos de cliente do banco
-      |
-      v
-Exibe grupos como cards (grid)
-      |
-      v
-Clica "Carregar Previews"
-      |
-      v
-Chama daily-report com previewOnly=true
-      |
-      v
-Preenche cada card com a mensagem gerada
-      |
-      v
-Clica "Visualizar" em um card
-      |
-      v
-Abre modal com a mensagem completa
-```
+- O cron job horario passara a executar a funcao normalmente
+- O botao "Simular Alerta de SLA" na pagina de Testes funcionara em qualquer horario/dia
+- Alertas de SLA serao enviados ao grupo "X9 de Atendimento" quando houver demandas com estouro
 
