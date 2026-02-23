@@ -182,19 +182,6 @@ export default function Tests() {
               )}
             </div>
 
-            {drInstance && previews.size > 0 && (
-              <div className="flex items-center justify-end gap-2 mt-4">
-                <Badge variant="default" className="text-xs">
-                  <MessageSquare className="h-3 w-3 mr-1" />
-                  {clientGroups.filter(g => { const p = previews.get(g.id); return p && p.messagesCount > 0; }).length} com interação
-                </Badge>
-                <Badge variant="secondary" className="text-xs">
-                  <XCircle className="h-3 w-3 mr-1" />
-                  {clientGroups.filter(g => { const p = previews.get(g.id); return !p || p.messagesCount === 0; }).length} sem interação
-                </Badge>
-              </div>
-            )}
-
             {drInstance && filteredGroups.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
                 {filteredGroups.map((group) => {
