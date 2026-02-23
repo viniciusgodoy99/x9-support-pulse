@@ -1,40 +1,22 @@
 
+# Auto-selecionar instância única na página de Testes
 
-# Ajustes na Pagina de Testes
+## Mudança
 
-## Mudancas
+Quando houver apenas uma instância WhatsApp cadastrada, ela será automaticamente selecionada no campo "Instância WhatsApp", evitando que o usuário precise clicar no select manualmente.
 
-### 1. Filtro de grupos no Resumo Diario
-Adicionar um filtro com 3 opcoes ao lado do botao "Carregar Previews":
-- **Todos** (padrao) — mostra todos os grupos
-- **Com interacao** — mostra apenas grupos que possuem preview carregado com `messagesCount > 0`
-- **Sem interacao** — mostra apenas grupos sem preview ou com `messagesCount === 0`
-
-### 2. Remover secao de Estouro de SLA
-Apagar completamente o Card 2 (Estouro de SLA) e todo o estado associado (`slaInstance`, `slaTargetGroup`, `slaStatus`, `slaResponse`, `slaNotificationGroupName`, `fetchSlaNotificationGroup`, `handleSlaTest`).
-
-## Detalhes Tecnicos
+## Detalhes Técnicos
 
 ### Arquivo: `src/pages/settings/Tests.tsx`
 
-**Adicionar estado do filtro:**
+Adicionar um `useEffect` que observa o array `instances` e, quando ele tiver exatamente 1 item e `drInstance` ainda estiver vazio, define `drInstance` com o `id` dessa instância:
+
 ```typescript
-const [interactionFilter, setInteractionFilter] = useState<"all" | "with" | "without">("all");
+useEffect(() => {
+  if (instances.length === 1 && !drInstance) {
+    setDrInstance(instances[0].id);
+  }
+}, [instances]);
 ```
 
-**Adicionar Select de filtro** na barra de acoes do Resumo Diario, ao lado do botao "Carregar Previews".
-
-**Filtrar grupos no grid** usando `useMemo`:
-```typescript
-const filteredGroups = useMemo(() => {
-  if (interactionFilter === "all") return clientGroups;
-  return clientGroups.filter(g => {
-    const preview = previews.get(g.id);
-    if (interactionFilter === "with") return preview && preview.messagesCount > 0;
-    return !preview || preview.messagesCount === 0;
-  });
-}, [clientGroups, previews, interactionFilter]);
-```
-
-**Remover:** Todo o Card 2 (Estouro de SLA), estados `sla*`, funcao `fetchSlaNotificationGroup`, funcao `handleSlaTest`, e o `useEffect` que chama `fetchSlaNotificationGroup`.
-
+Esse efeito roda após o carregamento das instâncias e só atua se houver exatamente uma disponível.
