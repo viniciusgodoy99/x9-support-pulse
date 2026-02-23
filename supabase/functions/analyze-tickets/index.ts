@@ -247,7 +247,7 @@ async function sendWhatsAppMessage(groupJid: string, message: string): Promise<b
   }
 }
 
-async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ sent: number; errors: number }> {
+async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = false, targetGroupId: string | null = null): Promise<{ sent: number; errors: number }> {
   let sent = 0;
   let errors = 0;
 
@@ -263,14 +263,18 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
     return { sent, errors };
   }
 
-  // Check if we're within business hours (Mon-Fri, 08:00-18:00 BRT)
-  const nowBRT = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-  const dayOfWeek = nowBRT.getDay(); // 0=Sun, 6=Sat
-  const hour = nowBRT.getHours();
+  // Check if we're within business hours (Mon-Fri, 08:00-18:00 BRT) — skip in testMode
+  if (!testMode) {
+    const nowBRT = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const dayOfWeek = nowBRT.getDay(); // 0=Sun, 6=Sat
+    const hour = nowBRT.getHours();
 
-  if (dayOfWeek === 0 || dayOfWeek === 6 || hour < 8 || hour >= 18) {
-    console.log("Outside business hours (BRT), skipping SLA notifications");
-    return { sent, errors };
+    if (dayOfWeek === 0 || dayOfWeek === 6 || hour < 8 || hour >= 18) {
+      console.log("Outside business hours (BRT), skipping SLA notifications");
+      return { sent, errors };
+    }
+  } else {
+    console.log("testMode enabled — skipping business hours check");
   }
 
   // Get notification group ID
@@ -323,14 +327,23 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient): Promise<{ s
     return { sent, errors };
   }
 
-  if (!demandsToNotify || demandsToNotify.length === 0) {
+  let filteredDemands = demandsToNotify || [];
+
+  // Filter by target group if specified (test mode)
+  if (targetGroupId && filteredDemands.length > 0) {
+    // targetGroupId is the monitored_groups.id — filter demands whose ticket belongs to that group
+    filteredDemands = filteredDemands.filter(d => (d.tickets as any)?.group_id === targetGroupId);
+    console.log(`Filtered to ${filteredDemands.length} demands for target group ${targetGroupId}`);
+  }
+
+  if (filteredDemands.length === 0) {
     console.log("No SLA breached demands to notify");
     return { sent, errors };
   }
 
-  console.log(`Found ${demandsToNotify.length} demands with SLA breach to check for notifications`);
+  console.log(`Found ${filteredDemands.length} demands with SLA breach to check for notifications`);
 
-  for (const demand of demandsToNotify) {
+  for (const demand of filteredDemands) {
     // Check if already notified
     const { data: existingNotification } = await supabase
       .from("sla_notifications")
@@ -664,17 +677,26 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseAnon = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-    );
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAnon.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    // Accept both anon key (cron jobs) and valid user JWTs (frontend)
+    if (token !== anonKey) {
+      const supabaseAnon = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        anonKey!,
+      );
+      const { data: { user }, error: userError } = await supabaseAnon.auth.getUser(token);
+      if (userError || !user) {
+        console.log("Auth failed: token is neither anon key nor valid user JWT");
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      console.log(`Authenticated as user: ${user.id}`);
+    } else {
+      console.log("Authenticated via anon key (cron job)");
     }
   } catch (_authErr) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -694,11 +716,16 @@ serve(async (req) => {
     let ticketId: string | null = null;
     let forceResolve = false;
 
+    let testMode = false;
+    let targetGroupId: string | null = null;
+
     if (req.method === "POST") {
       try {
         const body = await req.json();
         ticketId = body.ticketId || null;
         forceResolve = body.forceResolve === true;
+        testMode = body.testMode === true;
+        targetGroupId = body.groupId || null;
       } catch {
         // Not JSON body, continue with normal flow
       }
@@ -1148,7 +1175,7 @@ serve(async (req) => {
     console.log(`Analysis job completed. Analyzed: ${analyzedCount}, Errors: ${errors.length}`);
 
     // Send SLA breach notifications after analysis
-    const notificationResult = await sendSlaBreachNotifications(supabase);
+    const notificationResult = await sendSlaBreachNotifications(supabase, testMode, targetGroupId);
     console.log(`SLA notifications: ${notificationResult.sent} sent, ${notificationResult.errors} errors`);
 
     return new Response(
