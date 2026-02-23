@@ -1,64 +1,114 @@
 
-# Adicionar Página "Testes" na Sidebar
 
-## Contexto
+# Redesenhar Pagina de Testes com Cards de Grupos e Preview de Mensagem
 
-Antes de tudo: **hoje é domingo**, e o cron do `daily-report` roda apenas de segunda a sexta (`50 20 * * 1-5`). Por isso, nao houve envio de resumo diario hoje. O `analyze-tickets` roda a cada hora e os cron jobs mostram "succeeded", mas nao ha logs da edge function — pode ser que a funcao nao esteja deployada. A pagina de testes vai permitir disparar manualmente esses processos para validar.
+## Objetivo
 
-## O que sera feito
+Ao selecionar uma instancia na pagina de Testes, exibir todos os grupos de cliente como cards. Cada card tera um botao para visualizar a mensagem que seria enviada (preview), sem efetivamente enviar.
 
-### 1. Adicionar item "Testes" na Sidebar
+## Mudancas
 
-- Icone: `FlaskConical` (lucide-react)
-- Posicao: dentro do grupo "Configuracoes", apos o WhatsApp
-- Rota: `/settings/tests`
+### 1. Edge Function `daily-report/index.ts`
 
-### 2. Criar pagina `src/pages/settings/Tests.tsx`
+Adicionar suporte ao parametro `previewOnly: true` no body da requisicao:
 
-A pagina tera duas secoes (cards):
+- Quando `previewOnly` estiver ativo, a funcao gera as mensagens normalmente (incluindo narrativa via IA) mas **nao envia** pelo WhatsApp
+- Retorna um array com `{ groupId, groupName, message }` para cada grupo
+- Suporte opcional a `targetGroupId` para preview de um grupo especifico
 
-**Card 1: Resumo Diario**
-- Label: "Instancia WhatsApp" + dropdown com as instancias disponiveis
-- Label: "Grupo de destino do resumo" + dropdown com os grupos de cliente ativos
-- Label: "Tipo de envio" + dropdown (Todos os grupos / Grupo especifico)
-- Se "Grupo especifico", mostrar dropdown para selecionar qual grupo tera o relatorio gerado
-- Botao "Disparar Resumo Diario" que chama a edge function `daily-report` via POST
+Trecho relevante no handler principal:
+```typescript
+const previewOnly = body.previewOnly === true;
 
-**Card 2: Estouro de SLA**
-- Label: "Instancia WhatsApp" + dropdown com as instancias
-- Label: "Grupo de notificacao" + mostra o grupo configurado em settings (`sla_notification_group_id`)
-- Label: "Grupo para simular estouro" + dropdown com grupos de cliente ativos
-- Botao "Simular Alerta de SLA" que chama a edge function `analyze-tickets` via POST com parametro de teste
+// ... gera reports normalmente ...
 
-Ambos os cards mostrarao:
-- Status do ultimo disparo (loading, sucesso, erro)
-- Resposta da edge function em um bloco de texto expansivel
+if (previewOnly) {
+  // Gera mensagens sem enviar
+  const previews = [];
+  for (const report of batch) {
+    const message = await formatGroupMessage(report, dateStr);
+    previews.push({
+      groupId: report.group.id,
+      groupName: report.group.name,
+      whatsappId: report.group.whatsapp_id,
+      hasDemands: report.totalDemands > 0,
+      demandsCount: report.totalDemands,
+      messagesCount: report.messages.length,
+      message,
+    });
+  }
+  return Response with previews array;
+}
+```
 
-### 3. Registrar rota no App.tsx
+### 2. Pagina `src/pages/settings/Tests.tsx` — Redesenho completo
 
-- Adicionar `/settings/tests` como rota protegida apontando para o componente `Tests`
+**Novo fluxo do card "Resumo Diario":**
 
-## Detalhes tecnicos
+1. Usuario seleciona a instancia WhatsApp (dropdown)
+2. Ao selecionar, automaticamente carrega e exibe todos os grupos de cliente como cards (grid responsivo)
+3. Cada card de grupo mostra:
+   - Nome do grupo
+   - Badge indicando se tem demandas ou apenas interacoes
+   - Quantidade de demandas/mensagens do dia
+   - Botao "Visualizar Mensagem" (icone Eye)
+   - Botao "Enviar" (icone Send) para envio individual
+4. Botao global "Disparar para Todos" continua existindo no topo
+5. Botao "Carregar Previews" que chama a edge function com `previewOnly: true` e preenche os cards com as mensagens geradas
 
-### Arquivos a criar
-- `src/pages/settings/Tests.tsx`
+**Modal de Preview:**
+- Dialog/modal que abre ao clicar "Visualizar Mensagem"
+- Mostra o nome do grupo no titulo
+- Corpo da mensagem formatada (como seria enviada no WhatsApp)
+- Botoes: "Fechar" e "Enviar esta mensagem" (opcional)
 
-### Arquivos a modificar
-- `src/components/layout/AppSidebar.tsx` — adicionar item "Testes" com icone `FlaskConical`
-- `src/App.tsx` — registrar rota `/settings/tests`
+**Card "Estouro de SLA"** permanece igual.
 
-### Dados dos dropdowns
-- **Instancias**: query em `whatsapp_instances` (nome + status)
-- **Grupos de cliente**: query em `monitored_groups` onde `is_client_group = true` e `is_archived = false`
-- **Grupo de notificacao SLA**: lido da tabela `settings` (key = `sla_notification_group_id`)
+### 3. Estrutura dos componentes
 
-### Chamadas as edge functions
-- Resumo diario: `POST /functions/v1/daily-report` com body opcional `{ targetGroupId: "..." }`
-- Estouro de SLA: `POST /functions/v1/analyze-tickets` com body `{ testMode: true, groupId: "..." }`
+Criar um componente auxiliar `GroupPreviewCard` dentro do mesmo arquivo (ou inline) para cada grupo:
 
-### Layout
-- Usa `MainLayout` com header "Testes de Envio"
-- Cards com `Card`, `CardHeader`, `CardContent` do shadcn
-- Dropdowns com `Select` do shadcn
-- Botoes com `Button` do shadcn
-- Feedback com `toast` e area de resposta inline
+```typescript
+interface GroupPreview {
+  groupId: string;
+  groupName: string;
+  whatsappId: string;
+  hasDemands: boolean;
+  demandsCount: number;
+  messagesCount: number;
+  message: string | null; // null = ainda nao gerou preview
+}
+```
+
+## Arquivos modificados
+
+- `supabase/functions/daily-report/index.ts` — adicionar suporte a `previewOnly`
+- `src/pages/settings/Tests.tsx` — redesenho com cards de grupos e modal de preview
+
+## Fluxo
+
+```text
+Seleciona instancia
+      |
+      v
+Carrega grupos de cliente do banco
+      |
+      v
+Exibe grupos como cards (grid)
+      |
+      v
+Clica "Carregar Previews"
+      |
+      v
+Chama daily-report com previewOnly=true
+      |
+      v
+Preenche cada card com a mensagem gerada
+      |
+      v
+Clica "Visualizar" em um card
+      |
+      v
+Abre modal com a mensagem completa
+```
+
