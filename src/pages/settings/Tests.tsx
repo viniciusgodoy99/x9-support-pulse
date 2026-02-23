@@ -3,17 +3,32 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { useToast } from "@/hooks/use-toast";
-import { FlaskConical, Send, AlertTriangle, ChevronDown, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import {
+  FlaskConical, Send, AlertTriangle, ChevronDown, Loader2,
+  CheckCircle2, XCircle, Eye, MessageSquare, FileText
+} from "lucide-react";
 
 interface MonitoredGroup {
   id: string;
   name: string;
   whatsapp_id: string;
+}
+
+interface GroupPreview {
+  groupId: string;
+  groupName: string;
+  whatsappId: string;
+  hasDemands: boolean;
+  demandsCount: number;
+  messagesCount: number;
+  message: string | null;
 }
 
 type InvokeStatus = "idle" | "loading" | "success" | "error";
@@ -23,22 +38,20 @@ export default function Tests() {
   const { toast } = useToast();
 
   const [clientGroups, setClientGroups] = useState<MonitoredGroup[]>([]);
-  const [slaNotificationGroupId, setSlaNotificationGroupId] = useState<string | null>(null);
-  const [slaNotificationGroupName, setSlaNotificationGroupName] = useState<string>("");
+  const [slaNotificationGroupName, setSlaNotificationGroupName] = useState("");
 
   // Daily report state
   const [drInstance, setDrInstance] = useState("");
-  const [drSendType, setDrSendType] = useState<"all" | "specific">("all");
-  const [drTargetGroup, setDrTargetGroup] = useState("");
-  const [drDestGroup, setDrDestGroup] = useState("");
   const [drStatus, setDrStatus] = useState<InvokeStatus>("idle");
-  const [drResponse, setDrResponse] = useState<string>("");
+  const [previews, setPreviews] = useState<Map<string, GroupPreview>>(new Map());
+  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null);
+  const [previewModal, setPreviewModal] = useState<GroupPreview | null>(null);
 
   // SLA state
   const [slaInstance, setSlaInstance] = useState("");
   const [slaTargetGroup, setSlaTargetGroup] = useState("");
   const [slaStatus, setSlaStatus] = useState<InvokeStatus>("idle");
-  const [slaResponse, setSlaResponse] = useState<string>("");
+  const [slaResponse, setSlaResponse] = useState("");
 
   useEffect(() => {
     fetchClientGroups();
@@ -61,9 +74,7 @@ export default function Tests() {
       .select("value")
       .eq("key", "sla_notification_group_id")
       .single();
-
     if (setting?.value) {
-      setSlaNotificationGroupId(setting.value);
       const { data: group } = await supabase
         .from("monitored_groups")
         .select("name")
@@ -73,28 +84,46 @@ export default function Tests() {
     }
   }
 
-  async function handleDailyReport() {
+  async function handleLoadAllPreviews() {
     setDrStatus("loading");
-    setDrResponse("");
     try {
-      const body: Record<string, string> = {};
-      if (drSendType === "specific" && drTargetGroup) {
-        body.targetGroupId = drTargetGroup;
-      }
-      if (drDestGroup) {
-        body.destinationGroupId = drDestGroup;
-      }
-
-      const { data, error } = await supabase.functions.invoke("daily-report", { body });
-
+      const { data, error } = await supabase.functions.invoke("daily-report", {
+        body: { previewOnly: true },
+      });
       if (error) throw error;
+
+      const newPreviews = new Map<string, GroupPreview>();
+      for (const p of data.previews || []) {
+        newPreviews.set(p.groupId, p);
+      }
+      setPreviews(newPreviews);
       setDrStatus("success");
-      setDrResponse(JSON.stringify(data, null, 2));
-      toast({ title: "Resumo diário disparado", description: "Verifique a resposta abaixo." });
+      toast({ title: "Previews carregados", description: `${newPreviews.size} mensagens geradas.` });
     } catch (err: any) {
       setDrStatus("error");
-      setDrResponse(err?.message || JSON.stringify(err));
-      toast({ title: "Erro ao disparar resumo", description: err?.message, variant: "destructive" });
+      toast({ title: "Erro ao carregar previews", description: err?.message, variant: "destructive" });
+    }
+  }
+
+  async function handleLoadSinglePreview(groupId: string) {
+    setLoadingPreviewId(groupId);
+    try {
+      const { data, error } = await supabase.functions.invoke("daily-report", {
+        body: { previewOnly: true, targetGroupId: groupId },
+      });
+      if (error) throw error;
+
+      const preview = (data.previews || [])[0];
+      if (preview) {
+        setPreviews((prev) => new Map(prev).set(preview.groupId, preview));
+        setPreviewModal(preview);
+      } else {
+        toast({ title: "Sem dados", description: "Não há interações hoje para gerar preview deste grupo.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Erro ao gerar preview", description: err?.message, variant: "destructive" });
+    } finally {
+      setLoadingPreviewId(null);
     }
   }
 
@@ -104,9 +133,7 @@ export default function Tests() {
     try {
       const body: Record<string, any> = { testMode: true };
       if (slaTargetGroup) body.groupId = slaTargetGroup;
-
       const { data, error } = await supabase.functions.invoke("analyze-tickets", { body });
-
       if (error) throw error;
       setSlaStatus("success");
       setSlaResponse(JSON.stringify(data, null, 2));
@@ -152,7 +179,7 @@ export default function Tests() {
         </div>
       }
     >
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6">
         {/* Card 1: Resumo Diário */}
         <Card>
           <CardHeader>
@@ -161,87 +188,118 @@ export default function Tests() {
               Resumo Diário
             </CardTitle>
             <CardDescription>
-              Dispare manualmente o envio do resumo diário para validar o funcionamento.
+              Selecione a instância para visualizar os grupos e pré-visualizar as mensagens.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Instância WhatsApp</Label>
-              <Select value={drInstance} onValueChange={setDrInstance}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a instância" />
-                </SelectTrigger>
-                <SelectContent>
-                  {instances.map((inst) => (
-                    <SelectItem key={inst.id} value={inst.id}>
-                      {inst.name} ({inst.status || "sem status"})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Grupo de destino do resumo</Label>
-              <Select value={drDestGroup} onValueChange={setDrDestGroup}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o grupo de destino" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientGroups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tipo de envio</Label>
-              <Select value={drSendType} onValueChange={(v) => setDrSendType(v as "all" | "specific")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os grupos</SelectItem>
-                  <SelectItem value="specific">Grupo específico</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {drSendType === "specific" && (
-              <div className="space-y-2">
-                <Label>Grupo para gerar relatório</Label>
-                <Select value={drTargetGroup} onValueChange={setDrTargetGroup}>
+            <div className="flex flex-col sm:flex-row gap-4 items-end">
+              <div className="space-y-2 flex-1">
+                <Label>Instância WhatsApp</Label>
+                <Select value={drInstance} onValueChange={setDrInstance}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o grupo" />
+                    <SelectValue placeholder="Selecione a instância" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clientGroups.map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.name}
+                    {instances.map((inst) => (
+                      <SelectItem key={inst.id} value={inst.id}>
+                        {inst.name} ({inst.status || "sem status"})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {drInstance && (
+                <Button
+                  onClick={handleLoadAllPreviews}
+                  disabled={drStatus === "loading"}
+                  variant="secondary"
+                >
+                  {drStatus === "loading" ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Gerando...</>
+                  ) : (
+                    <><FileText className="h-4 w-4" /> Carregar Previews</>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {/* Group Cards Grid */}
+            {drInstance && clientGroups.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                {clientGroups.map((group) => {
+                  const preview = previews.get(group.id);
+                  const isLoading = loadingPreviewId === group.id;
+
+                  return (
+                    <Card key={group.id} className="border-border/50">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-medium text-sm leading-tight truncate flex-1">
+                            {group.name}
+                          </h3>
+                          {preview && (
+                            <Badge variant={preview.hasDemands ? "default" : "secondary"} className="shrink-0 text-[10px]">
+                              {preview.hasDemands ? "Demandas" : "Interação"}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {preview && (
+                          <div className="flex gap-2 text-xs text-muted-foreground">
+                            {preview.demandsCount > 0 && (
+                              <span className="flex items-center gap-1">
+                                <FileText className="h-3 w-3" /> {preview.demandsCount} demandas
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3" /> {preview.messagesCount} msgs
+                            </span>
+                          </div>
+                        )}
+
+                        {preview?.message && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {preview.message.split("\n").slice(2, 4).join(" ")}
+                          </p>
+                        )}
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          disabled={isLoading}
+                          onClick={() => {
+                            if (preview?.message) {
+                              setPreviewModal(preview);
+                            } else {
+                              handleLoadSinglePreview(group.id);
+                            }
+                          }}
+                        >
+                          {isLoading ? (
+                            <><Loader2 className="h-3 w-3 animate-spin" /> Gerando...</>
+                          ) : (
+                            <><Eye className="h-3 w-3" /> Visualizar Mensagem</>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             )}
 
-            <Button onClick={handleDailyReport} disabled={drStatus === "loading"} className="w-full">
-              {drStatus === "loading" ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Disparando...</>
-              ) : (
-                <><Send className="h-4 w-4" /> Disparar Resumo Diário</>
-              )}
-            </Button>
-
-            <ResponseBlock response={drResponse} status={drStatus} />
+            {drInstance && clientGroups.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum grupo de cliente ativo encontrado.
+              </p>
+            )}
           </CardContent>
         </Card>
 
         {/* Card 2: Estouro de SLA */}
-        <Card>
+        <Card className="max-w-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <AlertTriangle className="h-5 w-5" />
@@ -303,6 +361,21 @@ export default function Tests() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Preview Modal */}
+      <Dialog open={!!previewModal} onOpenChange={(open) => !open && setPreviewModal(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{previewModal?.groupName}</DialogTitle>
+            <DialogDescription>
+              Prévia da mensagem que será enviada no WhatsApp
+            </DialogDescription>
+          </DialogHeader>
+          <div className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-md font-mono leading-relaxed">
+            {previewModal?.message || "Sem mensagem disponível"}
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
