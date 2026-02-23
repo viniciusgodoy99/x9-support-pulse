@@ -56,6 +56,12 @@ export default function Tests() {
     }
   }, [instances]);
 
+  // Reset filter when instance changes or when no previews
+  useEffect(() => {
+    setInteractionFilter("all");
+    setPreviews(new Map());
+  }, [drInstance]);
+
   async function fetchClientGroups() {
     const { data } = await supabase
       .from("monitored_groups")
@@ -175,7 +181,7 @@ export default function Tests() {
                   <div className="space-y-2">
                     <Label>Filtro</Label>
                     <Select value={interactionFilter} onValueChange={(v) => setInteractionFilter(v as any)}>
-                      <SelectTrigger className="w-[180px]">
+                      <SelectTrigger className="w-[180px]" disabled={previews.size === 0}>
                         <Filter className="h-4 w-4 mr-2 shrink-0" />
                         <SelectValue />
                       </SelectTrigger>
