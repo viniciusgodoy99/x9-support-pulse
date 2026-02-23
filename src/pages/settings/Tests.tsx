@@ -11,8 +11,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWhatsAppInstances } from "@/hooks/useWhatsAppInstances";
 import { useToast } from "@/hooks/use-toast";
 import {
-  FlaskConical, Send, AlertTriangle, ChevronDown, Loader2,
-  CheckCircle2, XCircle, Eye, MessageSquare, FileText
+  FlaskConical,
+  Send,
+  AlertTriangle,
+  ChevronDown,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Eye,
+  MessageSquare,
+  FileText,
 } from "lucide-react";
 
 interface MonitoredGroup {
@@ -118,7 +126,11 @@ export default function Tests() {
         setPreviews((prev) => new Map(prev).set(preview.groupId, preview));
         setPreviewModal(preview);
       } else {
-        toast({ title: "Sem dados", description: "Não há interações hoje para gerar preview deste grupo.", variant: "destructive" });
+        toast({
+          title: "Sem dados",
+          description: "Não há interações hoje para gerar preview deste grupo.",
+          variant: "destructive",
+        });
       }
     } catch (err: any) {
       toast({ title: "Erro ao gerar preview", description: err?.message, variant: "destructive" });
@@ -210,15 +222,15 @@ export default function Tests() {
               </div>
 
               {drInstance && (
-                <Button
-                  onClick={handleLoadAllPreviews}
-                  disabled={drStatus === "loading"}
-                  variant="secondary"
-                >
+                <Button onClick={handleLoadAllPreviews} disabled={drStatus === "loading"} variant="secondary">
                   {drStatus === "loading" ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Gerando...</>
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Gerando...
+                    </>
                   ) : (
-                    <><FileText className="h-4 w-4" /> Carregar Previews</>
+                    <>
+                      <FileText className="h-4 w-4" /> Carregar Previews
+                    </>
                   )}
                 </Button>
               )}
@@ -234,15 +246,16 @@ export default function Tests() {
                   return (
                     <Card key={group.id} className="border-border/50">
                       <CardContent className="p-4 space-y-3">
-                          </h3>
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-medium text-sm leading-tight truncate flex-1">{group.name}</h3>
                           {preview && (
-                            <Badge variant={preview.hasDemands ? "default" : "secondary"} className="shrink-0 text-[10px]">
+                            <Badge
+                              variant={preview.hasDemands ? "default" : "secondary"}
+                              className="shrink-0 text-[10px]"
+                            >
                               {preview.hasDemands ? "Demandas" : "Interação"}
                             </Badge>
                           )}
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-medium text-sm leading-tight truncate flex-1">
-                            {group.name}
                         </div>
 
                         {preview && (
@@ -278,9 +291,13 @@ export default function Tests() {
                           }}
                         >
                           {isLoading ? (
-                            <><Loader2 className="h-3 w-3 animate-spin" /> Gerando...</>
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" /> Gerando...
+                            </>
                           ) : (
-                            <><Eye className="h-3 w-3" /> Visualizar Mensagem</>
+                            <>
+                              <Eye className="h-3 w-3" /> Visualizar Mensagem
+                            </>
                           )}
                         </Button>
                       </CardContent>
@@ -305,9 +322,7 @@ export default function Tests() {
               <AlertTriangle className="h-5 w-5" />
               Estouro de SLA
             </CardTitle>
-            <CardDescription>
-              Simule um alerta de estouro de SLA para testar as notificações.
-            </CardDescription>
+            <CardDescription>Simule um alerta de estouro de SLA para testar as notificações.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -351,9 +366,13 @@ export default function Tests() {
 
             <Button onClick={handleSlaTest} disabled={slaStatus === "loading"} variant="destructive" className="w-full">
               {slaStatus === "loading" ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Simulando...</>
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Simulando...
+                </>
               ) : (
-                <><AlertTriangle className="h-4 w-4" /> Simular Alerta de SLA</>
+                <>
+                  <AlertTriangle className="h-4 w-4" /> Simular Alerta de SLA
+                </>
               )}
             </Button>
 
@@ -367,9 +386,7 @@ export default function Tests() {
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{previewModal?.groupName}</DialogTitle>
-            <DialogDescription>
-              Prévia da mensagem que será enviada no WhatsApp
-            </DialogDescription>
+            <DialogDescription>Prévia da mensagem que será enviada no WhatsApp</DialogDescription>
           </DialogHeader>
           <div className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-md font-mono leading-relaxed">
             {previewModal?.message || "Sem mensagem disponível"}
