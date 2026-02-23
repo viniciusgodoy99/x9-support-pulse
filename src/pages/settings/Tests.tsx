@@ -78,7 +78,7 @@ export default function Tests() {
       const { data: group } = await supabase
         .from("monitored_groups")
         .select("name")
-        .eq("id", setting.value)
+        .eq("whatsapp_id", setting.value)
         .single();
       if (group) setSlaNotificationGroupName(group.name);
     }
