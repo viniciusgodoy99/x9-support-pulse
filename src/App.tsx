@@ -14,6 +14,7 @@ import GroupMembers from "./pages/settings/GroupMembers";
 import TeamSettings from "./pages/settings/Team";
 import Settings from "./pages/settings/Settings";
 import WhatsAppConnect from "./pages/settings/WhatsAppConnect";
+import Tests from "./pages/settings/Tests";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 
@@ -91,6 +92,10 @@ const App = () => {
             <Route
               path="/settings/whatsapp"
               element={<ProtectedRoute session={session}><WhatsAppConnect /></ProtectedRoute>}
+            />
+            <Route
+              path="/settings/tests"
+              element={<ProtectedRoute session={session}><Tests /></ProtectedRoute>}
             />
             <Route
               path="/settings"

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Radio, Users, MessageSquare, Snowflake, Clock, Smartphone, ClipboardList, LogOut } from "lucide-react";
+import { LayoutDashboard, Radio, Users, MessageSquare, Snowflake, Clock, Smartphone, ClipboardList, LogOut, FlaskConical } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -110,6 +110,20 @@ export function AppSidebar() {
                     </div>
                   </div>
                   <span>WhatsApp</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Testes */}
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <NavLink
+                  to="/settings/tests"
+                  className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                  activeClassName="bg-primary text-primary-foreground"
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  <span>Testes</span>
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
