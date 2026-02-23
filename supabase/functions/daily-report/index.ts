@@ -340,28 +340,43 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
     }
   }
 
-  // Fetch demands as optional enrichment data
-  const { data: allTickets, error: ticketsError } = await supabase
-    .from("tickets")
-    .select("id, group_id")
-    .in("group_id", groupIds);
-
-  if (ticketsError) throw ticketsError;
-
-  const ticketIds = allTickets?.map((t) => t.id) || [];
-  const ticketGroupMap = new Map(allTickets?.map((t) => [t.id, t.group_id]) || []);
-
+  // Fetch demands via tickets, batching to avoid URL length limits
+  const TICKET_BATCH = 50;
+  const ticketGroupMap = new Map<string, string>();
   let allDemands: TicketDemand[] = [];
-  if (ticketIds.length > 0) {
-    const { data: demands, error: demandsError } = await supabase
-      .from("ticket_demands")
-      .select("id, description, status, resolution_time_minutes, sla_exceeded, created_at, ticket_id")
-      .in("ticket_id", ticketIds)
-      .gte("created_at", todayStartISO)
-      .order("created_at", { ascending: true });
 
-    if (demandsError) throw demandsError;
-    allDemands = demands || [];
+  for (let i = 0; i < groupIds.length; i += TICKET_BATCH) {
+    const batchGroupIds = groupIds.slice(i, i + TICKET_BATCH);
+
+    const { data: batchTickets, error: ticketsError } = await supabase
+      .from("tickets")
+      .select("id, group_id")
+      .in("group_id", batchGroupIds);
+
+    if (ticketsError) throw ticketsError;
+    if (!batchTickets || batchTickets.length === 0) continue;
+
+    for (const t of batchTickets) {
+      ticketGroupMap.set(t.id, t.group_id);
+    }
+
+    const batchTicketIds = batchTickets.map((t) => t.id);
+
+    // Sub-batch ticket IDs for demands query (max ~100 per query)
+    const DEMAND_BATCH = 100;
+    for (let j = 0; j < batchTicketIds.length; j += DEMAND_BATCH) {
+      const demandBatchIds = batchTicketIds.slice(j, j + DEMAND_BATCH);
+
+      const { data: demands, error: demandsError } = await supabase
+        .from("ticket_demands")
+        .select("id, description, status, resolution_time_minutes, sla_exceeded, created_at, ticket_id")
+        .in("ticket_id", demandBatchIds)
+        .gte("created_at", todayStartISO)
+        .order("created_at", { ascending: true });
+
+      if (demandsError) throw demandsError;
+      if (demands) allDemands.push(...demands);
+    }
   }
 
   console.log(`Found ${allDemands.length} demands for today`);
