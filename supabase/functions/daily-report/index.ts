@@ -420,7 +420,8 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Parse body for batch parameters
-    const body: Partial<BatchPayload> = await req.json().catch(() => ({}));
+    const body: Partial<BatchPayload> & { previewOnly?: boolean; targetGroupId?: string } = await req.json().catch(() => ({}));
+    const previewOnly = body.previewOnly === true;
     const offset = body.offset || 0;
     const precomputedReports = body.reports || null;
     const precomputedInstance = body.instanceData || null;
@@ -455,9 +456,51 @@ Deno.serve(async (req) => {
       console.log(`Continuing batch at offset ${offset}, ${reports.length} total groups`);
     }
 
+    // Filter by targetGroupId if provided
+    let filteredReports = reports;
+    if (body.targetGroupId) {
+      filteredReports = reports.filter((r) => r.group.id === body.targetGroupId);
+    }
+
+    // Preview-only mode: generate messages without sending
+    if (previewOnly) {
+      console.log(`Preview mode: generating messages for ${filteredReports.length} groups`);
+      const previews = [];
+      for (const report of filteredReports) {
+        try {
+          const message = await formatGroupMessage(report, dateStr);
+          previews.push({
+            groupId: report.group.id,
+            groupName: report.group.name,
+            whatsappId: report.group.whatsapp_id,
+            hasDemands: report.totalDemands > 0,
+            demandsCount: report.totalDemands,
+            messagesCount: report.messages.length,
+            message,
+          });
+        } catch (error) {
+          console.error(`Error generating preview for ${report.group.name}: ${error}`);
+          previews.push({
+            groupId: report.group.id,
+            groupName: report.group.name,
+            whatsappId: report.group.whatsapp_id,
+            hasDemands: report.totalDemands > 0,
+            demandsCount: report.totalDemands,
+            messagesCount: report.messages.length,
+            message: null,
+            error: String(error),
+          });
+        }
+      }
+      return new Response(
+        JSON.stringify({ success: true, previews }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Process current batch
-    const batch = reports.slice(offset, offset + BATCH_SIZE);
-    console.log(`Iniciando processamento do lote: Offset ${offset + 1} a ${offset + batch.length} de ${reports.length} grupos`);
+    const batch = filteredReports.slice(offset, offset + BATCH_SIZE);
+    console.log(`Iniciando processamento do lote: Offset ${offset + 1} a ${offset + batch.length} de ${filteredReports.length} grupos`);
 
     let sentCount = 0;
     let failedCount = 0;
