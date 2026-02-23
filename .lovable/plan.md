@@ -1,137 +1,64 @@
 
-# Narrativa por IA para Grupos com Apenas Interações (sem demandas)
+# Adicionar Página "Testes" na Sidebar
 
-## Situação Atual
+## Contexto
 
-- Grupos **com demandas**: IA gera narrativa baseada nas descrições das demandas
-- Grupos **sem demandas (só interações)**: mensagem fixa `"Hoje passamos por aqui e mantivemos o contato em dia. 😊"`
+Antes de tudo: **hoje é domingo**, e o cron do `daily-report` roda apenas de segunda a sexta (`50 20 * * 1-5`). Por isso, nao houve envio de resumo diario hoje. O `analyze-tickets` roda a cada hora e os cron jobs mostram "succeeded", mas nao ha logs da edge function — pode ser que a funcao nao esteja deployada. A pagina de testes vai permitir disparar manualmente esses processos para validar.
 
-## Objetivo
+## O que sera feito
 
-Usar a IA para gerar uma narrativa humanizada também para grupos sem demandas formais, baseando-se no conteúdo real das mensagens trocadas no dia.
+### 1. Adicionar item "Testes" na Sidebar
 
-## Dados Disponíveis para a IA
+- Icone: `FlaskConical` (lucide-react)
+- Posicao: dentro do grupo "Configuracoes", apos o WhatsApp
+- Rota: `/settings/tests`
 
-A tabela `messages` tem os campos:
-- `content` — texto da mensagem
-- `sender_name` — nome de quem enviou
-- `sender_role` — papel do remetente (cliente, atendente, etc.)
-- `created_at` — horário da mensagem
+### 2. Criar pagina `src/pages/settings/Tests.tsx`
 
-Esses campos permitem à IA entender o tom e o conteúdo das trocas do dia, mesmo sem demandas identificadas.
+A pagina tera duas secoes (cards):
 
-## Mudanças no Código
+**Card 1: Resumo Diario**
+- Label: "Instancia WhatsApp" + dropdown com as instancias disponiveis
+- Label: "Grupo de destino do resumo" + dropdown com os grupos de cliente ativos
+- Label: "Tipo de envio" + dropdown (Todos os grupos / Grupo especifico)
+- Se "Grupo especifico", mostrar dropdown para selecionar qual grupo tera o relatorio gerado
+- Botao "Disparar Resumo Diario" que chama a edge function `daily-report` via POST
 
-### Arquivo: `supabase/functions/daily-report/index.ts`
+**Card 2: Estouro de SLA**
+- Label: "Instancia WhatsApp" + dropdown com as instancias
+- Label: "Grupo de notificacao" + mostra o grupo configurado em settings (`sla_notification_group_id`)
+- Label: "Grupo para simular estouro" + dropdown com grupos de cliente ativos
+- Botao "Simular Alerta de SLA" que chama a edge function `analyze-tickets` via POST com parametro de teste
 
-### 1. Buscar mensagens do dia por grupo (em `prepareReports`)
+Ambos os cards mostrarao:
+- Status do ultimo disparo (loading, sucesso, erro)
+- Resposta da edge function em um bloco de texto expansivel
 
-Adicionar uma query que traga as mensagens de hoje dos grupos que serão processados, limitando a 20 mensagens por grupo para não sobrecarregar o contexto da IA:
+### 3. Registrar rota no App.tsx
 
-```typescript
-// Fetch messages for groups with no demands (for AI narrative context)
-const { data: todayMessages } = await supabase
-  .from("messages")
-  .select("group_id, content, sender_name, sender_role, created_at")
-  .in("group_id", groupIds)
-  .gte("created_at", todayStartISO)
-  .order("created_at", { ascending: true });
-```
+- Adicionar `/settings/tests` como rota protegida apontando para o componente `Tests`
 
-Organizar por grupo em um Map:
-```typescript
-const messagesByGroup = new Map<string, typeof todayMessages>();
-for (const msg of todayMessages || []) {
-  if (!messagesByGroup.has(msg.group_id)) messagesByGroup.set(msg.group_id, []);
-  messagesByGroup.get(msg.group_id)!.push(msg);
-}
-```
+## Detalhes tecnicos
 
-### 2. Adicionar `messages` ao `GroupReport`
+### Arquivos a criar
+- `src/pages/settings/Tests.tsx`
 
-Incluir as mensagens do dia no interface e no objeto de report:
+### Arquivos a modificar
+- `src/components/layout/AppSidebar.tsx` — adicionar item "Testes" com icone `FlaskConical`
+- `src/App.tsx` — registrar rota `/settings/tests`
 
-```typescript
-interface GroupReport {
-  group: MonitoredGroup;
-  demands: TicketDemand[];
-  messages: { content: string; sender_name: string; sender_role: string }[];
-  // ... demais campos
-}
-```
+### Dados dos dropdowns
+- **Instancias**: query em `whatsapp_instances` (nome + status)
+- **Grupos de cliente**: query em `monitored_groups` onde `is_client_group = true` e `is_archived = false`
+- **Grupo de notificacao SLA**: lido da tabela `settings` (key = `sla_notification_group_id`)
 
-### 3. Atualizar `generateNarrativeSummary`
+### Chamadas as edge functions
+- Resumo diario: `POST /functions/v1/daily-report` com body opcional `{ targetGroupId: "..." }`
+- Estouro de SLA: `POST /functions/v1/analyze-tickets` com body `{ testMode: true, groupId: "..." }`
 
-Remover o early return fixo para grupos sem demandas. Em vez disso, passar as mensagens como contexto alternativo:
-
-**Antes:**
-```typescript
-// No demands today — use a fixed friendly message, skip AI
-if (!hasDemands) {
-  return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
-}
-```
-
-**Depois:**
-```typescript
-// Grupos sem demandas: usar conteúdo das mensagens como contexto
-if (!hasDemands) {
-  if (!messages || messages.length === 0) {
-    return "Hoje passamos por aqui e mantivemos o contato em dia. 😊";
-  }
-  // gerar narrativa com base nas mensagens
-}
-```
-
-Para grupos **sem demandas**, o prompt para a IA será diferente:
-
-- **Input**: lista das mensagens do dia (sender_name, sender_role, content), truncadas se necessário
-- **Instrução adicional**: "Não há demandas formais registradas. Baseie-se nas mensagens abaixo para descrever brevemente o que foi conversado no dia, de forma humanizada e focada no relacionamento."
-- **Fallback**: se a IA falhar, usar a mensagem fixa atual
-
-### 4. Atualizar `formatGroupMessage` e `generateNarrativeSummary`
-
-Assinar a função com o parâmetro `messages`:
-```typescript
-async function generateNarrativeSummary(
-  groupName: string,
-  demands: TicketDemand[],
-  messages: { content: string; sender_name: string; sender_role: string }[],
-  hasDemands: boolean
-): Promise<string>
-```
-
-## Fluxo Atualizado
-
-```text
-Grupo tem interação no dia?
-        |
-        v
-    Sim → Vai receber relatório
-        |
-        v
-Tem ticket_demands hoje?
-   /          \
-  Sim          Não
-   |            |
-   v            v
-Narrativa     Busca mensagens do dia
-baseada em    e envia para IA gerar
-demandas      narrativa baseada no
-              conteúdo das mensagens
-```
-
-## Comportamento do Fallback
-
-- Se a IA falhar (API indisponível, erro de rede): usa a mensagem fixa atual como fallback
-- Se o grupo não tiver mensagens com conteúdo suficiente: usa a mensagem fixa como fallback
-
-## Arquivo Modificado
-
-- `supabase/functions/daily-report/index.ts`
-
-## Impacto
-
-- Grupos com apenas interações passam a receber uma narrativa gerada por IA, coerente com o que foi realmente conversado no dia
-- O custo de chamadas à IA aumenta proporcionalmente — grupos sem demandas antes não consumiam tokens, agora consumirão
-- A resiliência (batching, try/catch, fallback) permanece intacta
+### Layout
+- Usa `MainLayout` com header "Testes de Envio"
+- Cards com `Card`, `CardHeader`, `CardContent` do shadcn
+- Dropdowns com `Select` do shadcn
+- Botoes com `Button` do shadcn
+- Feedback com `toast` e area de resposta inline
