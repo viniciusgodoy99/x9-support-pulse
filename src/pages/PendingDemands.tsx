@@ -1,14 +1,17 @@
 import { useState, useMemo } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { PendingDemandCard } from "@/components/demands/PendingDemandCard";
+import { ArchivedDemandCard } from "@/components/demands/ArchivedDemandCard";
 import { usePendingDemands } from "@/hooks/usePendingDemands";
+import { useArchivedDemands } from "@/hooks/useArchivedDemands";
 import { useGroups } from "@/hooks/useGroups";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RefreshCw, Filter, ClipboardList, Inbox, Tag } from "lucide-react";
+import { RefreshCw, Filter, ClipboardList, Inbox, Tag, Archive } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -32,29 +35,29 @@ const priorityConfig: Record<string, { label: string }> = {
 
 export default function PendingDemands() {
   const { demands, loading, refetch } = usePendingDemands();
+  const { demands: archivedDemands, loading: archivedLoading, refetch: refetchArchived } = useArchivedDemands();
   const { groups } = useGroups();
 
+  const [activeTab, setActiveTab] = useState("pending");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
 
   const filteredDemands = useMemo(() => {
-    let result = demands;
+    const source = activeTab === "pending" ? demands : archivedDemands;
+    let result = source;
 
     if (selectedGroup !== "all") {
       result = result.filter((d) => d.group_id === selectedGroup);
     }
-
     if (selectedCategories.length > 0) {
       result = result.filter((d) => selectedCategories.includes(d.category));
     }
-
     if (selectedPriorities.length > 0) {
       result = result.filter((d) => selectedPriorities.includes(d.priority));
     }
-
     return result;
-  }, [demands, selectedGroup, selectedCategories, selectedPriorities]);
+  }, [demands, archivedDemands, activeTab, selectedGroup, selectedCategories, selectedPriorities]);
 
   const activeFiltersCount = (selectedGroup !== "all" ? 1 : 0) + selectedCategories.length + selectedPriorities.length;
 
@@ -76,7 +79,13 @@ export default function PendingDemands() {
     );
   };
 
+  const handleArchived = () => {
+    refetch();
+    refetchArchived();
+  };
+
   const clientGroups = groups.filter((g) => g.is_client_group && g.is_active);
+  const isLoading = activeTab === "pending" ? loading : archivedLoading;
 
   const headerContent = (
     <div className="flex flex-1 flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
@@ -95,168 +104,191 @@ export default function PendingDemands() {
   return (
     <MainLayout headerContent={headerContent}>
       <div className="space-y-6">
-        {/* Header with actions */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <ClipboardList className="h-5 w-5" />
-              <span className="text-sm">
-                {loading ? (
-                  "Carregando..."
-                ) : (
-                  <>
-                    <span className="font-semibold text-foreground">{filteredDemands.length}</span> demanda
-                    {filteredDemands.length !== 1 ? "s" : ""} pendente
-                    {filteredDemands.length !== 1 ? "s" : ""}
-                  </>
-                )}
-              </span>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <TabsList>
+                <TabsTrigger value="pending" className="gap-2">
+                  <ClipboardList className="h-4 w-4" />
+                  Pendentes
+                  {demands.length > 0 && (
+                    <Badge variant="secondary" className="ml-1">{demands.length}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="archived" className="gap-2">
+                  <Archive className="h-4 w-4" />
+                  Arquivadas
+                  {archivedDemands.length > 0 && (
+                    <Badge variant="outline" className="ml-1">{archivedDemands.length}</Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
             </div>
-          </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            {/* Group Filter */}
-            <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {clientGroups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {clientGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            {/* Advanced Filters */}
-            <Popover>
+              <Popover>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <Filter className="h-4 w-4" />
+                        Filtros
+                        {activeFiltersCount > 0 && (
+                          <Badge variant="secondary" className="ml-1">{activeFiltersCount}</Badge>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Abrir filtros avançados</p></TooltipContent>
+                </Tooltip>
+                <PopoverContent className="w-[90vw] sm:w-80" align="end">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Filtros Avançados</h4>
+                      {activeFiltersCount > 0 && (
+                        <Button variant="ghost" size="sm" onClick={handleClearFilters} className="h-auto py-1 px-2 text-xs">
+                          Limpar Filtros
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Prioridade</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(priorityConfig).map(([key, { label }]) => (
+                          <div key={key} className="flex items-center space-x-2">
+                            <Checkbox id={`priority-${key}`} checked={selectedPriorities.includes(key)} onCheckedChange={() => togglePriority(key)} />
+                            <label htmlFor={`priority-${key}`} className="text-sm cursor-pointer">{label}</label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center gap-1.5">
+                        <Tag className="h-3.5 w-3.5" />
+                        Categoria
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(categoryConfig).map(([key, { label }]) => (
+                          <div key={key} className="flex items-center space-x-2">
+                            <Checkbox id={`category-${key}`} checked={selectedCategories.includes(key)} onCheckedChange={() => toggleCategory(key)} />
+                            <label htmlFor={`category-${key}`} className="text-sm cursor-pointer">{label}</label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Filter className="h-4 w-4" />
-                      Filtros
-                      {activeFiltersCount > 0 && (
-                        <Badge variant="secondary" className="ml-1">
-                          {activeFiltersCount}
-                        </Badge>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
+                  <Button variant="outline" size="sm" onClick={() => activeTab === "pending" ? refetch() : refetchArchived()} disabled={isLoading} className="gap-2">
+                    <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                    Atualizar
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent>
-                  <p>Abrir filtros avançados</p>
-                </TooltipContent>
+                <TooltipContent><p>Atualizar lista de demandas</p></TooltipContent>
               </Tooltip>
-              <PopoverContent className="w-[90vw] sm:w-80" align="end">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Filtros Avançados</h4>
-                    {activeFiltersCount > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleClearFilters}
-                        className="h-auto py-1 px-2 text-xs"
-                      >
-                        Limpar Filtros
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Priority Filter */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Prioridade</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(priorityConfig).map(([key, { label }]) => (
-                        <div key={key} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`priority-${key}`}
-                            checked={selectedPriorities.includes(key)}
-                            onCheckedChange={() => togglePriority(key)}
-                          />
-                          <label htmlFor={`priority-${key}`} className="text-sm cursor-pointer">
-                            {label}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Category Filter */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium flex items-center gap-1.5">
-                      <Tag className="h-3.5 w-3.5" />
-                      Categoria
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(categoryConfig).map(([key, { label }]) => (
-                        <div key={key} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`category-${key}`}
-                            checked={selectedCategories.includes(key)}
-                            onCheckedChange={() => toggleCategory(key)}
-                          />
-                          <label htmlFor={`category-${key}`} className="text-sm cursor-pointer">
-                            {label}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {/* Refresh Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading} className="gap-2">
-                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  Atualizar
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Atualizar lista de demandas</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-
-        {/* Content */}
-        {loading ? (
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-[180px] rounded-lg" />
-            ))}
-          </div>
-        ) : filteredDemands.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="rounded-full bg-muted p-4 mb-4">
-              <Inbox className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-1">Nenhuma demanda pendente</h3>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              {activeFiltersCount > 0
-                ? "Nenhuma demanda encontrada com os filtros selecionados. Tente ajustar os filtros."
-                : "Todas as demandas foram resolvidas. Excelente trabalho! 🎉"}
-            </p>
-            {activeFiltersCount > 0 && (
-              <Button variant="outline" size="sm" onClick={handleClearFilters} className="mt-4">
-                Limpar Filtros
-              </Button>
+          </div>
+
+          {/* Pending Tab */}
+          <TabsContent value="pending" className="mt-6">
+            {loading ? (
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {[...Array(6)].map((_, i) => (
+                  <Skeleton key={i} className="h-[180px] rounded-lg" />
+                ))}
+              </div>
+            ) : filteredDemands.length === 0 ? (
+              <EmptyState
+                hasFilters={activeFiltersCount > 0}
+                onClearFilters={handleClearFilters}
+                message="Todas as demandas foram resolvidas. Excelente trabalho! 🎉"
+                filterMessage="Nenhuma demanda encontrada com os filtros selecionados."
+              />
+            ) : (
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredDemands.map((demand) => (
+                  <PendingDemandCard key={demand.id} demand={demand} onArchived={handleArchived} />
+                ))}
+              </div>
             )}
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredDemands.map((demand) => (
-              <PendingDemandCard key={demand.id} demand={demand} />
-            ))}
-          </div>
-        )}
+          </TabsContent>
+
+          {/* Archived Tab */}
+          <TabsContent value="archived" className="mt-6">
+            {archivedLoading ? (
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {[...Array(6)].map((_, i) => (
+                  <Skeleton key={i} className="h-[160px] rounded-lg" />
+                ))}
+              </div>
+            ) : filteredDemands.length === 0 ? (
+              <EmptyState
+                hasFilters={activeFiltersCount > 0}
+                onClearFilters={handleClearFilters}
+                message="Nenhuma demanda arquivada nos últimos 30 dias."
+                filterMessage="Nenhuma demanda arquivada encontrada com os filtros selecionados."
+                icon={<Archive className="h-8 w-8 text-muted-foreground" />}
+              />
+            ) : (
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredDemands.map((demand) => (
+                  <ArchivedDemandCard key={demand.id} demand={demand} onRestored={handleArchived} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </MainLayout>
+  );
+}
+
+function EmptyState({
+  hasFilters,
+  onClearFilters,
+  message,
+  filterMessage,
+  icon,
+}: {
+  hasFilters: boolean;
+  onClearFilters: () => void;
+  message: string;
+  filterMessage: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="rounded-full bg-muted p-4 mb-4">
+        {icon || <Inbox className="h-8 w-8 text-muted-foreground" />}
+      </div>
+      <h3 className="text-lg font-semibold mb-1">
+        {hasFilters ? "Nenhum resultado" : "Nada por aqui"}
+      </h3>
+      <p className="text-sm text-muted-foreground max-w-sm">
+        {hasFilters ? filterMessage : message}
+      </p>
+      {hasFilters && (
+        <Button variant="outline" size="sm" onClick={onClearFilters} className="mt-4">
+          Limpar Filtros
+        </Button>
+      )}
+    </div>
   );
 }
