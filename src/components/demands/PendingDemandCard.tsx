@@ -1,21 +1,35 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { Progress } from "@/components/ui/progress";
-import { Clock, User, MessageSquare, Tag, AlertTriangle, Calendar, Phone, FileText, Timer } from "lucide-react";
+import { Clock, User, MessageSquare, Tag, AlertTriangle, Calendar, Phone, FileText, Timer, Archive } from "lucide-react";
 import { PendingDemand } from "@/hooks/usePendingDemands";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface PendingDemandCardProps {
   demand: PendingDemand;
+  onArchived?: () => void;
 }
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
@@ -71,8 +85,10 @@ function getSlaPercentage(waitingTimeMinutes: number, slaLimit: number) {
   return Math.min((waitingTimeMinutes / slaLimit) * 100, 100);
 }
 
-export function PendingDemandCard({ demand }: PendingDemandCardProps) {
+export function PendingDemandCard({ demand, onArchived }: PendingDemandCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const { toast } = useToast();
   const [elapsedTime, setElapsedTime] = useState(
     Date.now() - new Date(demand.created_at).getTime()
   );
@@ -116,6 +132,33 @@ export function PendingDemandCard({ demand }: PendingDemandCardProps) {
 
   const handleCardClick = () => {
     setIsModalOpen(true);
+  };
+
+  const handleArchive = async () => {
+    try {
+      setIsArchiving(true);
+      const { error } = await supabase
+        .from("ticket_demands")
+        .update({ status: "closed" })
+        .eq("id", demand.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Demanda arquivada",
+        description: "A demanda foi marcada como fechada e arquivada.",
+      });
+      setIsModalOpen(false);
+      onArchived?.();
+    } catch (err: any) {
+      toast({
+        title: "Erro ao arquivar",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsArchiving(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -331,6 +374,33 @@ export function PendingDemandCard({ demand }: PendingDemandCardProps) {
                   </div>
                 )}
               </div>
+            </div>
+            {/* Archive Action */}
+            <Separator />
+            <div className="flex justify-end">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2" disabled={isArchiving}>
+                    <Archive className="h-4 w-4" />
+                    Arquivar Demanda
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Arquivar demanda?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta demanda será marcada como fechada e removida da lista de pendentes.
+                      Você poderá visualizá-la na aba de demandas arquivadas.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleArchive} disabled={isArchiving}>
+                      {isArchiving ? "Arquivando..." : "Confirmar"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </DialogContent>
