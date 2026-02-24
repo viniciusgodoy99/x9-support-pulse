@@ -377,10 +377,10 @@ export function PendingDemandCard({ demand, onArchived }: PendingDemandCardProps
             </div>
             {/* Archive Action */}
             <Separator />
-            <div className="flex justify-end">
+            <div className="flex">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2" disabled={isArchiving}>
+                  <Button variant="outline" size="sm" className="gap-2 w-full" disabled={isArchiving}>
                     <Archive className="h-4 w-4" />
                     Arquivar Demanda
                   </Button>
