@@ -29,6 +29,7 @@ import { useTickets } from "@/hooks/useTickets";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useGroups } from "@/hooks/useGroups";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { BrandFilter, filterByBrand } from "@/components/filters/BrandFilter";
 import { TicketHistoryCard } from "@/components/reports/TicketHistoryCard";
 import {
   BarChart,
@@ -66,6 +67,7 @@ export default function Dashboard() {
 
   const [selectedCS, setSelectedCS] = useState<string>("all");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [slaDistribution, setSlaDistribution] = useState<{ name: string; value: number }[]>([]);
@@ -86,6 +88,14 @@ export default function Dashboard() {
   const filteredTickets = useMemo(() => {
     let result = tickets;
 
+    // Brand filter
+    if (selectedBrand !== "all") {
+      result = result.filter((t) => {
+        const groupName = (t.monitored_groups?.name || "").toLowerCase();
+        return groupName.includes(selectedBrand);
+      });
+    }
+
     if (selectedGroup !== "all") {
       result = result.filter((t) => t.monitored_groups?.id === selectedGroup);
     }
@@ -99,12 +109,12 @@ export default function Dashboard() {
     }
 
     return result;
-  }, [tickets, selectedGroup, selectedCS, selectedCategories]);
+  }, [tickets, selectedGroup, selectedBrand, selectedCS, selectedCategories]);
 
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCS, selectedGroup, selectedCategories]);
+  }, [selectedCS, selectedGroup, selectedBrand, selectedCategories]);
 
   // Stats calculation
   useEffect(() => {
@@ -269,7 +279,7 @@ export default function Dashboard() {
   const loading = ticketsLoading || membersLoading || groupsLoading;
 
   const activeFiltersCount =
-    (selectedCS !== "all" ? 1 : 0) + (selectedGroup !== "all" ? 1 : 0) + selectedCategories.length;
+    (selectedCS !== "all" ? 1 : 0) + (selectedGroup !== "all" ? 1 : 0) + (selectedBrand !== "all" ? 1 : 0) + selectedCategories.length;
 
   const chartHeight = isMobile ? 250 : 300;
 
@@ -315,9 +325,14 @@ export default function Dashboard() {
             </Tooltip>
             <PopoverContent className="w-[90vw] sm:w-80" align="end">
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">Filtros Avançados</h4>
-                  <p className="text-sm text-muted-foreground">Filtre os dados por CS, grupo ou categoria</p>
+                 <div className="space-y-2">
+                   <Label className="flex items-center gap-2">Marca</Label>
+                   <BrandFilter value={selectedBrand} onChange={setSelectedBrand} className="w-full" />
+                 </div>
+
+                 <div className="space-y-2">
+                   <h4 className="font-medium leading-none">Filtros Avançados</h4>
+                   <p className="text-sm text-muted-foreground">Filtre os dados por CS, grupo ou categoria</p>
                 </div>
 
                 <div className="space-y-2">
@@ -395,6 +410,7 @@ export default function Dashboard() {
                     onClick={() => {
                       setSelectedCS("all");
                       setSelectedGroup("all");
+                      setSelectedBrand("all");
                       setSelectedCategories([]);
                     }}
                   >

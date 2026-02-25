@@ -13,18 +13,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BrandFilter } from "@/components/filters/BrandFilter";
 
 export default function Monitoring() {
   const { tickets, loading, refetch, resolveTicket } = useTickets("open");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
 
   const sortedTickets = useMemo(() => {
-    return [...tickets].sort((a, b) => {
+    let filtered = [...tickets];
+
+    if (selectedBrand !== "all") {
+      filtered = filtered.filter((t) => {
+        const groupName = (t.monitored_groups?.name || "").toLowerCase();
+        return groupName.includes(selectedBrand);
+      });
+    }
+
+    return filtered.sort((a, b) => {
       const dateA = new Date(a.created_at).getTime();
       const dateB = new Date(b.created_at).getTime();
       return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
     });
-  }, [tickets, sortOrder]);
+  }, [tickets, sortOrder, selectedBrand]);
 
   const handleResolve = async (ticketId: string) => {
     try {
@@ -62,10 +73,11 @@ export default function Monitoring() {
           <div className="flex items-center gap-2 text-muted-foreground">
             <Radio className="h-5 w-5" />
             <span className="text-sm">
-              <span className="font-semibold text-foreground">{tickets.length}</span> tickets abertos
+              <span className="font-semibold text-foreground">{sortedTickets.length}</span> tickets abertos
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <BrandFilter value={selectedBrand} onChange={setSelectedBrand} />
             <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
               <SelectTrigger className="w-[180px] h-9">
                 <ArrowUpDown className="h-4 w-4 mr-2" />
@@ -100,7 +112,7 @@ export default function Monitoring() {
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
-        ) : tickets.length === 0 ? (
+        ) : sortedTickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <Radio className="h-16 w-16 mb-4 opacity-50" />
             <h2 className="text-xl font-semibold mb-2">Nenhum ticket aberto</h2>
