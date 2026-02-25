@@ -30,6 +30,7 @@ import { ptBR } from "date-fns/locale";
 interface PendingDemandCardProps {
   demand: PendingDemand;
   onArchived?: () => void;
+  onDeleted?: () => void;
 }
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
@@ -85,9 +86,10 @@ function getSlaPercentage(waitingTimeMinutes: number, slaLimit: number) {
   return Math.min((waitingTimeMinutes / slaLimit) * 100, 100);
 }
 
-export function PendingDemandCard({ demand, onArchived }: PendingDemandCardProps) {
+export function PendingDemandCard({ demand, onArchived, onDeleted }: PendingDemandCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const [elapsedTime, setElapsedTime] = useState(
     Date.now() - new Date(demand.created_at).getTime()
@@ -377,12 +379,12 @@ export function PendingDemandCard({ demand, onArchived }: PendingDemandCardProps
             </div>
             {/* Archive Action */}
             <Separator />
-            <div className="flex">
+            <div className="flex gap-2">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2 w-full" disabled={isArchiving}>
+                  <Button variant="outline" size="sm" className="gap-2 flex-1" disabled={isArchiving}>
                     <Archive className="h-4 w-4" />
-                    Arquivar Demanda
+                    Arquivar
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -397,6 +399,57 @@ export function PendingDemandCard({ demand, onArchived }: PendingDemandCardProps
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction onClick={handleArchive} disabled={isArchiving}>
                       {isArchiving ? "Arquivando..." : "Confirmar"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" className="gap-2 flex-1" disabled={isDeleting}>
+                    <AlertTriangle className="h-4 w-4" />
+                    Encerrar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Encerrar demanda permanentemente?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta ação não pode ser desfeita. A demanda será excluída permanentemente do sistema.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={async () => {
+                        try {
+                          setIsDeleting(true);
+                          const { error } = await supabase
+                            .from("ticket_demands")
+                            .delete()
+                            .eq("id", demand.id);
+                          if (error) throw error;
+                          toast({
+                            title: "Demanda encerrada",
+                            description: "A demanda foi excluída permanentemente.",
+                          });
+                          setIsModalOpen(false);
+                          onDeleted?.();
+                          onArchived?.();
+                        } catch (err: any) {
+                          toast({
+                            title: "Erro ao encerrar",
+                            description: err.message,
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setIsDeleting(false);
+                        }
+                      }}
+                      disabled={isDeleting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting ? "Excluindo..." : "Excluir Permanentemente"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

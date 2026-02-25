@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RefreshCw, Filter, ClipboardList, Inbox, Tag, Archive } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BrandFilter, filterByBrand } from "@/components/filters/BrandFilter";
 
 const categoryConfig: Record<string, { label: string }> = {
   duvida: { label: "Dúvida" },
@@ -40,12 +41,13 @@ export default function PendingDemands() {
 
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
 
   const filteredDemands = useMemo(() => {
     const source = activeTab === "pending" ? demands : archivedDemands;
-    let result = source;
+    let result = filterByBrand(source, selectedBrand);
 
     if (selectedGroup !== "all") {
       result = result.filter((d) => d.group_id === selectedGroup);
@@ -57,12 +59,13 @@ export default function PendingDemands() {
       result = result.filter((d) => selectedPriorities.includes(d.priority));
     }
     return result;
-  }, [demands, archivedDemands, activeTab, selectedGroup, selectedCategories, selectedPriorities]);
+  }, [demands, archivedDemands, activeTab, selectedGroup, selectedBrand, selectedCategories, selectedPriorities]);
 
-  const activeFiltersCount = (selectedGroup !== "all" ? 1 : 0) + selectedCategories.length + selectedPriorities.length;
+  const activeFiltersCount = (selectedGroup !== "all" ? 1 : 0) + (selectedBrand !== "all" ? 1 : 0) + selectedCategories.length + selectedPriorities.length;
 
   const handleClearFilters = () => {
     setSelectedGroup("all");
+    setSelectedBrand("all");
     setSelectedCategories([]);
     setSelectedPriorities([]);
   };
@@ -126,6 +129,7 @@ export default function PendingDemands() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              <BrandFilter value={selectedBrand} onChange={setSelectedBrand} />
               <Select value={selectedGroup} onValueChange={setSelectedGroup}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Todos" />
@@ -224,7 +228,7 @@ export default function PendingDemands() {
             ) : (
               <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredDemands.map((demand) => (
-                  <PendingDemandCard key={demand.id} demand={demand} onArchived={handleArchived} />
+                  <PendingDemandCard key={demand.id} demand={demand} onArchived={handleArchived} onDeleted={handleArchived} />
                 ))}
               </div>
             )}
