@@ -125,6 +125,7 @@ export default function Monitoring() {
                 key={ticket.id}
                 ticket={ticket}
                 onResolve={handleResolve}
+                onDemandDeleted={() => refetch()}
               />
             ))}
           </div>
