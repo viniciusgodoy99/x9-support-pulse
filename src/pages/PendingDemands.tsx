@@ -42,6 +42,10 @@ export default function PendingDemands() {
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
+  const handleBrandChange = (brand: string) => {
+    setSelectedBrand(brand);
+    setSelectedGroup("all");
+  };
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
 
@@ -87,7 +91,13 @@ export default function PendingDemands() {
     refetchArchived();
   };
 
-  const clientGroups = groups.filter((g) => g.is_client_group && g.is_active);
+  const clientGroups = useMemo(() => {
+    let filtered = groups.filter((g) => g.is_client_group && g.is_active);
+    if (selectedBrand !== "all") {
+      filtered = filtered.filter((g) => g.name.toLowerCase().includes(selectedBrand));
+    }
+    return filtered;
+  }, [groups, selectedBrand]);
   const isLoading = activeTab === "pending" ? loading : archivedLoading;
 
   const headerContent = (
@@ -129,7 +139,7 @@ export default function PendingDemands() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              <BrandFilter value={selectedBrand} onChange={setSelectedBrand} />
+              <BrandFilter value={selectedBrand} onChange={handleBrandChange} />
               <Select value={selectedGroup} onValueChange={setSelectedGroup}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Todos" />
