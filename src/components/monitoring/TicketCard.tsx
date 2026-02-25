@@ -1,14 +1,28 @@
 import { useState, useEffect } from "react";
-import { Clock, CheckCircle, AlertTriangle, Brain, ListTodo, Timer, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, CheckCircle, AlertTriangle, Brain, ListTodo, Timer, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import type { Ticket, TicketDemand } from "@/hooks/useTickets";
 
 interface TicketCardProps {
   ticket: Ticket;
   onResolve: (id: string) => Promise<void>;
+  onDemandDeleted?: () => void;
 }
 
 function formatDuration(ms: number): string {
@@ -36,7 +50,7 @@ function getSlaStatus(waitingTimeMinutes: number, slaLimit: number) {
   return "critical";
 }
 
-function DemandItem({ demand }: { demand: TicketDemand }) {
+function DemandItem({ demand, onDelete }: { demand: TicketDemand; onDelete?: (id: string) => void }) {
   const priorityColors = {
     low: "text-muted-foreground",
     normal: "text-foreground",
@@ -80,15 +94,63 @@ function DemandItem({ demand }: { demand: TicketDemand }) {
           </p>
         )}
       </div>
+      {demand.status === "open" && onDelete && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button className="mt-0.5 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0" title="Encerrar demanda">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Encerrar demanda permanentemente?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. A demanda será excluída permanentemente do sistema.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => onDelete(demand.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir Permanentemente
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
 
-export function TicketCard({ ticket, onResolve }: TicketCardProps) {
+export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardProps) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isResolving, setIsResolving] = useState(false);
   const [showDemands, setShowDemands] = useState(false);
   const [isAiSummaryExpanded, setIsAiSummaryExpanded] = useState(true);
+  const { toast } = useToast();
+
+  const handleDeleteDemand = async (demandId: string) => {
+    try {
+      const { error } = await supabase
+        .from("ticket_demands")
+        .delete()
+        .eq("id", demandId);
+      if (error) throw error;
+      toast({
+        title: "Demanda encerrada",
+        description: "A demanda foi excluída permanentemente.",
+      });
+      onDemandDeleted?.();
+    } catch (err: any) {
+      toast({
+        title: "Erro ao encerrar",
+        description: err.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     const startTime = new Date(ticket.created_at).getTime();
@@ -267,7 +329,7 @@ export function TicketCard({ ticket, onResolve }: TicketCardProps) {
                 {showDemands && (
                   <div className="space-y-2 pt-2 border-t border-border/50">
                     {demands.map(demand => (
-                      <DemandItem key={demand.id} demand={demand} />
+                      <DemandItem key={demand.id} demand={demand} onDelete={handleDeleteDemand} />
                     ))}
                   </div>
                 )}
