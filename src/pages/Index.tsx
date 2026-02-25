@@ -81,8 +81,14 @@ export default function Dashboard() {
   // Filter only CS members
   const csMembers = useMemo(() => members.filter((m) => m.role === "CS" && m.is_active), [members]);
 
-  // Filter only client groups
-  const clientGroups = useMemo(() => groups.filter((g) => g.is_client_group && g.is_active), [groups]);
+  // Filter only client groups, also by brand
+  const clientGroups = useMemo(() => {
+    let filtered = groups.filter((g) => g.is_client_group && g.is_active);
+    if (selectedBrand !== "all") {
+      filtered = filtered.filter((g) => g.name.toLowerCase().includes(selectedBrand));
+    }
+    return filtered;
+  }, [groups, selectedBrand]);
 
   // Filter tickets based on selected group, CS, and categories
   const filteredTickets = useMemo(() => {
