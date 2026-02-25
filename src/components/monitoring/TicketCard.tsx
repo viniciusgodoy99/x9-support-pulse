@@ -347,15 +347,68 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
             )}
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-4"
-            onClick={handleResolve}
-            disabled={isResolving}
-          >
-            {isResolving ? "Resolvendo..." : "Forçar Resolução"}
-          </Button>
+          <div className="flex gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={handleResolve}
+              disabled={isResolving}
+            >
+              {isResolving ? "Resolvendo..." : "Forçar Resolução"}
+            </Button>
+            {openDemands.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="flex-1 gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Encerrar ({openDemands.length})
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Encerrar todas as demandas abertas?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {openDemands.length} demanda(s) aberta(s) de "{ticket.monitored_groups?.name}" serão excluídas permanentemente. Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={async () => {
+                        try {
+                          const ids = openDemands.map(d => d.id);
+                          const { error } = await supabase
+                            .from("ticket_demands")
+                            .delete()
+                            .in("id", ids);
+                          if (error) throw error;
+                          toast({
+                            title: "Demandas encerradas",
+                            description: `${ids.length} demanda(s) excluída(s) permanentemente.`,
+                          });
+                          onDemandDeleted?.();
+                        } catch (err: any) {
+                          toast({
+                            title: "Erro ao encerrar",
+                            description: err.message,
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Excluir Permanentemente
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
