@@ -58,7 +58,7 @@ export function AppSidebar() {
     <SidebarHeader className="p-4 border-b border-sidebar-border/50">
       <div className="flex items-center gap-3">
         <div className="relative">
-          <img src={logo} alt="Agência Arttico" className="h-10 w-auto" />
+          <img src={logo} alt="Agência Arttico" className="h-14 w-auto" />
           <Snowflake className="absolute -top-1 -right-1 h-4 w-4 text-primary animate-pulse" />
         </div>
         <div className="flex flex-col">

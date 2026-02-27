@@ -90,7 +90,7 @@ export default function Auth() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center space-y-3">
           <div className="flex justify-center">
-            <img src={logo} alt="Arttico" className="h-12 object-contain" />
+            <img src={logo} alt="Arttico" className="h-16 object-contain" />
           </div>
           
           <CardDescription>
