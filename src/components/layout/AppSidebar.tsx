@@ -3,7 +3,9 @@ import { NavLink } from "@/components/NavLink";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
-import logoArttico from "@/assets/logo-arttico.webp";
+import { useTheme } from "@/hooks/useTheme";
+import logoBranca from "@/assets/logo-branca.png";
+import logoAzul from "@/assets/logo-azul.png";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -37,7 +39,8 @@ const configItems = [{
 
 export function AppSidebar() {
   const { status } = useWhatsAppStatus();
-
+  const { theme } = useTheme();
+  const logo = theme === "dark" ? logoBranca : logoAzul;
   const getStatusDot = () => {
     switch (status) {
       case 'connected':
@@ -55,7 +58,7 @@ export function AppSidebar() {
     <SidebarHeader className="p-4 border-b border-sidebar-border/50">
       <div className="flex items-center gap-3">
         <div className="relative">
-          <img src={logoArttico} alt="Agência Arttico" className="h-10 w-auto" />
+          <img src={logo} alt="Agência Arttico" className="h-10 w-auto" />
           <Snowflake className="absolute -top-1 -right-1 h-4 w-4 text-primary animate-pulse" />
         </div>
         <div className="flex flex-col">
