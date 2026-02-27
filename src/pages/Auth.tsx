@@ -7,9 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2 } from "lucide-react";
-import logo from "@/assets/logo-arttico.webp";
+import logoBranca from "@/assets/logo-branca.png";
+import logoAzul from "@/assets/logo-azul.png";
+import { useTheme } from "@/hooks/useTheme";
 
 export default function Auth() {
+  const { theme } = useTheme();
+  const logo = theme === "dark" ? logoBranca : logoAzul;
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
