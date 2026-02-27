@@ -7,13 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2 } from "lucide-react";
-import logoBranca from "@/assets/logo-branca.png";
-import logoAzul from "@/assets/logo-azul.png";
-import { useTheme } from "@/hooks/useTheme";
+import logo from "@/assets/logo-arttico.webp";
 
 export default function Auth() {
-  const { theme } = useTheme();
-  const logo = theme === "dark" ? logoBranca : logoAzul;
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,7 +88,6 @@ export default function Auth() {
           <div className="flex justify-center">
             <img src={logo} alt="Arttico" className="h-12 object-contain" />
           </div>
-          <CardTitle className="text-xl">Support Pulse</CardTitle>
           <CardDescription>
             {mode === "login" ? "Entre com sua conta para continuar" : "Crie sua conta de acesso"}
           </CardDescription>
@@ -108,18 +103,14 @@ export default function Auth() {
                     Para acessar o sistema, peça ao administrador para rodar o seguinte SQL no backend:
                   </p>
                   <pre className="mt-2 bg-muted rounded p-2 text-xs overflow-auto whitespace-pre-wrap break-all">
-{`INSERT INTO public.user_roles (user_id, role)
+                    {`INSERT INTO public.user_roles (user_id, role)
 SELECT id, 'admin'
 FROM auth.users
 WHERE email = '${email}';`}
                   </pre>
                 </AlertDescription>
               </Alert>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => switchMode("login")}
-              >
+              <Button variant="outline" className="w-full" onClick={() => switchMode("login")}>
                 Ir para o login
               </Button>
             </div>
@@ -165,8 +156,12 @@ WHERE email = '${email}';`}
               )}
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading
-                  ? mode === "login" ? "Entrando..." : "Criando conta..."
-                  : mode === "login" ? "Entrar" : "Criar conta"}
+                  ? mode === "login"
+                    ? "Entrando..."
+                    : "Criando conta..."
+                  : mode === "login"
+                    ? "Entrar"
+                    : "Criar conta"}
               </Button>
               <div className="text-center">
                 {mode === "login" ? (
