@@ -88,7 +88,7 @@ export default function Auth() {
           <div className="flex justify-center">
             <img src={logo} alt="Arttico" className="h-12 object-contain" />
           </div>
-          <CardTitle className="text-xl">Support Pulse</CardTitle>
+          
           <CardDescription>
             {mode === "login" ? "Entre com sua conta para continuar" : "Crie sua conta de acesso"}
           </CardDescription>
