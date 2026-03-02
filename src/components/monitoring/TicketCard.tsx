@@ -347,25 +347,25 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
             )}
           </div>
 
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-4 w-full overflow-hidden">
             <Button
               variant="outline"
               size="sm"
-              className="flex-1 text-xs sm:text-sm px-2 sm:px-3"
+              className="flex-1 min-w-0 text-xs px-2"
               onClick={handleResolve}
               disabled={isResolving}
             >
-              {isResolving ? "Resolvendo..." : "Forçar Resolução"}
+              <span className="truncate">{isResolving ? "Resolvendo..." : "Forçar Resolução"}</span>
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
                   variant="destructive"
                   size="sm"
-                  className="flex-1 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
+                  className="flex-1 min-w-0 gap-1 text-xs px-2"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Encerrar{openDemands.length > 0 ? ` (${openDemands.length})` : ""}
+                  <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Encerrar{openDemands.length > 0 ? ` (${openDemands.length})` : ""}</span>
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
