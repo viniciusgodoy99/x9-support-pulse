@@ -94,7 +94,12 @@ export function useTickets(status?: "open" | "resolved") {
         demands: demands.filter(d => d.ticket_id === ticket.id),
       })) as Ticket[];
 
-      setTickets(ticketsWithDemands);
+      // Filter: only include tickets that have at least one open demand
+      const filtered = status === "open"
+        ? ticketsWithDemands.filter(t => (t.demands || []).some(d => d.status === "open"))
+        : ticketsWithDemands;
+
+      setTickets(filtered);
     } catch (err) {
       console.error("Error fetching tickets:", err);
       setError(err instanceof Error ? err.message : "Erro ao carregar tickets");
