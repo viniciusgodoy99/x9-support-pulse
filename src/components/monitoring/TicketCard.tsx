@@ -357,30 +357,36 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
             >
               {isResolving ? "Resolvendo..." : "Forçar Resolução"}
             </Button>
-            {openDemands.length > 0 && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="flex-1 gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Encerrar ({openDemands.length})
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Encerrar todas as demandas abertas?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {openDemands.length} demanda(s) aberta(s) de "{ticket.monitored_groups?.name}" serão excluídas permanentemente. Esta ação não pode ser desfeita.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={async () => {
-                        try {
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="flex-1 gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Encerrar{openDemands.length > 0 ? ` (${openDemands.length})` : ""}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {openDemands.length > 0
+                      ? "Encerrar todas as demandas abertas?"
+                      : "Encerrar este ticket?"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {openDemands.length > 0
+                      ? `${openDemands.length} demanda(s) aberta(s) de "${ticket.monitored_groups?.name}" serão excluídas permanentemente. Esta ação não pode ser desfeita.`
+                      : `O ticket de "${ticket.monitored_groups?.name}" será resolvido. Esta ação não pode ser desfeita.`}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      try {
+                        if (openDemands.length > 0) {
                           const ids = openDemands.map(d => d.id);
                           const { error } = await supabase
                             .from("ticket_demands")
@@ -392,22 +398,23 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
                             description: `${ids.length} demanda(s) excluída(s) permanentemente.`,
                           });
                           onDemandDeleted?.();
-                        } catch (err: any) {
-                          toast({
-                            title: "Erro ao encerrar",
-                            description: err.message,
-                            variant: "destructive",
-                          });
                         }
-                      }}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Excluir Permanentemente
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
+                        await onResolve(ticket.id);
+                      } catch (err: any) {
+                        toast({
+                          title: "Erro ao encerrar",
+                          description: err.message,
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Encerrar Permanentemente
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </CardContent>
       </Card>
