@@ -206,10 +206,10 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
           slaStatus === "critical" && "border-sla-critical/70 bg-sla-critical/15 animate-sla-pulse"
         )}
       >
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-lg">
+        <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1 min-w-0">
+              <CardTitle className="text-base sm:text-lg truncate">
                 {ticket.monitored_groups?.name || "Grupo Desconhecido"}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -237,7 +237,7 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4 flex-1 flex flex-col">
+        <CardContent className="space-y-3 sm:space-y-4 flex-1 flex flex-col px-3 sm:px-6">
           <div className="flex-1 space-y-4">
             <div className="flex items-center gap-2">
               <Clock className={cn(
@@ -308,19 +308,19 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
               <div className="space-y-2">
                 <button
                   onClick={() => setShowDemands(!showDemands)}
-                  className="flex items-center justify-between w-full text-sm hover:bg-muted/50 p-1 rounded -mx-1"
+                  className="flex items-center justify-between w-full text-sm hover:bg-muted/50 p-1.5 rounded -mx-1"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <ListTodo className="h-4 w-4 shrink-0" />
-                    <span className="font-medium truncate">Demandas</span>
+                    <span className="font-medium">Demandas</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 justify-end ml-auto">
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
                     {slaExceededDemands.length > 0 && (
-                      <Badge variant="destructive" className="whitespace-nowrap text-[10px] sm:text-xs px-1 sm:px-2">
+                      <Badge variant="destructive" className="whitespace-nowrap text-[10px] px-1.5 py-0">
                         {slaExceededDemands.length} SLA!
                       </Badge>
                     )}
-                    <Badge variant="outline" className="whitespace-nowrap text-[10px] sm:text-xs px-1 sm:px-2">
+                    <Badge variant="outline" className="whitespace-nowrap text-[10px] px-1.5 py-0">
                       {openDemands.length} / {resolvedDemands.length}
                     </Badge>
                   </div>
@@ -351,7 +351,7 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
             <Button
               variant="outline"
               size="sm"
-              className="flex-1"
+              className="flex-1 text-xs sm:text-sm px-2 sm:px-3"
               onClick={handleResolve}
               disabled={isResolving}
             >
@@ -362,7 +362,7 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
                 <Button
                   variant="destructive"
                   size="sm"
-                  className="flex-1 gap-2"
+                  className="flex-1 gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3"
                 >
                   <Trash2 className="h-4 w-4" />
                   Encerrar{openDemands.length > 0 ? ` (${openDemands.length})` : ""}
