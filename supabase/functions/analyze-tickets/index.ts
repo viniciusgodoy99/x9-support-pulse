@@ -954,8 +954,50 @@ serve(async (req) => {
           });
 
           if (existingDemand) {
-            // Update existing demand if status changed
-            if (existingDemand.status !== demand.status) {
+            // Check if status changed OR if SLA needs re-evaluation
+            const statusChanged = existingDemand.status !== demand.status;
+
+            // Re-evaluate SLA for open demands even if status hasn't changed
+            if (existingDemand.status === "open" && demand.status === "open" && !statusChanged) {
+              // Get SLA limit
+              const { data: slaSettingsExisting } = await supabase
+                .from("settings")
+                .select("value")
+                .eq("key", "global_sla_minutes")
+                .single();
+              const slaLimitExisting = slaSettingsExisting?.value ? parseInt(slaSettingsExisting.value) : 30;
+
+              // Calculate business minutes from first client message
+              const firstClientMsgExisting = (messages as Message[])
+                .filter(m => m.group_role === "client" || m.sender_role === "client")
+                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+
+              let timeOpenExisting = 0;
+              if (firstClientMsgExisting) {
+                timeOpenExisting = calculateBusinessMinutes(new Date(firstClientMsgExisting.created_at), new Date());
+              } else {
+                timeOpenExisting = calculateBusinessMinutes(new Date(ticket.created_at), new Date());
+              }
+
+              if (timeOpenExisting > slaLimitExisting) {
+                // Check current sla_exceeded value
+                const { data: currentDemand } = await supabase
+                  .from("ticket_demands")
+                  .select("sla_exceeded")
+                  .eq("id", existingDemand.id)
+                  .single();
+
+                if (currentDemand && !currentDemand.sla_exceeded) {
+                  await supabase
+                    .from("ticket_demands")
+                    .update({ sla_exceeded: true })
+                    .eq("id", existingDemand.id);
+                  console.log(`SLA exceeded for existing demand ${existingDemand.id} (${timeOpenExisting}min > ${slaLimitExisting}min)`);
+                }
+              }
+            }
+
+            if (statusChanged) {
               const updates: Record<string, any> = { status: demand.status };
 
               if (demand.status === "resolved") {
@@ -986,10 +1028,27 @@ serve(async (req) => {
                 updates.resolved_by_phone = resolvedByPhone;
               }
 
-              // Check if SLA exceeded (demand open for more than 2 minutes - for testing)
+              // Check if SLA exceeded for open demands
               if (demand.status === "open") {
-                const demandAge = Date.now() - new Date(ticket.created_at).getTime();
-                if (demandAge > 2 * 60 * 1000) {
+                const { data: slaSettingsUpdate } = await supabase
+                  .from("settings")
+                  .select("value")
+                  .eq("key", "global_sla_minutes")
+                  .single();
+                const slaLimitUpdate = slaSettingsUpdate?.value ? parseInt(slaSettingsUpdate.value) : 30;
+
+                const firstClientMsgUpdate = (messages as Message[])
+                  .filter(m => m.group_role === "client" || m.sender_role === "client")
+                  .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+
+                let timeOpenUpdate = 0;
+                if (firstClientMsgUpdate) {
+                  timeOpenUpdate = calculateBusinessMinutes(new Date(firstClientMsgUpdate.created_at), new Date());
+                } else {
+                  timeOpenUpdate = calculateBusinessMinutes(new Date(ticket.created_at), new Date());
+                }
+
+                if (timeOpenUpdate > slaLimitUpdate) {
                   updates.sla_exceeded = true;
                 }
               }
