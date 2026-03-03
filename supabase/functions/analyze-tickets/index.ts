@@ -344,18 +344,14 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
   console.log(`Found ${filteredDemands.length} demands with SLA breach to check for notifications`);
 
   for (const demand of filteredDemands) {
-    // Check if already notified
-    const { data: existingNotification } = await supabase
+    // Count how many times this demand has already been notified
+    const { data: existingNotifications, error: notifCountError } = await supabase
       .from("sla_notifications")
       .select("id")
       .eq("demand_id", demand.id)
-      .eq("notification_type", "sla_breach")
-      .single();
+      .eq("notification_type", "sla_breach");
 
-    if (existingNotification) {
-      console.log(`Demand ${demand.id} already notified, skipping`);
-      continue;
-    }
+    const previousCount = (existingNotifications || []).length;
 
     // Get ticket ID and group ID for queries
     const ticketId = (demand.tickets as any)?.id;
@@ -433,8 +429,10 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
     // Final fallback
     customerName = customerName || "Cliente desconhecido";
 
-    // Build alert message
-    const alertMessage = `⚠️ *ALERTA DE SLA*\n\n` +
+    // Build alert message with counter
+    const alertCount = previousCount + 1;
+    const counterSuffix = alertCount > 1 ? ` (${alertCount}x)` : "";
+    const alertMessage = `⚠️ *ALERTA DE SLA${counterSuffix}*\n\n` +
       `📋 *Grupo:* ${groupName}\n` +
       `👤 *Solicitante:* ${customerName}\n` +
       `📝 *Demanda:* ${demand.description}\n` +
@@ -447,7 +445,7 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
     const messageSent = await sendWhatsAppMessage(notificationGroupId, alertMessage);
 
     if (messageSent) {
-      // Record notification to avoid duplicates
+      // Record notification
       const { error: insertError } = await supabase
         .from("sla_notifications")
         .insert({
@@ -459,7 +457,7 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
         console.error(`Error recording notification for demand ${demand.id}:`, insertError);
         errors++;
       } else {
-        console.log(`SLA breach notification sent for demand ${demand.id}`);
+        console.log(`SLA breach notification #${alertCount} sent for demand ${demand.id}`);
         sent++;
       }
     } else {
