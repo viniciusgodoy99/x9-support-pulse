@@ -237,6 +237,12 @@ serve(async (req) => {
         }
       }
 
+      // Determine correct role based on team_members
+      const normalizedPhone = normalizePhoneNumber(rawPhoneNumber);
+      let teamMember = teamMemberMap.get(normalizedPhone);
+      
+      let role = "unknown";
+
       // Fallback: check if this LID was already resolved in another group
       if (isLid && rawPhoneNumber.length > 13) {
         const { data: resolvedMember } = await supabase
@@ -254,17 +260,15 @@ serve(async (req) => {
           if (resolvedMember.role && resolvedMember.role !== "unknown") {
             role = resolvedMember.role;
           }
+          // Re-check team_members with resolved phone
+          const resolvedNormalized = normalizePhoneNumber(rawPhoneNumber);
+          teamMember = teamMemberMap.get(resolvedNormalized);
         }
       }
 
-      // Determine correct role based on team_members
-      const normalizedPhone = normalizePhoneNumber(rawPhoneNumber);
-      const teamMember = teamMemberMap.get(normalizedPhone);
-      
-      let role = "unknown";
+      // Map team roles to group roles (takes precedence over fallback)
       if (teamMember) {
         const teamRole = teamMember.role;
-        // Map team roles to group roles
         if (["CS", "Support", "Admin", "Manager", "CRMManager"].includes(teamRole)) {
           role = "cs";
         } else if (["PerformanceManager", "SocialMedia"].includes(teamRole)) {
@@ -272,7 +276,7 @@ serve(async (req) => {
         } else if (["ClientTeam"].includes(teamRole)) {
           role = "client";
         }
-        console.log(`Matched team member ${teamMember.name} (${normalizedPhone}) with role ${teamRole} -> group role ${role}`);
+        console.log(`Matched team member ${teamMember.name} (${normalizePhoneNumber(rawPhoneNumber)}) with role ${teamRole} -> group role ${role}`);
       }
 
       const { data: existingMember } = await supabase
