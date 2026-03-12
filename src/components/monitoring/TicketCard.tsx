@@ -415,7 +415,7 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
                           variant: "destructive",
                         });
                       }
-                    }
+                    }}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
                     Encerrar Permanentemente
