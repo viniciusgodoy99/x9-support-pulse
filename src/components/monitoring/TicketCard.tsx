@@ -393,13 +393,21 @@ export function TicketCard({ ticket, onResolve, onDemandDeleted }: TicketCardPro
                             .delete()
                             .in("id", ids);
                           if (error) throw error;
-                          toast({
-                            title: "Demandas encerradas",
-                            description: `${ids.length} demanda(s) excluída(s) permanentemente.`,
-                          });
-                          onDemandDeleted?.();
                         }
-                        await onResolve(ticket.id);
+                        // Resolve ticket directly without triggering AI re-analysis
+                        const { error: ticketError } = await supabase
+                          .from("tickets")
+                          .update({
+                            status: "resolved" as const,
+                            resolved_at: new Date().toISOString(),
+                          })
+                          .eq("id", ticket.id);
+                        if (ticketError) throw ticketError;
+                        toast({
+                          title: "Ticket encerrado",
+                          description: `Ticket e ${openDemands.length} demanda(s) encerrados permanentemente.`,
+                        });
+                        onDemandDeleted?.();
                       } catch (err: any) {
                         toast({
                           title: "Erro ao encerrar",
