@@ -379,9 +379,21 @@ export function PendingDemandCard({ demand, onArchived, onDeleted }: PendingDema
                 )}
               </div>
             </div>
-            {/* Archive Action */}
+            {/* Actions */}
             <Separator />
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 flex-1"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setIsClickUpOpen(true);
+                }}
+              >
+                <Send className="h-4 w-4" />
+                ClickUp
+              </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2 flex-1" disabled={isArchiving}>
