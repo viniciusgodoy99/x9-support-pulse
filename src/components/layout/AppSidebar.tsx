@@ -9,6 +9,7 @@ import {
   ClipboardList,
   LogOut,
   FlaskConical,
+  ExternalLink,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
