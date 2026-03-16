@@ -20,10 +20,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { Clock, User, MessageSquare, Tag, AlertTriangle, Calendar, Phone, FileText, Timer, Archive } from "lucide-react";
+import { Clock, User, MessageSquare, Tag, AlertTriangle, Calendar, Phone, FileText, Timer, Archive, Send } from "lucide-react";
 import { PendingDemand } from "@/hooks/usePendingDemands";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SendToClickUpDialog } from "@/components/demands/SendToClickUpDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
