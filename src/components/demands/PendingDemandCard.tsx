@@ -20,10 +20,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { Clock, User, MessageSquare, Tag, AlertTriangle, Calendar, Phone, FileText, Timer, Archive } from "lucide-react";
+import { Clock, User, MessageSquare, Tag, AlertTriangle, Calendar, Phone, FileText, Timer, Archive, Send } from "lucide-react";
 import { PendingDemand } from "@/hooks/usePendingDemands";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SendToClickUpDialog } from "@/components/demands/SendToClickUpDialog";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -90,6 +91,7 @@ export function PendingDemandCard({ demand, onArchived, onDeleted }: PendingDema
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isClickUpOpen, setIsClickUpOpen] = useState(false);
   const { toast } = useToast();
   const [elapsedTime, setElapsedTime] = useState(
     Date.now() - new Date(demand.created_at).getTime()
@@ -377,9 +379,21 @@ export function PendingDemandCard({ demand, onArchived, onDeleted }: PendingDema
                 )}
               </div>
             </div>
-            {/* Archive Action */}
+            {/* Actions */}
             <Separator />
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 flex-1"
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setIsClickUpOpen(true);
+                }}
+              >
+                <Send className="h-4 w-4" />
+                ClickUp
+              </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2 flex-1" disabled={isArchiving}>
@@ -458,6 +472,12 @@ export function PendingDemandCard({ demand, onArchived, onDeleted }: PendingDema
           </div>
         </DialogContent>
       </Dialog>
+
+      <SendToClickUpDialog
+        open={isClickUpOpen}
+        onOpenChange={setIsClickUpOpen}
+        demand={demand}
+      />
     </>
   );
 }

@@ -9,6 +9,7 @@ import {
   ClipboardList,
   LogOut,
   FlaskConical,
+  ExternalLink,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -155,6 +156,20 @@ export function AppSidebar() {
                       <div className="absolute -bottom-0.5 -right-0.5">{getStatusDot()}</div>
                     </div>
                     <span>WhatsApp</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* ClickUp */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/settings/clickup"
+                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                    activeClassName="bg-primary text-primary-foreground"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span>ClickUp</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
