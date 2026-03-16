@@ -91,6 +91,7 @@ export function PendingDemandCard({ demand, onArchived, onDeleted }: PendingDema
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isClickUpOpen, setIsClickUpOpen] = useState(false);
   const { toast } = useToast();
   const [elapsedTime, setElapsedTime] = useState(
     Date.now() - new Date(demand.created_at).getTime()
