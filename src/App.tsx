@@ -99,6 +99,10 @@ const App = () => {
               element={<ProtectedRoute session={session}><Tests /></ProtectedRoute>}
             />
             <Route
+              path="/settings/clickup"
+              element={<ProtectedRoute session={session}><ClickUpSettings /></ProtectedRoute>}
+            />
+            <Route
               path="/settings"
               element={<ProtectedRoute session={session}><Settings /></ProtectedRoute>}
             />

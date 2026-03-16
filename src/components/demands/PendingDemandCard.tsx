@@ -472,6 +472,12 @@ export function PendingDemandCard({ demand, onArchived, onDeleted }: PendingDema
           </div>
         </DialogContent>
       </Dialog>
+
+      <SendToClickUpDialog
+        open={isClickUpOpen}
+        onOpenChange={setIsClickUpOpen}
+        demand={demand}
+      />
     </>
   );
 }

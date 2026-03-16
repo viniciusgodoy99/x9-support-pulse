@@ -160,6 +160,20 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
+              {/* ClickUp */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/settings/clickup"
+                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                    activeClassName="bg-primary text-primary-foreground"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span>ClickUp</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
               {/* Testes */}
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
