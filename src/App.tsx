@@ -15,6 +15,7 @@ import TeamSettings from "./pages/settings/Team";
 import Settings from "./pages/settings/Settings";
 import WhatsAppConnect from "./pages/settings/WhatsAppConnect";
 import Tests from "./pages/settings/Tests";
+import ClickUpSettings from "./pages/settings/ClickUpSettings";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 
