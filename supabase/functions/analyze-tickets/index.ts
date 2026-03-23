@@ -441,7 +441,7 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
       `${priorityDisplay}\n\n` +
       `Por favor, verifique o atendimento!`;
 
-    // Send notification
+    // Send notification to X9 group
     const messageSent = await sendWhatsAppMessage(notificationGroupId, alertMessage);
 
     if (messageSent) {
@@ -459,6 +459,54 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
       } else {
         console.log(`SLA breach notification #${alertCount} sent for demand ${demand.id}`);
         sent++;
+      }
+
+      // Send direct message to CS members in the group
+      if (groupId) {
+        const { data: csMembers } = await supabase
+          .from("group_members")
+          .select("phone_number, name")
+          .eq("group_id", groupId)
+          .eq("role", "cs");
+
+        if (csMembers && csMembers.length > 0) {
+          // Check if CS direct notifications are enabled
+          const { data: csNotifSetting } = await supabase
+            .from("settings")
+            .select("value")
+            .eq("key", "sla_cs_direct_notification")
+            .single();
+
+          const csNotifEnabled = csNotifSetting?.value !== "false"; // enabled by default
+
+          if (csNotifEnabled) {
+            for (const cs of csMembers) {
+              const csName = cs.name || "CS";
+              const directMessage = `⚠️ *ALERTA DE SLA${counterSuffix}*\n\n` +
+                `Olá ${csName}, uma demanda no grupo *${groupName}* ultrapassou o SLA.\n\n` +
+                `👤 *Solicitante:* ${customerName}\n` +
+                `📝 *Demanda:* ${demand.description}\n` +
+                `⏱️ *Tempo aberto:* ${timeOpenMinutes} minutos\n` +
+                `🎯 *Limite SLA:* ${slaLimitMinutes} minutos\n` +
+                `${priorityDisplay}\n\n` +
+                `Por favor, verifique o atendimento!`;
+
+              const csPhone = cs.phone_number.replace(/\D/g, "");
+              const csJid = csPhone.includes("@") ? csPhone : `${csPhone}@s.whatsapp.net`;
+
+              const csSent = await sendWhatsAppMessage(csJid, directMessage);
+              if (csSent) {
+                console.log(`Direct SLA alert sent to CS ${csName} (${csPhone}) for demand ${demand.id}`);
+              } else {
+                console.error(`Failed to send direct SLA alert to CS ${csName} (${csPhone})`);
+              }
+            }
+          } else {
+            console.log("CS direct notifications are disabled");
+          }
+        } else {
+          console.log(`No CS members found in group ${groupId} for direct notification`);
+        }
       }
     } else {
       errors++;
