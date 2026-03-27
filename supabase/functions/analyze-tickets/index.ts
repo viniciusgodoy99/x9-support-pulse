@@ -535,8 +535,10 @@ async function analyzeConversation(messages: Message[]): Promise<AnalysisResult>
       roleDisplay = "Gestor de Tráfego (Equipe)";
     } else if (m.group_role === "client") {
       roleDisplay = "Cliente";
+    } else if (m.group_role === "unknown" || !m.group_role) {
+      roleDisplay = "Membro (Não classificado)";
     } else {
-      roleDisplay = m.sender_role === "cs" ? "Atendente (CS)" : "Cliente";
+      roleDisplay = m.sender_role === "cs" ? "Atendente (CS)" : "Membro (Não classificado)";
     }
 
     const name = m.sender_name || "Desconhecido";
