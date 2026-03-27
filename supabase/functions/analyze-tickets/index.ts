@@ -535,8 +535,10 @@ async function analyzeConversation(messages: Message[]): Promise<AnalysisResult>
       roleDisplay = "Gestor de Tráfego (Equipe)";
     } else if (m.group_role === "client") {
       roleDisplay = "Cliente";
+    } else if (m.group_role === "unknown" || !m.group_role) {
+      roleDisplay = "Membro (Não classificado)";
     } else {
-      roleDisplay = m.sender_role === "cs" ? "Atendente (CS)" : "Cliente";
+      roleDisplay = m.sender_role === "cs" ? "Atendente (CS)" : "Membro (Não classificado)";
     }
 
     const name = m.sender_name || "Desconhecido";
@@ -566,10 +568,11 @@ Analise a conversa entre a Equipe de Atendimento (CS, Gestores, etc) e Clientes 
 
 ⚠️ REGRA CRÍTICA - QUEM PODE GERAR DEMANDAS:
 - APENAS mensagens de "Cliente" devem gerar demandas
-- IGNORE solicitações de "Atendente (CS)" ou "Gestor de Tráfego" - são instruções internas
+- IGNORE solicitações de "Atendente (CS)", "Gestor de Tráfego" ou "Membro (Não classificado)" - NÃO são demandas de clientes
 
 ⚠️ REGRA CRÍTICA - QUEM PODE RESOLVER DEMANDAS:
-- Qualquer membro da equipe pode resolver demandas: "Atendente (CS)", "Gestor de Tráfego (Equipe)", etc.
+- Qualquer pessoa que NÃO seja "Cliente" pode resolver demandas: "Atendente (CS)", "Gestor de Tráfego (Equipe)", "Membro (Não classificado)", etc.
+- Se um "Membro (Não classificado)" ou qualquer membro da equipe responder uma pergunta/pedido do cliente, a demanda pode ser considerada resolvida
 
 REGRAS CRÍTICAS PARA DETERMINAR STATUS (SIGA À RISCA):
 
