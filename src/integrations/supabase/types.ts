@@ -462,6 +462,7 @@ export type Database = {
         | "CRMManager"
         | "SocialMedia"
         | "ClientTeam"
+        | "Leader"
       ticket_status: "open" | "resolved"
     }
     CompositeTypes: {
@@ -600,6 +601,7 @@ export const Constants = {
         "CRMManager",
         "SocialMedia",
         "ClientTeam",
+        "Leader",
       ],
       ticket_status: ["open", "resolved"],
     },
