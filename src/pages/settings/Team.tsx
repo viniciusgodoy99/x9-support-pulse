@@ -220,6 +220,7 @@ export default function TeamSettings() {
                       <SelectItem value="CRMManager">Gestor de CRM/IFOOD</SelectItem>
                       <SelectItem value="SocialMedia">Social Media</SelectItem>
                       <SelectItem value="ClientTeam">Equipe Cliente</SelectItem>
+                      <SelectItem value="Leader">Líder</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
