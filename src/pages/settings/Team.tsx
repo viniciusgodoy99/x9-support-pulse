@@ -46,6 +46,7 @@ const roleLabels: Record<TeamMember["role"], string> = {
   CRMManager: "Gestor de CRM/IFOOD",
   SocialMedia: "Social Media",
   ClientTeam: "Equipe Cliente",
+  Leader: "Líder",
 };
 
 export default function TeamSettings() {

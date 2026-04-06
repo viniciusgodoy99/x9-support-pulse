@@ -5,7 +5,7 @@ export interface TeamMember {
   id: string;
   name: string;
   phone_number: string;
-  role: "CS" | "Manager" | "Support" | "Admin" | "PerformanceManager" | "CRMManager" | "SocialMedia" | "ClientTeam";
+  role: "CS" | "Manager" | "Support" | "Admin" | "PerformanceManager" | "CRMManager" | "SocialMedia" | "ClientTeam" | "Leader";
   is_active: boolean;
   created_at: string;
   updated_at: string;
