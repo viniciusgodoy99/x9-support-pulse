@@ -260,6 +260,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const previewOnly = body.previewOnly === true;
     const targetGroupId = body.targetGroupId || null;
+    const testMode = body.testMode === true;
+
+    // In test mode, all messages are sent to the X9 group instead of client groups
+    const X9_GROUP_WHATSAPP_ID = "120363422213957419@g.us";
 
     // Check if weekly report is enabled
     const { data: enabledSetting } = await supabase
