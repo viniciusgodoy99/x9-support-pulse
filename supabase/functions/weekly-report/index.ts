@@ -344,31 +344,45 @@ Deno.serve(async (req) => {
 
     const groupIds = groups.map((g) => g.id);
 
-    // Fetch messages for the week
-    const { data: messagesData, error: messagesError } = await supabase
-      .from("messages")
-      .select("group_id, content, sender_name, sender_role, created_at")
-      .in("group_id", groupIds)
-      .gte("created_at", weekStartISO)
-      .lte("created_at", weekEndISO)
-      .order("created_at", { ascending: true })
-      .limit(1000);
-
-    if (messagesError) throw messagesError;
-
-    // Organize messages by group
+    // Fetch messages for the week — paginate to avoid the 1000-row default limit
     const messagesByGroup = new Map<string, WeeklyGroupData["messages"]>();
-    for (const msg of messagesData || []) {
-      if (!messagesByGroup.has(msg.group_id)) {
-        messagesByGroup.set(msg.group_id, []);
+    const MESSAGE_PAGE = 1000;
+
+    for (let i = 0; i < groupIds.length; i += BATCH_SIZE) {
+      const batchGroupIds = groupIds.slice(i, i + BATCH_SIZE);
+      let pageOffset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: messagesPage, error: messagesError } = await supabase
+          .from("messages")
+          .select("group_id, content, sender_name, sender_role, created_at")
+          .in("group_id", batchGroupIds)
+          .gte("created_at", weekStartISO)
+          .lte("created_at", weekEndISO)
+          .order("created_at", { ascending: true })
+          .range(pageOffset, pageOffset + MESSAGE_PAGE - 1);
+
+        if (messagesError) throw messagesError;
+
+        for (const msg of messagesPage || []) {
+          if (!messagesByGroup.has(msg.group_id)) {
+            messagesByGroup.set(msg.group_id, []);
+          }
+          messagesByGroup.get(msg.group_id)!.push({
+            content: msg.content,
+            sender_name: msg.sender_name,
+            sender_role: msg.sender_role,
+            created_at: msg.created_at,
+          });
+        }
+
+        hasMore = (messagesPage?.length || 0) === MESSAGE_PAGE;
+        pageOffset += MESSAGE_PAGE;
       }
-      messagesByGroup.get(msg.group_id)!.push({
-        content: msg.content,
-        sender_name: msg.sender_name,
-        sender_role: msg.sender_role,
-        created_at: msg.created_at,
-      });
     }
+
+    console.log(`Fetched messages for ${messagesByGroup.size} groups`);
 
     // Fetch demands for the week
     const TICKET_BATCH = 50;
