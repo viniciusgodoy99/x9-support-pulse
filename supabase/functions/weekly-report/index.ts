@@ -524,11 +524,17 @@ Deno.serve(async (req) => {
 
       for (const { group, data } of batch) {
         try {
-          const message = await formatWeeklyMessage(group.name, data, dateRange);
+          let message = await formatWeeklyMessage(group.name, data, dateRange);
+          const destinationId = testMode ? X9_GROUP_WHATSAPP_ID : group.whatsapp_id;
+
+          if (testMode) {
+            message = `[TESTE - ${group.name}]\n\n${message}`;
+          }
+
           const success = await sendWhatsAppMessage(
             instance.api_url,
             instance.api_token,
-            group.whatsapp_id,
+            destinationId,
             message
           );
 
