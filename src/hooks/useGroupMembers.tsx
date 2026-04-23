@@ -66,7 +66,9 @@ export function useGroupMembers(groupId?: string) {
       if (updateError) throw updateError;
 
       // Sync sender_role in ALL messages from this phone number
-      const newSenderRole = role === "cs" ? "cs" : "client";
+      // CS and traffic_manager are considered staff
+      const isStaff = role === "cs" || role === "traffic_manager";
+      const newSenderRole = isStaff ? (role === "cs" ? "cs" : "traffic_manager") : "client";
       const { error: messagesError } = await supabase
         .from("messages")
         .update({ sender_role: newSenderRole })
@@ -78,12 +80,15 @@ export function useGroupMembers(groupId?: string) {
         console.log(`Updated sender_role to '${newSenderRole}' for all messages from ${member.phone_number}`);
       }
 
-      // If role is "cs", integrate with team_members and sync across all groups
-      if (role === "cs" && member) {
+      // If role is staff (cs or traffic_manager), integrate with team_members and sync across all groups
+      if (isStaff && member) {
+        const teamRole = role === "cs" ? "CS" : "PerformanceManager";
+        const teamRoleLabel = role === "cs" ? "CS" : "Gestor de Tráfego";
+
         // Check if already exists in team_members
         const { data: existingTeamMember } = await supabase
           .from("team_members")
-          .select("id")
+          .select("id, role")
           .eq("phone_number", member.phone_number)
           .maybeSingle();
 
@@ -93,8 +98,8 @@ export function useGroupMembers(groupId?: string) {
             .from("team_members")
             .insert({
               phone_number: member.phone_number,
-              name: member.name || "CS",
-              role: "CS",
+              name: member.name || teamRoleLabel,
+              role: teamRole,
               is_active: true,
             });
 
@@ -103,26 +108,36 @@ export function useGroupMembers(groupId?: string) {
           } else {
             toast({
               title: "Membro adicionado à equipe",
-              description: `${member.name || member.phone_number} foi adicionado à equipe como CS`,
+              description: `${member.name || member.phone_number} foi adicionado à equipe como ${teamRoleLabel}`,
             });
+          }
+        } else if (existingTeamMember.role !== teamRole) {
+          // Update existing team_member role to match
+          const { error: updateRoleError } = await supabase
+            .from("team_members")
+            .update({ role: teamRole, is_active: true })
+            .eq("id", existingTeamMember.id);
+
+          if (updateRoleError) {
+            console.error("Error updating team_member role:", updateRoleError);
           }
         }
 
-        // Update role to "cs" in ALL groups where this person exists (by phone_number)
+        // Update role in ALL groups where this person exists (by phone_number)
         const { error: syncError } = await supabase
           .from("group_members")
-          .update({ role: "cs" })
+          .update({ role })
           .eq("phone_number", member.phone_number);
 
         if (syncError) {
           console.error("Error syncing role across groups:", syncError);
         } else {
-          console.log("Synced CS role across all groups for:", member.phone_number);
+          console.log(`Synced ${role} role across all groups for:`, member.phone_number);
         }
       }
 
-      // If removed from CS, remove from team_members
-      if (role !== "cs" && member) {
+      // If changed to a non-staff role, remove from team_members
+      if (!isStaff && member) {
         const { error: deleteTeamError } = await supabase
           .from("team_members")
           .delete()
