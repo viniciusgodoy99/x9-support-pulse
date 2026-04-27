@@ -477,7 +477,7 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
             .eq("key", "sla_cs_direct_notification")
             .single();
 
-          const csNotifEnabled = csNotifSetting?.value !== "false"; // enabled by default
+          const csNotifEnabled = false; // Disabled by user request: "Cancela envio de SLA no privado para os CSs"
 
           if (csNotifEnabled) {
             for (const cs of csMembers) {
