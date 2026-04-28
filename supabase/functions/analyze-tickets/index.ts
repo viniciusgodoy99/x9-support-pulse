@@ -441,8 +441,9 @@ async function sendSlaBreachNotifications(supabase: SupabaseClient, testMode = f
       `${priorityDisplay}\n\n` +
       `Por favor, verifique o atendimento!`;
 
-    // Send notification to X9 group
-    const messageSent = await sendWhatsAppMessage(notificationGroupId, alertMessage);
+    // SLA notifications to X9 group are now disabled by user request
+    const messageSent = true; // Set to true to allow recording the "notification" and preventing repeats, but we don't actually call sendWhatsAppMessage for the X9 group.
+    console.log(`SLA notification for demand ${demand.id} suppressed for X9 group per user request`);
 
     if (messageSent) {
       // Record notification
