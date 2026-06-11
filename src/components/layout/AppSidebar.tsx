@@ -11,6 +11,7 @@ import {
   FlaskConical,
   ExternalLink,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -23,6 +24,8 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
@@ -71,6 +74,9 @@ const configItems = [
 export function AppSidebar() {
   const { status } = useWhatsAppStatus();
   const { theme } = useTheme();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  
   const logo = theme === "dark" ? logoBranca : logoAzul;
   const getStatusDot = () => {
     switch (status) {
@@ -86,16 +92,18 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-sidebar-border/50 frosted-glass">
-      <SidebarHeader className="p-4 border-b border-sidebar-border/50">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/50 frosted-glass">
+      <SidebarHeader className="p-4 border-b border-sidebar-border/50 overflow-hidden">
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div className="relative shrink-0">
             <img src={logo} alt="Agência Arttico" className="h-12 w-auto" />
-            <Snowflake className="absolute -top-1 -right-1 h-4 w-4 text-primary animate-pulse" />
+            {!isCollapsed && <Snowflake className="absolute -top-1 -right-1 h-4 w-4 text-primary animate-pulse" />}
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground">O X9 do Atendimento ❄️</span>
-          </div>
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">O X9 do Atendimento ❄️</span>
+            </div>
+          )}
         </div>
       </SidebarHeader>
 
@@ -193,9 +201,16 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Tema</span>
-          <div className="flex items-center gap-2">
+        <div className={cn(
+          "flex items-center",
+          isCollapsed ? "flex-col gap-4" : "justify-between"
+        )}>
+          {!isCollapsed && <span className="text-xs text-muted-foreground">Menu</span>}
+          <div className={cn(
+            "flex items-center gap-2",
+            isCollapsed && "flex-col"
+          )}>
+            <SidebarTrigger />
             <ThemeToggle />
             <Button
               variant="ghost"
