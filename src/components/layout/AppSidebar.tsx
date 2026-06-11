@@ -93,15 +93,19 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/50 frosted-glass">
-      <SidebarHeader className="p-4 border-b border-sidebar-border/50 overflow-hidden">
-        <div className="flex items-center gap-3">
+      <SidebarHeader className="p-4 border-b border-sidebar-border/50">
+        <div className="flex items-center gap-3 overflow-hidden">
           <div className="relative shrink-0">
             <img src={logo} alt="Agência Arttico" className="h-12 w-auto" />
-            {!isCollapsed && <Snowflake className="absolute -top-1 -right-1 h-4 w-4 text-primary animate-pulse" />}
+            {!isCollapsed && (
+              <Snowflake className="absolute -top-1 -right-1 h-4 w-4 text-primary animate-pulse" />
+            )}
           </div>
           {!isCollapsed && (
-            <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">O X9 do Atendimento ❄️</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs text-muted-foreground truncate font-medium">
+                O X9 do Atendimento ❄️
+              </span>
             </div>
           )}
         </div>
