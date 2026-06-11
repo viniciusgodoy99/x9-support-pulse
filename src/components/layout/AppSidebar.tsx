@@ -95,8 +95,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/50 frosted-glass">
       <SidebarHeader className="p-4 border-b border-sidebar-border/50">
         <div className="flex items-center gap-2 overflow-hidden">
-          <div className="relative shrink-0">
-            <img src={logo} alt="Agência Arttico" className="h-8 w-auto" />
+          <div className="relative shrink-0 flex items-center justify-center">
+            <img src={logo} alt="Agência Arttico" className={cn("h-8 w-auto", isCollapsed && "hidden")} />
+            {isCollapsed && <Snowflake className="h-6 w-6 text-primary animate-pulse" />}
             {!isCollapsed && (
               <Snowflake className="absolute -top-1 -right-1 h-3 w-3 text-primary animate-pulse" />
             )}
