@@ -104,7 +104,7 @@ export function AppSidebar() {
           {!isCollapsed && (
             <div className="flex flex-col min-w-0">
               <span className="text-[10px] leading-tight text-muted-foreground font-medium">
-                O X9 do Atendimento ❄️
+                O X9 do Atendimento'
               </span>
             </div>
           )}
