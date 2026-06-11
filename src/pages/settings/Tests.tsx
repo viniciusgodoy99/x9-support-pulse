@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, ReactNode } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -269,9 +269,14 @@ export default function Tests() {
   return (
     <MainLayout
       headerContent={
-        <div className="flex items-center gap-2">
-          <FlaskConical className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-semibold">Testes de Envio</h1>
+        <div className="flex flex-1 items-center gap-3">
+          <FlaskConical className="h-5 w-5 sm:h-6 sm:w-6 text-primary animate-pulse" />
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Área de Testes</h1>
+            <p className="text-muted-foreground text-[10px] sm:text-xs hidden sm:block font-medium">
+              Execute testes de fluxo e classificações de IA
+            </p>
+          </div>
         </div>
       }
     >

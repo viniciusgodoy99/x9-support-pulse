@@ -55,10 +55,10 @@ export default function Monitoring() {
 
   const headerContent = (
     <div className="flex flex-1 items-center gap-3">
-      <Radio className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
+      <Radio className="h-5 w-5 sm:h-6 sm:w-6 text-primary animate-pulse" />
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Monitoramento</h1>
-        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+        <h1 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Monitoramento</h1>
+        <p className="text-muted-foreground text-[10px] sm:text-xs hidden sm:block font-medium">
           Acompanhe os tickets abertos e tempos de resposta
         </p>
       </div>
