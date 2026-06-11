@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Shield, Save, Info, CheckCircle2, XCircle } from "lucide-react";
+import { Shield, Save, Info, CheckCircle2, XCircle, Lock, Unlock } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -19,6 +20,7 @@ export default function Permissions() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [isLocked, setIsLocked] = useState(true);
 
   useEffect(() => {
     fetchPermissions();
@@ -91,12 +93,31 @@ export default function Permissions() {
   return (
     <MainLayout headerContent={headerContent}>
       <div className="max-w-4xl mx-auto space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Funções do Sistema</CardTitle>
-            <CardDescription>
-              Ative ou desative as principais funcionalidades do sistema X9.
-            </CardDescription>
+        <Card className="relative">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
+            <div className="space-y-1">
+              <CardTitle>Funções do Sistema</CardTitle>
+              <CardDescription>
+                Ative ou desative as principais funcionalidades do sistema X9.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={isLocked ? "destructive" : "secondary"} className="h-6">
+                {isLocked ? "Bloqueado" : "Editável"}
+              </Badge>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setIsLocked(!isLocked)}
+              >
+                {isLocked ? (
+                  <Lock className="h-4 w-4 text-destructive" />
+                ) : (
+                  <Unlock className="h-4 w-4 text-primary" />
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -134,7 +155,7 @@ export default function Permissions() {
                       <Switch
                         checked={permission.is_enabled}
                         onCheckedChange={() => handleToggle(permission.id, permission.is_enabled)}
-                        disabled={savingId === permission.id}
+                        disabled={savingId === permission.id || isLocked}
                       />
                     </div>
                   </div>
