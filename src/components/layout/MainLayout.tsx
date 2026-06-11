@@ -17,7 +17,6 @@ export function MainLayout({ children, headerContent }: MainLayoutProps) {
         <main className="flex-1 flex flex-col relative z-10">
           <header className="border-b border-border/50 frosted-glass sticky top-0 z-20 px-4 py-3">
             <div className="flex items-center gap-4">
-              <SidebarTrigger />
               {headerContent || (
                 <Snowflake className="h-5 w-5 text-primary animate-pulse" />
               )}
