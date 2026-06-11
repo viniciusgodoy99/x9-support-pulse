@@ -54,10 +54,10 @@ export default function Settings() {
 
   const headerContent = (
     <div className="flex flex-1 items-center gap-3">
-      <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+      <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Configurações de SLA</h1>
-        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">
+        <h1 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Configurações de SLA</h1>
+        <p className="text-muted-foreground text-[10px] sm:text-xs hidden sm:block font-medium">
           Configure o tempo máximo de resposta para atendimentos
         </p>
       </div>

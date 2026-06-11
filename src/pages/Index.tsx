@@ -291,10 +291,10 @@ export default function Dashboard() {
 
   const headerContent = (
     <div className="flex flex-1 items-center gap-3">
-      <Snowflake className="h-6 w-6 sm:h-8 sm:w-8 text-primary animate-pulse" />
+      <Snowflake className="h-5 w-5 sm:h-6 sm:w-6 text-primary animate-pulse" />
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground text-xs sm:text-sm hidden sm:block">Visão geral do monitoramento de SLA</p>
+        <h1 className="text-lg sm:text-xl font-bold text-foreground tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground text-[10px] sm:text-xs hidden sm:block font-medium">Visão geral do monitoramento de SLA</p>
       </div>
     </div>
   );
