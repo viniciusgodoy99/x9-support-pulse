@@ -16,6 +16,7 @@ import Settings from "./pages/settings/Settings";
 import WhatsAppConnect from "./pages/settings/WhatsAppConnect";
 import Tests from "./pages/settings/Tests";
 import ClickUpSettings from "./pages/settings/ClickUpSettings";
+import Permissions from "./pages/settings/Permissions";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 
@@ -101,6 +102,10 @@ const App = () => {
             <Route
               path="/settings/clickup"
               element={<ProtectedRoute session={session}><ClickUpSettings /></ProtectedRoute>}
+            />
+            <Route
+              path="/settings/permissions"
+              element={<ProtectedRoute session={session}><Permissions /></ProtectedRoute>}
             />
             <Route
               path="/settings"

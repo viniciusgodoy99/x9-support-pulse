@@ -10,6 +10,7 @@ import {
   LogOut,
   FlaskConical,
   ExternalLink,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NavLink } from "@/components/NavLink";
@@ -68,6 +69,11 @@ const configItems = [
     title: "SLA",
     url: "/settings",
     icon: Clock,
+  },
+  {
+    title: "Permissões",
+    url: "/settings/permissions",
+    icon: Shield,
   },
 ];
 
