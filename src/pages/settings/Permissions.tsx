@@ -174,16 +174,6 @@ export default function Permissions() {
           </CardContent>
         </Card>
 
-        <div className="flex items-start gap-2 p-4 rounded-lg bg-muted/50 border">
-          <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">Nota sobre Permissões</p>
-            <p>
-              Desativar uma função impedirá que o sistema execute as tarefas associadas a ela imediatamente. 
-              Isso pode afetar o monitoramento em tempo real e a geração de alertas.
-            </p>
-          </div>
-        </div>
       </div>
     </MainLayout>
   );
