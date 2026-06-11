@@ -103,6 +103,10 @@ const App = () => {
               element={<ProtectedRoute session={session}><ClickUpSettings /></ProtectedRoute>}
             />
             <Route
+              path=\"/settings/permissions\"
+              element={<ProtectedRoute session={session}><Permissions /></ProtectedRoute>}
+            />
+            <Route
               path="/settings"
               element={<ProtectedRoute session={session}><Settings /></ProtectedRoute>}
             />
