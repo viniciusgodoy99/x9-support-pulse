@@ -69,6 +69,11 @@ const configItems = [
     url: "/settings",
     icon: Clock,
   },
+  {
+    title: \"Permissões\",
+    url: \"/settings/permissions\",
+    icon: Shield,
+  },
 ];
 
 export function AppSidebar() {
