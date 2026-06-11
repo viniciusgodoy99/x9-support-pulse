@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 interface Permission {
   id: string;
@@ -134,11 +135,19 @@ export default function Permissions() {
                 {permissions.map((permission) => (
                   <div 
                     key={permission.id} 
-                    className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                    className={cn(
+                      "flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors",
+                      isLocked && "opacity-60"
+                    )}
                   >
                     <div className="space-y-1 pr-4">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold">{permission.label}</span>
+                        <span className={cn(
+                          "font-semibold transition-colors",
+                          isLocked ? "text-muted-foreground" : "text-foreground"
+                        )}>
+                          {permission.label}
+                        </span>
                         {permission.is_enabled ? (
                           <CheckCircle2 className="h-3 w-3 text-primary" />
                         ) : (
