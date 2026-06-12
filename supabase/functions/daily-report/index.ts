@@ -246,36 +246,34 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function isDailyBroadcastEnabled(
+  supabase: ReturnType<typeof createClient>
+): Promise<boolean> {
+  const { data: permission, error } = await supabase
+    .from("x9_permissions")
+    .select("is_enabled")
+    .eq("key", "daily_broadcast")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not read daily_broadcast permission:", error);
+    return false;
+  }
+
+  if (permission?.is_enabled !== true) {
+    console.log("Daily report is disabled via x9_permissions (daily_broadcast)");
+    return false;
+  }
+
+  return true;
+}
+
 // Prepare all reports (only on first invocation)
 async function prepareReports(supabase: ReturnType<typeof createClient>): Promise<{
   reports: GroupReport[];
   dateStr: string;
   instance: { api_url: string; api_token: string };
 } | null> {
-  // Check if daily report is enabled (x9_permissions takes precedence)
-  const { data: permission } = await supabase
-    .from("x9_permissions")
-    .select("is_enabled")
-    .eq("key", "daily_broadcast")
-    .maybeSingle();
-
-  if (permission && permission.is_enabled === false) {
-    console.log("Daily report is disabled via x9_permissions (daily_broadcast)");
-    return null;
-  }
-
-  // Legacy fallback: settings.daily_report_enabled
-  const { data: enabledSetting } = await supabase
-    .from("settings")
-    .select("value")
-    .eq("key", "daily_report_enabled")
-    .maybeSingle();
-
-  if (enabledSetting?.value === "false") {
-    console.log("Daily report is disabled via settings");
-    return null;
-  }
-
   // Get default WhatsApp instance
   const { data: instance, error: instanceError } = await supabase
     .from("whatsapp_instances")
@@ -454,6 +452,13 @@ Deno.serve(async (req) => {
     const precomputedInstance = body.instanceData || null;
     const precomputedDateStr = body.dateStr || null;
 
+    if (!(await isDailyBroadcastEnabled(supabase))) {
+      return new Response(
+        JSON.stringify({ success: true, message: "Daily report disabled" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     let reports: GroupReport[];
     let instanceData: { api_url: string; api_token: string };
     let dateStr: string;
@@ -477,6 +482,13 @@ Deno.serve(async (req) => {
       console.log(`Total groups with interactions today: ${reports.length}, processing in batches of ${BATCH_SIZE}`);
     } else {
       // Subsequent invocation: use precomputed data
+      if (!precomputedReports || !precomputedInstance || !precomputedDateStr) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Invalid batch payload" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       reports = precomputedReports!;
       instanceData = precomputedInstance!;
       dateStr = precomputedDateStr!;

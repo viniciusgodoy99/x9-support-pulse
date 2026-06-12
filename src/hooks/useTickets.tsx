@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+const TICKET_DEMAND_BATCH_SIZE = 75;
+
 export interface TicketDemand {
   id: string;
   ticket_id: string;
@@ -70,21 +72,25 @@ export function useTickets(status?: "open" | "resolved") {
 
       if (ticketsError) throw ticketsError;
 
-      // Fetch demands for each ticket
+      // Fetch demands for each ticket in small batches to avoid oversized REST URLs.
       const ticketIds = ticketsData?.map(t => t.id) || [];
       
       let demands: TicketDemand[] = [];
       if (ticketIds.length > 0) {
-        const { data: demandsData, error: demandsError } = await supabase
-          .from("ticket_demands")
-          .select("*")
-          .in("ticket_id", ticketIds)
-          .order("created_at", { ascending: true });
-        
-        if (demandsError) {
-          console.error("Error fetching demands:", demandsError);
-        } else {
-          demands = (demandsData || []) as TicketDemand[];
+        for (let i = 0; i < ticketIds.length; i += TICKET_DEMAND_BATCH_SIZE) {
+          const ticketIdBatch = ticketIds.slice(i, i + TICKET_DEMAND_BATCH_SIZE);
+          const { data: demandsData, error: demandsError } = await supabase
+            .from("ticket_demands")
+            .select("*")
+            .in("ticket_id", ticketIdBatch)
+            .order("created_at", { ascending: true });
+          
+          if (demandsError) {
+            console.error("Error fetching demands:", demandsError);
+            throw demandsError;
+          }
+
+          demands = [...demands, ...((demandsData || []) as TicketDemand[])];
         }
       }
 
