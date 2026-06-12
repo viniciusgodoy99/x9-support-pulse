@@ -452,6 +452,13 @@ Deno.serve(async (req) => {
     const precomputedInstance = body.instanceData || null;
     const precomputedDateStr = body.dateStr || null;
 
+    if (!(await isDailyBroadcastEnabled(supabase))) {
+      return new Response(
+        JSON.stringify({ success: true, message: "Daily report disabled" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     let reports: GroupReport[];
     let instanceData: { api_url: string; api_token: string };
     let dateStr: string;
@@ -475,6 +482,13 @@ Deno.serve(async (req) => {
       console.log(`Total groups with interactions today: ${reports.length}, processing in batches of ${BATCH_SIZE}`);
     } else {
       // Subsequent invocation: use precomputed data
+      if (!precomputedReports || !precomputedInstance || !precomputedDateStr) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Invalid batch payload" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       reports = precomputedReports!;
       instanceData = precomputedInstance!;
       dateStr = precomputedDateStr!;
