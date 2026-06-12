@@ -99,7 +99,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border/50 frosted-glass">
-      <SidebarHeader className="px-4 py-3 border-b border-sidebar-border/50 h-[61px] flex justify-center">
+      <SidebarHeader className="px-4 border-b border-sidebar-border/50 h-14 flex justify-center">
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="relative shrink-0 flex items-center justify-center">
             <img src={logo} alt="Agência Arttico" className={cn("h-8 w-auto", isCollapsed && "hidden")} />
