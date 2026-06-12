@@ -252,15 +252,27 @@ async function prepareReports(supabase: ReturnType<typeof createClient>): Promis
   dateStr: string;
   instance: { api_url: string; api_token: string };
 } | null> {
-  // Check if daily report is enabled
+  // Check if daily report is enabled (x9_permissions takes precedence)
+  const { data: permission } = await supabase
+    .from("x9_permissions")
+    .select("is_enabled")
+    .eq("key", "daily_broadcast")
+    .maybeSingle();
+
+  if (permission && permission.is_enabled === false) {
+    console.log("Daily report is disabled via x9_permissions (daily_broadcast)");
+    return null;
+  }
+
+  // Legacy fallback: settings.daily_report_enabled
   const { data: enabledSetting } = await supabase
     .from("settings")
     .select("value")
     .eq("key", "daily_report_enabled")
-    .single();
+    .maybeSingle();
 
   if (enabledSetting?.value === "false") {
-    console.log("Daily report is disabled");
+    console.log("Daily report is disabled via settings");
     return null;
   }
 
