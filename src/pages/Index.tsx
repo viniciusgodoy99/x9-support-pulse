@@ -553,8 +553,12 @@ export default function Dashboard() {
                             backgroundColor: "hsl(var(--card))",
                             borderColor: "hsl(var(--border))",
                             borderRadius: "var(--radius)",
+                            color: "#ffffff",
                           }}
+                          itemStyle={{ color: "#ffffff" }}
+                          labelStyle={{ color: "#ffffff" }}
                         />
+
                       </PieChart>
                     </ResponsiveContainer></div>
                   )}
