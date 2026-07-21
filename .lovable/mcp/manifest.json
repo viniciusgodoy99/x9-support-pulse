@@ -33,6 +33,39 @@
           "$schema": "http://json-schema.org/draft-07/schema#"
         },
         "outputSchema": null
+      },
+      {
+        "name": "atendimento_cliente",
+        "title": "Atendimento do cliente",
+        "description": "Retorna as demandas e métricas de atendimento (abertas, resolvidas, tempo de resposta, SLA) de um cliente, a partir dos grupos monitorados pelo X9.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "cliente": {
+              "type": "string",
+              "description": "Nome do cliente (casar com o nome do grupo/cliente, case-insensitive e parcial)."
+            },
+            "since": {
+              "type": "string",
+              "description": "Data inicial YYYY-MM-DD (opcional)."
+            },
+            "until": {
+              "type": "string",
+              "description": "Data final YYYY-MM-DD (opcional)."
+            }
+          },
+          "required": [
+            "cliente"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
       }
     ]
   }
