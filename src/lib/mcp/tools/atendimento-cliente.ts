@@ -62,8 +62,9 @@ export default defineTool({
     openWorldHint: false,
   },
   handler: async ({ cliente, since, until }) => {
-    const url = process.env.SUPABASE_URL!;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY!;
+    const env = ((globalThis as any).process?.env ?? {}) as Record<string, string | undefined>;
+    const url = env.SUPABASE_URL!;
+    const key = env.SUPABASE_SERVICE_ROLE_KEY ?? env.SUPABASE_PUBLISHABLE_KEY!;
     const supabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
