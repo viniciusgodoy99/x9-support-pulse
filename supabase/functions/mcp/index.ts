@@ -30,13 +30,140 @@ var ping_default = defineTool({
   })
 });
 
+// src/lib/mcp/tools/atendimento-cliente.ts
+import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.24.0";
+import { z as z2 } from "npm:zod@^3.25.76";
+import { createClient } from "npm:@supabase/supabase-js@^2.86.0";
+function stripAccents(s) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+function toYMD(iso) {
+  if (!iso) return null;
+  return new Date(iso).toISOString().slice(0, 10);
+}
+function normalizeStatus(s, resolvedAt) {
+  const v = (s ?? "").toLowerCase();
+  if (resolvedAt || v.includes("resolv") || v === "closed" || v === "done") return "resolvida";
+  if (v.includes("andamento") || v.includes("progress") || v === "in_progress") return "andamento";
+  return "aberta";
+}
+function normalizePriority(p) {
+  const v = (p ?? "").toLowerCase();
+  if (v.startsWith("alt") || v === "high" || v === "urgent") return "alta";
+  if (v.startsWith("bai") || v === "low") return "baixa";
+  return "media";
+}
+function emptyPayload(cliente) {
+  return {
+    cliente,
+    demandas_abertas: 0,
+    demandas_resolvidas: 0,
+    tempo_resposta_medio_min: 0,
+    sla_pct: 0,
+    demandas: []
+  };
+}
+var atendimento_cliente_default = defineTool2({
+  name: "atendimento_cliente",
+  title: "Atendimento do cliente",
+  description: "Retorna as demandas e m\xE9tricas de atendimento (abertas, resolvidas, tempo de resposta, SLA) de um cliente, a partir dos grupos monitorados pelo X9.",
+  inputSchema: {
+    cliente: z2.string().describe("Nome do cliente (casar com o nome do grupo/cliente, case-insensitive e parcial)."),
+    since: z2.string().optional().describe("Data inicial YYYY-MM-DD (opcional)."),
+    until: z2.string().optional().describe("Data final YYYY-MM-DD (opcional).")
+  },
+  annotations: {
+    readOnlyHint: true,
+    idempotentHint: true,
+    openWorldHint: false
+  },
+  handler: async ({ cliente, since, until }) => {
+    const env = globalThis.process?.env ?? {};
+    const url = env.SUPABASE_URL;
+    const key = env.SUPABASE_SERVICE_ROLE_KEY ?? env.SUPABASE_PUBLISHABLE_KEY;
+    const supabase = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    const asText = (obj) => ({
+      content: [{ type: "text", text: JSON.stringify(obj) }]
+    });
+    const query = (cliente ?? "").trim();
+    if (!query) return asText(emptyPayload(cliente ?? ""));
+    const { data: allGroups, error: gErr } = await supabase.from("monitored_groups").select("id, name, sla_limit_minutes").eq("is_archived", false);
+    if (gErr || !allGroups) return asText(emptyPayload(query));
+    const needle = stripAccents(query.toLowerCase());
+    const groups = allGroups.filter(
+      (g) => stripAccents((g.name ?? "").toLowerCase()).includes(needle)
+    );
+    if (groups.length === 0) return asText(emptyPayload(query));
+    const groupIds = groups.map((g) => g.id);
+    const clienteLabel = groups[0].name ?? query;
+    const sinceIso = since ? (/* @__PURE__ */ new Date(since + "T00:00:00Z")).toISOString() : null;
+    const untilIso = until ? (/* @__PURE__ */ new Date(until + "T23:59:59Z")).toISOString() : null;
+    const tickets = [];
+    for (let i = 0; i < groupIds.length; i += 50) {
+      const chunk = groupIds.slice(i, i + 50);
+      let q = supabase.from("tickets").select("id, group_id, created_at, first_response_at, resolved_at").in("group_id", chunk);
+      if (sinceIso) q = q.gte("created_at", sinceIso);
+      if (untilIso) q = q.lte("created_at", untilIso);
+      const { data } = await q;
+      if (data) tickets.push(...data);
+    }
+    if (tickets.length === 0) {
+      return asText({ ...emptyPayload(clienteLabel) });
+    }
+    const ticketMap = new Map(tickets.map((t) => [t.id, t]));
+    const ticketIds = tickets.map((t) => t.id);
+    const demandsRaw = [];
+    for (let i = 0; i < ticketIds.length; i += 75) {
+      const chunk = ticketIds.slice(i, i + 75);
+      const { data } = await supabase.from("ticket_demands").select("id, ticket_id, description, status, priority, created_at, resolved_at, sla_exceeded").in("ticket_id", chunk).order("created_at", { ascending: false });
+      if (data) demandsRaw.push(...data);
+    }
+    let abertas = 0;
+    let resolvidas = 0;
+    let slaOk = 0;
+    let slaTotal = 0;
+    const respostaMins = [];
+    const demandas = demandsRaw.map((d) => {
+      const st = normalizeStatus(d.status, d.resolved_at);
+      if (st === "resolvida") resolvidas += 1;
+      else abertas += 1;
+      slaTotal += 1;
+      if (!d.sla_exceeded) slaOk += 1;
+      const parent = ticketMap.get(d.ticket_id);
+      if (parent?.first_response_at && parent?.created_at) {
+        const diff = (new Date(parent.first_response_at).getTime() - new Date(parent.created_at).getTime()) / 6e4;
+        if (diff >= 0 && diff < 60 * 24 * 30) respostaMins.push(diff);
+      }
+      return {
+        titulo: (d.description ?? "").slice(0, 140),
+        status: st,
+        aberta_em: toYMD(d.created_at),
+        resolvida_em: toYMD(d.resolved_at),
+        prioridade: normalizePriority(d.priority)
+      };
+    });
+    const tempoMedio = respostaMins.length > 0 ? Math.round(respostaMins.reduce((a, b) => a + b, 0) / respostaMins.length) : 0;
+    const slaPct = slaTotal > 0 ? Math.round(slaOk / slaTotal * 100) : 0;
+    return asText({
+      cliente: clienteLabel,
+      demandas_abertas: abertas,
+      demandas_resolvidas: resolvidas,
+      tempo_resposta_medio_min: tempoMedio,
+      sla_pct: slaPct,
+      demandas: demandas.slice(0, 20)
+    });
+  }
+});
+
 // src/lib/mcp/index.ts
 var mcp_default = defineMcp({
   name: "x9-mcp",
   title: "X9 do Atendimento \u2014 MCP",
   version: "0.1.0",
-  instructions: "Servidor MCP p\xFAblico do X9 do Atendimento. Use `ping` para verificar conectividade. Novas ferramentas podem ser adicionadas conforme necess\xE1rio.",
-  tools: [ping_default]
+  instructions: "Servidor MCP p\xFAblico do X9 do Atendimento. Use `ping` para verificar conectividade e `atendimento_cliente` para consultar demandas e m\xE9tricas de atendimento de um cliente.",
+  tools: [ping_default, atendimento_cliente_default]
 });
 
 // lovable-mcp-supabase-entry.ts
