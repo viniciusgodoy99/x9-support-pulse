@@ -25,9 +25,14 @@ function safeEqual(a: string, b: string) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const expected = Deno.env.get('EXPORT_TOKEN')
-  const provided = req.headers.get('x-export-token') ?? ''
-  if (!expected || !safeEqual(provided, expected)) return json({ error: 'Unauthorized' }, 401)
+  const expectedRaw = Deno.env.get('EXPORT_TOKEN')
+  if (!expectedRaw) return json({ error: 'EXPORT_TOKEN not configured' }, 500)
+  const expected = expectedRaw.trim()
+  const provided = (req.headers.get('x-export-token') ?? '').trim()
+  if (!safeEqual(provided, expected)) {
+    console.log(`export-data auth failed: header length=${provided.length}, secret length=${expected.length}`)
+    return json({ error: 'Unauthorized' }, 401)
+  }
   if (req.method !== 'GET') return json({ error: 'Method not allowed' }, 405)
 
   const url = new URL(req.url)
